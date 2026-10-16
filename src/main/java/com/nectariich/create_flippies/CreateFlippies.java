@@ -1,0 +1,117 @@
+package com.nectariich.create_flippies;
+
+import com.mojang.logging.LogUtils;
+import com.nectariich.create_flippies.content.gauge.UniversalGaugeDisplayTarget;
+import com.nectariich.create_flippies.content.circuit_breaker.CircuitBreakerType;
+import com.nectariich.create_flippies.content.display.AlphanumDisplayControlType;
+import com.nectariich.create_flippies.content.display.AlphanumDisplayTarget;
+import com.nectariich.create_flippies.content.label.PanelLabelControlType;
+import com.nectariich.create_flippies.content.plc.PlcSmallControlType;
+import com.nectariich.create_flippies.content.psu.PsuType;
+import com.nectariich.create_flippies.content.relay.RelayMountType;
+import com.nectariich.create_flippies.content.terminal_block.TerminalBlockType;
+import com.nectariich.create_flippies.content.host.ControlHostDisplayTarget;
+import com.nectariich.create_flippies.content.indicator.IndicatorControlType;
+import com.nectariich.create_flippies.content.procedural_gauge.ProceduralGaugeDisplayTarget;
+import com.nectariich.create_flippies.content.procedural_gauge.ProceduralVoltmeterControlType;
+import com.nectariich.create_flippies.content.procedural_gauge.SquareProceduralGaugeControlType;
+import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchControlType;
+import com.nectariich.create_flippies.foundation.ClientConfig;
+import com.nectariich.create_flippies.network.ModPackets;
+import com.nectariich.create_flippies.registry.ModBlockEntities;
+import com.nectariich.create_flippies.registry.ModBlocks;
+import com.nectariich.create_flippies.registry.ModCreativeTabs;
+import com.nectariich.create_flippies.registry.ModItems;
+import com.nectariich.create_flippies.registry.ModSounds;
+import com.simibubi.create.api.behaviour.display.DisplayTarget;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import org.slf4j.Logger;
+
+@Mod(CreateFlippies.MOD_ID)
+public class CreateFlippies {
+    public static final String MOD_ID = "create_flippies";
+    public static final String NAME = "Create: Flippies";
+    public static final Logger LOGGER = LogUtils.getLogger();
+
+    public CreateFlippies() {
+        FMLJavaModLoadingContext context = FMLJavaModLoadingContext.get();
+        IEventBus modBus = context.getModEventBus();
+
+        ModBlocks.register(modBus);
+        ModItems.register(modBus);
+        ModBlockEntities.register(modBus);
+        ModCreativeTabs.register(modBus);
+        ModSounds.register(modBus);
+
+        // Client type, so the settings are per-installation and never loaded on a
+        // dedicated server. ClientConfig imports nothing client-only, so naming it
+        // from common code is safe; and registerConfig is an inherited instance
+        // method, so the context already in hand does the job.
+        context.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
+
+        modBus.addListener(this::commonSetup);
+        modBus.addListener(this::clientSetup);
+
+        // Flywheel partials must exist before model baking starts
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                () -> com.nectariich.create_flippies.client.ModPartialModels::init);
+
+        MinecraftForge.EVENT_BUS.register(this);
+    }
+
+    private void commonSetup(final FMLCommonSetupEvent event) {
+        ModPackets.register();
+        // Control kinds are named by their saves, so every kind a world might hold
+        // has to be in the catalogue before any host block entity is read
+        RotarySwitchControlType.register();
+        PanelLabelControlType.register();
+        ProceduralVoltmeterControlType.register();
+        IndicatorControlType.register();
+        SquareProceduralGaugeControlType.register();
+        CircuitBreakerType.register();
+        PlcSmallControlType.register();
+        PsuType.register();
+        RelayMountType.register();
+        TerminalBlockType.register();
+        AlphanumDisplayControlType.register();
+        event.enqueueWork(() -> {
+            DisplayTarget.BY_BLOCK_ENTITY
+                    .register(ModBlockEntities.UNIVERSAL_GAUGE.get(), new UniversalGaugeDisplayTarget());
+            DisplayTarget.BY_BLOCK_ENTITY
+                    .register(ModBlockEntities.SQUARE_PROCEDURAL_GAUGE.get(), new ProceduralGaugeDisplayTarget());
+            DisplayTarget.BY_BLOCK_ENTITY
+                    .register(ModBlockEntities.ALPHANUM_DISPLAY.get(), new AlphanumDisplayTarget());
+            // Every block that can carry controls is a display target, because the
+            // labels, gauges and displays mounted in it are; one holding none accepts
+            // text and does nothing with it.
+            //
+            // Both holders have to be named. The target reads its rows off
+            // ControlRackHolder and so works for either, but this registry is keyed by
+            // block entity type, so a holder left out here is not a target at all —
+            // which is what made a gauge screwed to a panel refuse a link while the
+            // same gauge on a bare host accepted one. A DIN rail is deliberately not
+            // here: it only seats DinRailMountable kinds, and none of those is a
+            // LinkDrivenControl, so a rail can never hold a row to write to.
+            ControlHostDisplayTarget mountedControls = new ControlHostDisplayTarget();
+            DisplayTarget.BY_BLOCK_ENTITY.register(ModBlockEntities.CONTROL_HOST.get(), mountedControls);
+            DisplayTarget.BY_BLOCK_ENTITY.register(ModBlockEntities.LARGE_PANEL.get(), mountedControls);
+        });
+        LOGGER.info("{} initialized", NAME);
+    }
+
+    private void clientSetup(final FMLClientSetupEvent event) {
+    }
+
+    public static ResourceLocation asResource(String path) {
+        return new ResourceLocation(MOD_ID, path);
+    }
+}

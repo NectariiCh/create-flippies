@@ -1,0 +1,54 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "create_flippies:din_rail",
+          "conditions": [
+            {
+              "condition": "minecraft:block_state_property",
+              "block": "create_flippies:din_rail",
+              "properties": {
+                "rails": "1"
+              }
+            },
+            {
+              "condition": "minecraft:survives_explosion"
+            }
+          ],
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "create_flippies:din_rail",
+          "conditions": [
+            {
+              "condition": "minecraft:block_state_property",
+              "block": "create_flippies:din_rail",
+              "properties": {
+                "rails": "2"
+              }
+            },
+            {
+              "condition": "minecraft:survives_explosion"
+            }
+          ],
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": 2
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
