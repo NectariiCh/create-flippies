@@ -1,0 +1,23 @@
+{
+  "__comment": "The backing plate of a panel label: 7 x 2 pixels, a quarter of a pixel proud. Drawn from a white material because the renderer tints it with the label's own plate colour; the grey it used to be is now PanelLabel.DEFAULT_PLATE_COLOUR. Authored plate-down in the SurfaceMount frame and kept in step with PanelLabel.PLATE, which is what the label's footprint and hitbox come from.",
+  "texture_size": [16, 16],
+  "textures": {
+    "plate": "minecraft:block/white_concrete",
+    "particle": "minecraft:block/white_concrete"
+  },
+  "elements": [
+    {
+      "name": "plate",
+      "from": [4.5, 0, 7],
+      "to": [11.5, 0.25, 9],
+      "faces": {
+        "north": { "uv": [4.5, 15.75, 11.5, 16], "texture": "#plate" },
+        "east":  { "uv": [7, 15.75, 9, 16], "texture": "#plate" },
+        "south": { "uv": [4.5, 15.75, 11.5, 16], "texture": "#plate" },
+        "west":  { "uv": [7, 15.75, 9, 16], "texture": "#plate" },
+        "up":    { "uv": [4.5, 7, 11.5, 9], "texture": "#plate" },
+        "down":  { "uv": [4.5, 7, 11.5, 9], "texture": "#plate" }
+      }
+    }
+  ]
+}

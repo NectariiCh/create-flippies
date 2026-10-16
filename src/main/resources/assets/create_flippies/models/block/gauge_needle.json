@@ -1,0 +1,35 @@
+{
+	"render_type": "minecraft:cutout",
+	"textures": {
+		"0": "create_flippies:block/gauge_needle",
+		"particle": "create_flippies:block/gauge_needle"
+	},
+	"elements": [
+		{
+			"from": [7.75, 7.75, 14.75],
+			"to": [8.25, 8.25, 15],
+			"rotation": {"angle": 0, "axis": "y", "origin": [7, 7.75, 14]},
+			"faces": {
+				"north": {"uv": [10, 10, 12, 12], "texture": "#0"},
+				"east": {"uv": [10, 10, 11, 12], "texture": "#0"},
+				"south": {"uv": [10, 10, 12, 12], "texture": "#0"},
+				"west": {"uv": [10, 10, 11, 12], "texture": "#0"},
+				"up": {"uv": [10, 10, 12, 11], "texture": "#0"},
+				"down": {"uv": [10, 10, 12, 11], "texture": "#0"}
+			}
+		},
+		{
+			"from": [7.875, 8.25, 14.75],
+			"to": [8.125, 10, 15],
+			"rotation": {"angle": 0, "axis": "y", "origin": [7, 8.5, 14]},
+			"faces": {
+				"north": {"uv": [4, 2, 5, 7], "texture": "#0"},
+				"east": {"uv": [4, 2, 5, 7], "texture": "#0"},
+				"south": {"uv": [4, 2, 5, 7], "texture": "#0"},
+				"west": {"uv": [4, 2, 5, 7], "texture": "#0"},
+				"up": {"uv": [4, 2, 5, 3], "texture": "#0"},
+				"down": {"uv": [4, 2, 5, 3], "texture": "#0"}
+			}
+		}
+	]
+}

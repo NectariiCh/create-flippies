@@ -1,0 +1,60 @@
+{
+  "circuit_breaker.close": {
+    "subtitle": "subtitles.create_flippies.circuit_breaker.close",
+    "sounds": [
+      {
+        "name": "create_flippies:circuit_breaker/close_1"
+      },
+      {
+        "name": "create_flippies:circuit_breaker/close_2"
+      },
+      {
+        "name": "create_flippies:circuit_breaker/close_3"
+      },
+      {
+        "name": "create_flippies:circuit_breaker/close_4"
+      },
+      {
+        "name": "create_flippies:circuit_breaker/close_5"
+      }
+    ]
+  },
+  "circuit_breaker.trip": {
+    "subtitle": "subtitles.create_flippies.circuit_breaker.trip",
+    "sounds": [
+      {
+        "name": "create_flippies:circuit_breaker/trip_1"
+      },
+      {
+        "name": "create_flippies:circuit_breaker/trip_2"
+      },
+      {
+        "name": "create_flippies:circuit_breaker/trip_3"
+      },
+      {
+        "name": "create_flippies:circuit_breaker/trip_4"
+      },
+      {
+        "name": "create_flippies:circuit_breaker/trip_5"
+      }
+    ]
+  },
+  "relay.click": {
+    "subtitle": "subtitles.create_flippies.relay.click",
+    "sounds": [
+      {
+        "name": "create_flippies:rotary_switch/turn_a",
+        "pitch": 1.8,
+        "volume": 0.5
+      }
+    ]
+  },
+  "rotary_switch.turn": {
+    "subtitle": "subtitles.create_flippies.rotary_switch.turn",
+    "sounds": [
+      {
+        "name": "create_flippies:rotary_switch/turn_a"
+      }
+    ]
+  }
+}

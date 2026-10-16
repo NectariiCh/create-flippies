@@ -1,0 +1,37 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made with Blockbench",
+	"texture_size": [8, 8],
+	"textures": {
+		"0": "create_flippies:block/rotary-switch-med-c-handle",
+		"particle": "create_flippies:block/rotary-switch-med-c-handle"
+	},
+	"elements": [
+		{
+			"from": [7.25, 0.5, 7.25],
+			"to": [8.75, 1.25, 8.75],
+			"rotation": {"angle": 0, "axis": "y", "origin": [7, 0.5, 7]},
+			"faces": {
+				"north": {"uv": [0, 8, 3, 9.5], "texture": "#0"},
+				"east": {"uv": [8, 4, 11, 5.5], "texture": "#0"},
+				"south": {"uv": [8, 6, 11, 7.5], "texture": "#0"},
+				"west": {"uv": [8, 8, 11, 9.5], "texture": "#0"},
+				"up": {"uv": [3, 3, 0, 0], "texture": "#0"},
+				"down": {"uv": [3, 4, 0, 7], "texture": "#0"}
+			}
+		},
+		{
+			"from": [7.75, 1, 7],
+			"to": [8.25, 1.75, 9.75],
+			"rotation": {"angle": 0, "axis": "y", "origin": [8, 0.75, 7]},
+			"faces": {
+				"north": {"uv": [0, 10, 1, 11.5], "texture": "#0"},
+				"east": {"uv": [4, 0, 9.5, 1.5], "texture": "#0"},
+				"south": {"uv": [10, 0, 11, 1.5], "texture": "#0"},
+				"west": {"uv": [4, 2, 9.5, 3.5], "texture": "#0"},
+				"up": {"uv": [5, 9.5, 4, 4], "texture": "#0"},
+				"down": {"uv": [7, 4, 6, 9.5], "texture": "#0"}
+			}
+		}
+	]
+}

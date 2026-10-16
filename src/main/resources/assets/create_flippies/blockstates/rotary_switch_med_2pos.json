@@ -1,0 +1,76 @@
+{
+  "variants": {
+    "facing=down,rotation=0": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=down,rotation=1": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=down,rotation=2": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=down,rotation=3": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=up,rotation=0": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=up,rotation=1": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=up,rotation=2": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=up,rotation=3": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=north,rotation=0": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=north,rotation=1": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=north,rotation=2": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=north,rotation=3": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=south,rotation=0": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=south,rotation=1": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=south,rotation=2": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=south,rotation=3": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=west,rotation=0": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=west,rotation=1": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=west,rotation=2": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=west,rotation=3": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=east,rotation=0": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=east,rotation=1": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=east,rotation=2": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    },
+    "facing=east,rotation=3": {
+      "model": "create_flippies:block/rotary_switch_med_2pos"
+    }
+  }
+}

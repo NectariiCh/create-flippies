@@ -1,0 +1,325 @@
+{
+  "__generated": "tools/gen_din_rail.py; section mirrors DinRailBlock",
+  "ambientocclusion": false,
+  "textures": {
+    "0": "create_flippies:block/din_rail",
+    "particle": "create_flippies:block/din_rail"
+  },
+  "elements": [
+    {
+      "name": "Rail 1 Base",
+      "from": [
+        6.65,
+        0,
+        0
+      ],
+      "to": [
+        9.35,
+        0.25,
+        16
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.25
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.25
+          ],
+          "texture": "#0"
+        },
+        "north": {
+          "uv": [
+            0,
+            6,
+            2.7,
+            6.25
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            0,
+            6,
+            2.7,
+            6.25
+          ],
+          "texture": "#0"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            2.7
+          ],
+          "texture": "#0",
+          "rotation": 90
+        },
+        "down": {
+          "uv": [
+            0,
+            6,
+            16,
+            8.7
+          ],
+          "texture": "#0",
+          "rotation": 90
+        }
+      }
+    },
+    {
+      "name": "Rail 1 Leg -",
+      "from": [
+        6.65,
+        0.25,
+        0
+      ],
+      "to": [
+        6.9,
+        0.5,
+        16
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.25
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.25
+          ],
+          "texture": "#0"
+        },
+        "north": {
+          "uv": [
+            0,
+            6,
+            0.25,
+            6.25
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            0,
+            6,
+            0.25,
+            6.25
+          ],
+          "texture": "#0"
+        }
+      }
+    },
+    {
+      "name": "Rail 1 Leg +",
+      "from": [
+        9.1,
+        0.25,
+        0
+      ],
+      "to": [
+        9.35,
+        0.5,
+        16
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.25
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.25
+          ],
+          "texture": "#0"
+        },
+        "north": {
+          "uv": [
+            0,
+            6,
+            0.25,
+            6.25
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            0,
+            6,
+            0.25,
+            6.25
+          ],
+          "texture": "#0"
+        }
+      }
+    },
+    {
+      "name": "Rail 1 Lip -",
+      "from": [
+        6.25,
+        0.5,
+        0
+      ],
+      "to": [
+        6.9,
+        0.75,
+        16
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0,
+            3,
+            16,
+            3.25
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.25
+          ],
+          "texture": "#0"
+        },
+        "north": {
+          "uv": [
+            0,
+            6,
+            0.65,
+            6.25
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            0,
+            6,
+            0.65,
+            6.25
+          ],
+          "texture": "#0"
+        },
+        "up": {
+          "uv": [
+            0,
+            3,
+            16,
+            3.65
+          ],
+          "texture": "#0",
+          "rotation": 90
+        },
+        "down": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.65
+          ],
+          "texture": "#0",
+          "rotation": 90
+        }
+      }
+    },
+    {
+      "name": "Rail 1 Lip +",
+      "from": [
+        9.1,
+        0.5,
+        0
+      ],
+      "to": [
+        9.75,
+        0.75,
+        16
+      ],
+      "faces": {
+        "east": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.25
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            0,
+            3,
+            16,
+            3.25
+          ],
+          "texture": "#0"
+        },
+        "north": {
+          "uv": [
+            0,
+            6,
+            0.65,
+            6.25
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            0,
+            6,
+            0.65,
+            6.25
+          ],
+          "texture": "#0"
+        },
+        "up": {
+          "uv": [
+            0,
+            3,
+            16,
+            3.65
+          ],
+          "texture": "#0",
+          "rotation": 90
+        },
+        "down": {
+          "uv": [
+            0,
+            4,
+            16,
+            4.65
+          ],
+          "texture": "#0",
+          "rotation": 90
+        }
+      }
+    }
+  ]
+}
