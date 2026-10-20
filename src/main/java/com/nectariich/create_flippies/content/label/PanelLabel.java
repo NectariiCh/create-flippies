@@ -63,11 +63,44 @@ public final class PanelLabel {
      */
     public static final double PROUD = 0.25;
 
+    /**
+     * How much further a label stands off for each label it is laid over, in pixels.
+     *
+     * Two strips on one surface that overlap would otherwise put two plates and two
+     * legends at exactly the same depth, and whichever the depth buffer happened to
+     * prefer would flicker through the other. So a label drawn over others sits this
+     * much proud of the highest of them, which is enough to settle the tie at any
+     * distance a panel is read from and too little to look like a raised sign.
+     */
+    public static final double STACK_STEP = 0.1;
+
+    /**
+     * The most labels deep a stack is honoured. A label laid over one already this
+     * high goes in at the same height rather than higher still: past this the strip
+     * would be a block of wood rather than a legend, and nobody stacks sixteen.
+     */
+    public static final int MAX_LAYER = 16;
+
+    /** A layer as it is safe to hold, from a save or anywhere else. */
+    public static int layer(int layer) {
+        return Mth.clamp(layer, 0, MAX_LAYER);
+    }
+
+    /** How far a label on that layer stands off the panel, in pixels. Layer zero is {@link #PROUD}. */
+    public static double standOff(int layer) {
+        return PROUD + STACK_STEP * layer(layer);
+    }
+
     /** The strip as an authored pixel box in the {@code SurfaceMount} frame. */
     public static double[] plate(double width, double height) {
+        return plate(width, height, PROUD);
+    }
+
+    /** The same strip standing {@code proud} pixels off the panel; see {@link #STACK_STEP}. */
+    public static double[] plate(double width, double height, double proud) {
         return new double[] {
                 MIDDLE - width / 2, 0, MIDDLE - height / 2,
-                MIDDLE + width / 2, PROUD, MIDDLE + height / 2 };
+                MIDDLE + width / 2, proud, MIDDLE + height / 2 };
     }
 
     /**
@@ -76,7 +109,13 @@ public final class PanelLabel {
      * is the one place the finer lattice has to be converted rather than carried.
      */
     public static ControlFootprint footprint(int width, int height) {
-        return ControlFootprint.of(plate(SpannedControlType.pixels(width), SpannedControlType.pixels(height)));
+        return footprint(width, height, 0);
+    }
+
+    /** The same for a label on that layer of a stack, whose strip stands further off. */
+    public static ControlFootprint footprint(int width, int height, int layer) {
+        return ControlFootprint.of(
+                plate(SpannedControlType.pixels(width), SpannedControlType.pixels(height), standOff(layer)));
     }
 
     /** The kind's own footprint; see {@link #DEFAULT_WIDTH}. */
@@ -99,7 +138,12 @@ public final class PanelLabel {
      * which is where the text is centred. Every strip is centred on its mount, so
      * this is the same point whatever size the label was drawn at.
      */
-    public static final Vec3 TEXT_ANCHOR = new Vec3(MIDDLE / PIXELS, PROUD / PIXELS, MIDDLE / PIXELS);
+    public static final Vec3 TEXT_ANCHOR = textAnchor(0);
+
+    /** The same point for a label on that layer of a stack, on top of its own strip. */
+    public static Vec3 textAnchor(int layer) {
+        return new Vec3(MIDDLE / PIXELS, standOff(layer) / PIXELS, MIDDLE / PIXELS);
+    }
 
     /** The drawn height of a glyph in font space; the ninth unit of a line is the gap below it. */
     public static final int GLYPH_HEIGHT = 8;

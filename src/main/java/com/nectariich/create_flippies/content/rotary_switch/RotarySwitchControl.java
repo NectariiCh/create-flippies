@@ -1,11 +1,14 @@
 package com.nectariich.create_flippies.content.rotary_switch;
 
+import java.util.List;
+
 import com.nectariich.create_flippies.foundation.control.HostedCircuitBuilder;
 import com.nectariich.create_flippies.foundation.control.HostedControl;
 import com.nectariich.create_flippies.network.ModPackets;
 import com.nectariich.create_flippies.network.OpenRotarySwitchMenuPacket;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.server.level.ServerPlayer;
@@ -42,6 +45,16 @@ public class RotarySwitchControl extends HostedControl {
     private RotarySwitchAppearance appearance;
 
     /**
+     * Which detents spring back to rest, as a {@link RotarySwitchSpring} mask set
+     * from the menu. Read through {@link #springs()}, which a designed switch answers
+     * from its design instead.
+     */
+    private int springs;
+
+    /** Who is holding the handle over in a springing detent; never saved. */
+    private final RotarySwitchSpring spring = new RotarySwitchSpring();
+
+    /**
      * Per section, one wire from the common to each stud, in the order
      * {@link RotarySwitchKind#studs} lists them. Null until the host builds the
      * circuit, which it does before anything can turn the handle.
@@ -51,7 +64,7 @@ public class RotarySwitchControl extends HostedControl {
     public float handleAngle;
     public float prevHandleAngle;
 
-    RotarySwitchControl(RotarySwitchControlType type) {
+    protected RotarySwitchControl(RotarySwitchControlType type) {
         super(type);
         appearance = RotarySwitchAppearance.defaultFor(kind());
         position = kind().defaultPosition();
@@ -80,6 +93,20 @@ public class RotarySwitchControl extends HostedControl {
         return position;
     }
 
+    /** Which detents spring back to rest, as a {@link RotarySwitchSpring} mask. */
+    public int springs() {
+        return springs;
+    }
+
+    /**
+     * Server-side: change which detents spring back. A handle left in a detent that
+     * now springs, with nobody holding it there, goes back on the next tick.
+     */
+    public void setSprings(int springs) {
+        this.springs = RotarySwitchSpring.sanitise(kind(), springs);
+        changed();
+    }
+
     @Override
     public void buildCircuit(HostedCircuitBuilder builder) {
         RotarySwitchKind kind = kind();
@@ -87,7 +114,7 @@ public class RotarySwitchControl extends HostedControl {
         int studs = kind.studs().length;
         contacts = new SwitchedWire[sections][studs];
         builder.setTerminalCount(kind.terminalCount());
-        int made = kind.madeStud(position);
+        int made = madeStud();
         for (int section = 0; section < sections; section++) {
             int base = section * kind.contactsPerSection();
             IElectricNode common = builder.terminalNode(base + kind.commonIndex());
@@ -129,19 +156,37 @@ public class RotarySwitchControl extends HostedControl {
         if (side == null)
             return InteractionResult.PASS;
         // turn() is what makes the noise, so a push into a stop is silent
-        turn(side);
+        turn(side, player);
         return InteractionResult.CONSUME;
     }
 
-    /** Stops at the ends; see {@link RotarySwitchBlockEntity#turn}. */
-    public boolean turn(RotarySwitchSide side) {
+    /**
+     * Stops at the ends, and remembers who turned it into a detent that springs
+     * back; see {@link RotarySwitchBlockEntity#turn}.
+     */
+    public boolean turn(RotarySwitchSide side, Player player) {
         int target = Mth.clamp(position + side.detentStep(), 0, kind().positions() - 1);
         if (target == position)
             return false;
         setPosition(target);
+        spring.turned(kind(), springs(), position, player);
         if (host() != null)
             RotarySwitchBlockEntity.playTurnSound(host().level(), host().pos());
         return true;
+    }
+
+    /** Server-side: this player has let go; see {@link RotarySwitchBlockEntity#release}. */
+    public void release(Player player) {
+        if (spring.release(kind(), springs(), position, player))
+            springBack();
+    }
+
+    /** The handle returning to rest under its spring, with the same clack as a turn. */
+    private void springBack() {
+        spring.clear();
+        setPosition(kind().defaultPosition());
+        if (host() != null)
+            RotarySwitchBlockEntity.playTurnSound(host().level(), host().pos());
     }
 
     public void setPosition(int position) {
@@ -152,6 +197,10 @@ public class RotarySwitchControl extends HostedControl {
 
     @Override
     public void tick() {
+        // Lets go for a holder who is no longer there to hold it, and returns a
+        // handle that was loaded over with nobody holding it at all
+        if (host() != null && spring.tick(host().level(), host().pos(), kind(), springs(), position))
+            springBack();
         prevHandleAngle = handleAngle;
         float target = kind().handleAngle(position);
         handleAngle += (target - handleAngle) * RotarySwitchBlockEntity.HANDLE_EASING;
@@ -163,22 +212,40 @@ public class RotarySwitchControl extends HostedControl {
     public void write(CompoundTag tag) {
         tag.putInt("Position", position);
         appearance.write(tag);
+        tag.putInt("Springs", springs);
     }
 
     @Override
     public void read(CompoundTag tag) {
         position = Math.floorMod(tag.getInt("Position"), kind().positions());
         appearance = RotarySwitchAppearance.read(tag, kind());
+        // Absent on a switch saved before there were springs, which reads as none
+        springs = RotarySwitchSpring.sanitise(kind(), tag.getInt("Springs"));
         // The circuit may have been built before this ran, from the position this
         // control started at rather than the one it was saved in
         applyContacts();
     }
 
-    /** Point every section's common at whichever stud this position makes. */
-    private void applyContacts() {
+    /** Says which way the handle springs back, if it does; see the block form. */
+    @Override
+    public boolean addToGoggleTooltip(List<Component> tooltip, boolean sneaking) {
+        return RotarySwitchBlockEntity.addSpringTooltip(tooltip, kind(), springs());
+    }
+
+    /**
+     * Which of the kind's studs every section's common is on now, or -1 for none: the
+     * one the handle's detent makes. A designed breaker whose contacts follow its flag
+     * rather than its handle answers differently.
+     */
+    protected int madeStud() {
+        return kind().madeStud(position);
+    }
+
+    /** Point every section's common at whichever stud {@link #madeStud()} names. */
+    protected void applyContacts() {
         if (contacts == null)
             return;
-        int made = kind().madeStud(position);
+        int made = madeStud();
         for (SwitchedWire[] section : contacts)
             for (int stud = 0; stud < section.length; stud++)
                 section[stud].setState(stud == made);

@@ -23,7 +23,10 @@ public enum PlacementRefusal {
     NONE,
     /** The centre is off the host's face, so this block is not the host at all. */
     OFF_FACE,
-    /** The footprint meets a control already mounted, here or in a neighbouring block. */
+    /**
+     * A control is already mounted at exactly this spot in this block. Footprints that
+     * merely meet are allowed; see {@code ControlRack.refusal} for why this one is not.
+     */
     OVERLAPS,
     /** The footprint reaches further out of the cell than the picker can follow. */
     REACHES_TOO_FAR,

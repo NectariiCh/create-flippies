@@ -107,6 +107,22 @@ public record ControlMount(Direction face, int yaw, int anchorU, int anchorV, in
     }
 
     /**
+     * Whether a plate here would sit exactly where that one does: the same surface and
+     * the same centre on it, whichever way up either of them is turned.
+     *
+     * The quarter turn is left out on purpose. Two controls centred on one point of one
+     * surface are a stack however they are turned, and a stack is the one arrangement
+     * the rest of the rack cannot tell apart: aiming, a terminal search and a mount
+     * looked up from a packet all settle a tie by taking the first control in slot
+     * order, while the drawing puts the last one on top. See
+     * {@link ControlRack#refusal} for what that did to a panel of lamps.
+     */
+    public boolean sharesPlaceWith(ControlMount other) {
+        return face == other.face && yaw == other.yaw && anchorU == other.anchorU && anchorV == other.anchorV
+                && anchorD == other.anchorD;
+    }
+
+    /**
      * The surface this plate lies on, as a direction and a turn. The offset is zero
      * and meaningless: where the plane sits in the world is the host block's business
      * and the anchors', and all that is wanted from here is the frame.

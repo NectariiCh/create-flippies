@@ -3,6 +3,9 @@ package com.nectariich.create_flippies.content.screwdriver;
 import java.util.List;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.content.decal.DecalSelection;
+import com.nectariich.create_flippies.content.schematic_arrow.ArrowDraft;
+import com.nectariich.create_flippies.content.schematic_arrow.ArrowSettings;
 import com.nectariich.create_flippies.foundation.control.ControlTypes;
 import com.nectariich.create_flippies.registry.ModItems;
 
@@ -156,7 +159,17 @@ public class ScrewdriverItem extends Item {
                 tooltip.add(Component.translatable(LANG_PREFIX + "step", settings.step())
                         .withStyle(ChatFormatting.GRAY));
         }
-        if (settings.isPicking())
+        else if (settings.mode() == ScrewdriverMode.PAINT_DECAL) {
+            DecalSelection decal = DecalSelection.read(stack);
+            tooltip.add((decal.hasArt() ? Component.translatable(LANG_PREFIX + "paint_art", decal.name())
+                    : Component.translatable(LANG_PREFIX + "paint_no_art")).withStyle(ChatFormatting.GRAY));
+        }
+        // SCHEMATIC ARROWS
+        else if (settings.mode() == ScrewdriverMode.SCHEMATIC_ARROW)
+            tooltip.add(Component.translatable(LANG_PREFIX + "arrow_action", Component.translatable(
+                    "gui." + CreateFlippies.MOD_ID + ".screwdriver.arrow.action." + ArrowSettings.read(stack)
+                            .action().key())).withStyle(ChatFormatting.GRAY));
+        if (settings.isPicking() || ArrowDraft.read(stack) != null)
             tooltip.add(Component.translatable(LANG_PREFIX + "corner_pending").withStyle(ChatFormatting.DARK_AQUA));
     }
 }

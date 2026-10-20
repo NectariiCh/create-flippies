@@ -3,6 +3,13 @@ package com.nectariich.create_flippies.client;
 import java.util.Locale;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.client.decal.ClientDecals;
+import com.nectariich.create_flippies.client.design.DesignImporter;
+import com.nectariich.create_flippies.client.schematic_arrow.ArrowScreen;
+import com.nectariich.create_flippies.content.schematic_arrow.ArrowDraft;
+import com.nectariich.create_flippies.content.schematic_arrow.ArrowGrab;
+import com.nectariich.create_flippies.content.decal.DecalSelection;
+import com.nectariich.create_flippies.content.decal.PanelDecal;
 import com.nectariich.create_flippies.content.panel.PanelEditKind;
 import com.nectariich.create_flippies.content.screwdriver.DynamicBlockKind;
 import com.nectariich.create_flippies.foundation.panel.PanelPlane;
@@ -13,13 +20,16 @@ import com.nectariich.create_flippies.foundation.control.ControlTypes;
 import com.nectariich.create_flippies.foundation.control.SpannedControlType;
 import com.nectariich.create_flippies.network.ConfigureScrewdriverPacket;
 import com.nectariich.create_flippies.network.ModPackets;
+import com.nectariich.create_flippies.network.SelectDecalPacket;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
@@ -48,6 +58,18 @@ public class ScrewdriverScreen extends Screen {
     private static final int WIDGET_WIDTH = 180;
     private static final int HALF_WIDTH = 86;
 
+    /**
+     * The colours paint can be put on in instead of the picture's own, the first being
+     * no colour at all. A short fixed list rather than a picker: paint on a panel is a
+     * legend or a marking, and those come in a handful of colours that read at a
+     * distance.
+     */
+    private static final int[] PAINT_COLOURS = { PanelDecal.OWN_COLOURS, 0xFFF0F0F0, 0xFF1A1A1A, 0xFF8A8A8A,
+            0xFFD03A3A, 0xFFE8862A, 0xFFF2D13A, 0xFF3FA34D, 0xFF3366CC, 0xFF8A4FBF };
+
+    private static final String[] PAINT_COLOUR_NAMES = { "own", "white", "black", "grey", "red", "orange", "yellow",
+            "green", "blue", "purple" };
+
     /** What both number boxes accept while it is being typed, including nothing yet. */
     private static final String DIGITS = "\\d*";
 
@@ -70,11 +92,28 @@ public class ScrewdriverScreen extends Screen {
     private Button yawButton;
     private Button editKindButton;
     private Button clearButton;
+    private Button importButton;
+    private Button colourButton;
+    private Button backgroundButton;
+    // SCHEMATIC ARROWS
+    private Button arrowButton;
     private EditBox columnsBox;
     private EditBox rowsBox;
     private EditBox stepBox;
 
     private boolean clearCorner;
+
+    /** The picture the tool paints, by name, which an import replaces while the menu is open. */
+    private String artName;
+    private int tint;
+    private final int initialTint;
+    /** Whether an import leaves out the drawing's background. */
+    private boolean transparent;
+    private final boolean initialTransparent;
+
+    /** What the last import came to, shown under the menu; null before there has been one. */
+    private Component importStatus;
+    private boolean importing;
 
     public static void open(InteractionHand hand) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -95,7 +134,14 @@ public class ScrewdriverScreen extends Screen {
         this.yaw = settings.yaw();
         this.editKind = settings.editKind();
         this.step = settings.step();
-        this.cornerPending = settings.isPicking();
+        // SCHEMATIC ARROWS: an arrow half drawn or picked up is as pending as a corner
+        this.cornerPending = settings.isPicking() || ArrowDraft.read(stack) != null || ArrowGrab.read(stack) != null;
+        DecalSelection decal = DecalSelection.read(stack);
+        this.artName = decal.hasArt() ? decal.name() : null;
+        this.tint = decal.tint();
+        this.initialTint = decal.tint();
+        this.transparent = decal.transparent();
+        this.initialTransparent = decal.transparent();
     }
 
     @Override
@@ -150,6 +196,29 @@ public class ScrewdriverScreen extends Screen {
         stepBox.setValue(Integer.toString(step));
         addRenderableWidget(stepBox);
 
+        // The picture shares its row with whether its background comes with it, which
+        // is an option of the import and so sits beside the button that starts one
+        importButton = addRenderableWidget(Button.builder(artLabel(), button -> importPicture())
+                .bounds(x, top + ROW_HEIGHT, HALF_WIDTH, 20).build());
+
+        backgroundButton = addRenderableWidget(Button.builder(backgroundLabel(), button -> {
+            transparent = !transparent;
+            refresh();
+        }).bounds(x + WIDGET_WIDTH - HALF_WIDTH, top + ROW_HEIGHT, HALF_WIDTH, 20)
+                .tooltip(Tooltip.create(Component.translatable(LANG_PREFIX + "paint_background.tooltip"))).build());
+
+        colourButton = addRenderableWidget(Button.builder(colourLabel(), button -> {
+            tint = PAINT_COLOURS[(colourIndex() + 1) % PAINT_COLOURS.length];
+            refresh();
+        }).bounds(x + WIDGET_WIDTH - HALF_WIDTH, top + 2 * ROW_HEIGHT, HALF_WIDTH, 20).build());
+
+        // SCHEMATIC ARROWS: the arrow mode has a menu of its own, opened from here
+        arrowButton = addRenderableWidget(Button.builder(Component.translatable(LANG_PREFIX + "arrow.open"),
+                button -> {
+                    applyAndClose();
+                    ArrowScreen.open(hand);
+                }).bounds(x, top + ROW_HEIGHT, WIDGET_WIDTH, 20).build());
+
         clearButton = addRenderableWidget(Button.builder(Component.translatable(LANG_PREFIX + "clear_corner"),
                 button -> {
                     clearCorner = true;
@@ -186,6 +255,7 @@ public class ScrewdriverScreen extends Screen {
         boolean editing = mode == ScrewdriverMode.EDIT_PANEL;
         boolean ruling = mode == ScrewdriverMode.DEFINE_GRID;
         boolean placing = mode.places();
+        boolean painting = mode == ScrewdriverMode.PAINT_DECAL;
         // The kind and the yaw are the dynamic gesture's alone: nothing else builds a
         // surface, so nothing else has a facing to turn off the cardinals
         boolean dynamic = mode == ScrewdriverMode.DEFINE_DYNAMIC_BLOCK;
@@ -195,8 +265,23 @@ public class ScrewdriverScreen extends Screen {
         yawButton.active = yawButton.visible;
         // The turn only says which way up a control is screwed down, so it belongs to
         // the modes that screw one down
-        turnButton.visible = placing;
-        turnButton.active = placing;
+        // SCHEMATIC ARROWS: a stamped SVG is turned like paint
+        boolean arrows = mode == ScrewdriverMode.SCHEMATIC_ARROW;
+        arrowButton.visible = arrows;
+        arrowButton.active = arrows;
+        turnButton.visible = placing || painting || arrows;
+        turnButton.active = placing || painting || arrows;
+        // Paint shares the turn's row with its colour, so the turn gives up half of it
+        turnButton.setWidth(painting ? HALF_WIDTH : WIDGET_WIDTH);
+        importButton.visible = painting;
+        importButton.active = painting && !importing;
+        importButton.setMessage(artLabel());
+        colourButton.visible = painting;
+        colourButton.active = painting;
+        colourButton.setMessage(colourLabel());
+        backgroundButton.visible = painting;
+        backgroundButton.active = painting;
+        backgroundButton.setMessage(backgroundLabel());
         divisionButton.visible = placing;
         divisionButton.active = placing;
         columnsBox.visible = ruling;
@@ -228,6 +313,71 @@ public class ScrewdriverScreen extends Screen {
         return Component.translatable(LANG_PREFIX + "turn", turn * 90);
     }
 
+    private Component artLabel() {
+        if (importing)
+            return Component.translatable(LANG_PREFIX + "paint_importing");
+        return artName == null ? Component.translatable(LANG_PREFIX + "paint_import")
+                : Component.translatable(LANG_PREFIX + "paint_replace", artName);
+    }
+
+    private Component backgroundLabel() {
+        return Component.translatable(LANG_PREFIX + (transparent ? "paint_background.transparent"
+                : "paint_background.kept"));
+    }
+
+    private Component colourLabel() {
+        int index = colourIndex();
+        Component name = Component.translatable(LANG_PREFIX + "paint_colour." + PAINT_COLOUR_NAMES[index]);
+        if (PAINT_COLOURS[index] == PanelDecal.OWN_COLOURS)
+            return name;
+        return Component.literal("\u25A0 ").withStyle(style -> style.withColor(PAINT_COLOURS[index] & 0xFFFFFF))
+                .append(name);
+    }
+
+    /** Where the tool's colour sits in the list, or the first entry for one the list does not have. */
+    private int colourIndex() {
+        for (int i = 0; i < PAINT_COLOURS.length; i++)
+            if (PAINT_COLOURS[i] == tint)
+                return i;
+        return 0;
+    }
+
+    /**
+     * Asks for an SVG and imports it onto the tool. The import goes on after the menu
+     * is closed if the player closes it, and lands on the screwdriver either way; while
+     * the menu is open it is what the picture button and the line under the menu say.
+     */
+    private void importPicture() {
+        if (importing)
+            return;
+        DesignImporter.browseSvg(paths -> {
+            if (paths.isEmpty())
+                return;
+            importing = true;
+            importStatus = Component.translatable(LANG_PREFIX + "paint_importing");
+            refresh();
+            ClientDecals.importFile(paths.get(0), hand, tint, transparent, imported -> {
+                importing = false;
+                artName = imported.name();
+                Component status = Component.translatable(LANG_PREFIX + "paint_imported", imported.triangles());
+                if (!imported.warnings().isEmpty())
+                    status = status.copy().append(": ").append(String.join("; ", imported.warnings()));
+                importStatus = status;
+                refreshIfOpen();
+            }, error -> {
+                importing = false;
+                importStatus = Component.translatable(LANG_PREFIX + "paint_failed", error)
+                        .withStyle(ChatFormatting.RED);
+                refreshIfOpen();
+            });
+        });
+    }
+
+    private void refreshIfOpen() {
+        if (Minecraft.getInstance().screen == this)
+            refresh();
+    }
+
     private Component kindLabel() {
         return Component.translatable(LANG_PREFIX + "dynamic_kind", kind.label());
     }
@@ -250,6 +400,10 @@ public class ScrewdriverScreen extends Screen {
         ModPackets.CHANNEL
                 .sendToServer(new ConfigureScrewdriverPacket(hand, mode, columns, rows, turn, kind, yaw, editKind,
                         step, clearCorner));
+        // A blank picture changes only the options, and leaves alone whatever an import
+        // still on its way will put on the tool
+        if (tint != initialTint || transparent != initialTransparent)
+            ModPackets.CHANNEL.sendToServer(new SelectDecalPacket(hand, "", tint, transparent));
         onClose();
     }
 
@@ -285,6 +439,15 @@ public class ScrewdriverScreen extends Screen {
             label(graphics, "cells", cx - 150, top + ROW_HEIGHT);
         if (mode.places())
             label(graphics, "turn_label", cx - 150, top + 2 * ROW_HEIGHT);
+        if (mode == ScrewdriverMode.PAINT_DECAL) {
+            label(graphics, "paint_art_label", cx - 150, top + ROW_HEIGHT);
+            label(graphics, "paint_turn_label", cx - 150, top + 2 * ROW_HEIGHT);
+        }
+        // SCHEMATIC ARROWS
+        if (mode == ScrewdriverMode.SCHEMATIC_ARROW) {
+            label(graphics, "arrow.label", cx - 150, top + ROW_HEIGHT);
+            label(graphics, "arrow.turn_label", cx - 150, top + 2 * ROW_HEIGHT);
+        }
         if (mode == ScrewdriverMode.DEFINE_DYNAMIC_BLOCK) {
             label(graphics, "kind_label", cx - 150, top + ROW_HEIGHT);
             if (kind.allowsDiagonal())
@@ -312,6 +475,8 @@ public class ScrewdriverScreen extends Screen {
         if (mode == ScrewdriverMode.EDIT_PANEL)
             graphics.drawCenteredString(font, Component.translatable(LANG_PREFIX + "hint_edit_" + editKind.key()), cx,
                     top + 4 * ROW_HEIGHT + 4, 0xA0A0A0);
+        if (mode == ScrewdriverMode.PAINT_DECAL && importStatus != null)
+            graphics.drawCenteredString(font, importStatus, cx, top + 5 * ROW_HEIGHT + 12, 0xA0A0A0);
         // The placement modes behave differently for a control that is drawn to size,
         // and the tool is open in the player's hands with that control in the other
         if (mode.places() && spannedInHand())

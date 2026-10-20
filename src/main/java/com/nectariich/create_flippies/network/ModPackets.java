@@ -90,5 +90,59 @@ public class ModPackets {
                 PlcActionPacket::new, PlcActionPacket::handle, TO_SERVER);
         CHANNEL.registerMessage(index++, PlcStatusPacket.class, PlcStatusPacket::encode,
                 PlcStatusPacket::new, PlcStatusPacket::handle, TO_CLIENT);
+        CHANNEL.registerMessage(index++, DesignUploadPacket.class, DesignUploadPacket::encode,
+                DesignUploadPacket::new, DesignUploadPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, CreateDesignPacket.class, CreateDesignPacket::encode,
+                CreateDesignPacket::new, CreateDesignPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, RequestDesignPacket.class, RequestDesignPacket::encode,
+                RequestDesignPacket::new, RequestDesignPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, DesignDataPacket.class, DesignDataPacket::encode,
+                DesignDataPacket::new, DesignDataPacket::handle, TO_CLIENT);
+        CHANNEL.registerMessage(index++, BlueprintOpPacket.class, BlueprintOpPacket::encode,
+                BlueprintOpPacket::new, BlueprintOpPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, BlueprintSyncPacket.class, BlueprintSyncPacket::encode,
+                BlueprintSyncPacket::new, BlueprintSyncPacket::handle, TO_CLIENT);
+        CHANNEL.registerMessage(index++, BlueprintBlobPacket.class, BlueprintBlobPacket::encode,
+                BlueprintBlobPacket::new, BlueprintBlobPacket::handle, TO_CLIENT);
+        CHANNEL.registerMessage(index++, SelectDecalPacket.class, SelectDecalPacket::encode,
+                SelectDecalPacket::new, SelectDecalPacket::handle, TO_SERVER);
+        // PC
+        CHANNEL.registerMessage(index++, OpenPcCasePacket.class, OpenPcCasePacket::encode,
+                OpenPcCasePacket::new, OpenPcCasePacket::handle, TO_CLIENT);
+        CHANNEL.registerMessage(index++, PcActionPacket.class, PcActionPacket::encode,
+                PcActionPacket::new, PcActionPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, PcStatusPacket.class, PcStatusPacket::encode,
+                PcStatusPacket::new, PcStatusPacket::handle, TO_CLIENT);
+        CHANNEL.registerMessage(index++, KeyboardCapturePacket.class, KeyboardCapturePacket::encode,
+                KeyboardCapturePacket::new, KeyboardCapturePacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, KeyboardCaptureStatePacket.class, KeyboardCaptureStatePacket::encode,
+                KeyboardCaptureStatePacket::new, KeyboardCaptureStatePacket::handle, TO_CLIENT);
+        CHANNEL.registerMessage(index++, KeyboardKeysPacket.class, KeyboardKeysPacket::encode,
+                KeyboardKeysPacket::new, KeyboardKeysPacket::handle, TO_SERVER);
+        // PC end
+        // CRT
+        CHANNEL.registerMessage(index++, CrtFramePacket.class, CrtFramePacket::encode,
+                CrtFramePacket::new, CrtFramePacket::handle, TO_CLIENT);
+        // CRT end
+        // WIRE BENDS
+        CHANNEL.registerMessage(index++, EditWireBendPacket.class, EditWireBendPacket::encode,
+                EditWireBendPacket::new, EditWireBendPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, WireBendsSyncPacket.class, WireBendsSyncPacket::encode,
+                WireBendsSyncPacket::new, WireBendsSyncPacket::handle, TO_CLIENT);
+        // WIRE BENDS end
+        // SCHEMATIC ARROWS
+        CHANNEL.registerMessage(index++, ConfigureArrowPacket.class, ConfigureArrowPacket::encode,
+                ConfigureArrowPacket::new, ConfigureArrowPacket::handle, TO_SERVER);
+        // SCHEMATIC ARROWS end
+        // WIRE DUCTS
+        CHANNEL.registerMessage(index++, DuctActionPacket.class, DuctActionPacket::encode,
+                DuctActionPacket::new, DuctActionPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, DuctRouteSyncPacket.class, DuctRouteSyncPacket::encode,
+                DuctRouteSyncPacket::new, DuctRouteSyncPacket::handle, TO_CLIENT);
+        // WIRE DUCTS end
+        // EDGEWISE GAUGES
+        CHANNEL.registerMessage(index++, ConfigureEdgewiseGaugePacket.class, ConfigureEdgewiseGaugePacket::encode,
+                ConfigureEdgewiseGaugePacket::new, ConfigureEdgewiseGaugePacket::handle, TO_SERVER);
+        // EDGEWISE GAUGES end
     }
 }

@@ -48,7 +48,7 @@ public class PressIndicatorPacket {
      * How far outside its host cell an aim may be, in block units; see
      * {@link BreakControlPacket}, which bounds the same kind of point the same way.
      */
-    private static final float MAX_OVERHANG = 0.5f;
+    private static final float MAX_OVERHANG = 2f;
 
     private final BlockPos pos;
     private final float localX;

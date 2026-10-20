@@ -232,15 +232,48 @@ public class ControlRack implements ControlHost {
      * Nor whether the control fits the face or the ruling it was aimed into; that one
      * lived in the placement path and went with it, for the same reasons.
      *
-     * What is left are the two limits that are not about taste. A footprint reaching
+     * What is left are the limits that are not about taste. A footprint reaching
      * further than {@link ControlFootprint#REACH_BUDGET} out of its cell is one the
      * hitbox picker cannot follow and the server will refuse to interact with, so it
      * would be placed and then be untouchable; and a control needs terminals to
-     * exist at all.
+     * exist at all. The third, a control already centred on the very same spot, is
+     * {@link #refusal}'s to explain.
      */
     public PlacementRefusal check(ControlFootprint footprint, int terminalCount, ControlMount mount) {
+        return refusal(controls, slots, footprint, terminalCount, mount);
+    }
+
+    /**
+     * The whole of {@link #check}, over a list of controls and a slot table rather than
+     * over this rack's own, so that it can be asked of both without a block entity to
+     * hold them.
+     *
+     * <h2>The one overlap that is refused</h2>
+     *
+     * A control centred exactly where one is already mounted. That is not a question of
+     * taste the way an interpenetration is, because two controls in one place are not
+     * two controls to anything that has to choose between them. {@link #installedAt},
+     * {@link #controlAt} and Power Grid's own terminal search all settle a tie by taking
+     * the first in slot order, which is the older one; the renderer draws in slot order
+     * too, so the newer one is drawn last, at the same depth, over the top of it. The
+     * control the player can see is then the one control nothing can reach: its menu
+     * edits the one underneath, its wires land on the one underneath, its cap presses the
+     * one underneath, and the goggles report the one underneath.
+     *
+     * A large panel is where this happened, and only there. On a bare host frame a click
+     * on a mounted control resolves to the frame's own face, which puts a second control
+     * in a different block, visibly; a panel cell hosts its own controls and every click
+     * on one resolves to the panel's surface instead, so a second click on a lamp with
+     * the screwdriver put a fresh lamp exactly on top of it. It went in red, the default,
+     * and from then on that lamp would neither light nor take a colour.
+     */
+    static PlacementRefusal refusal(List<HostedControl> controls, TerminalSlots slots, ControlFootprint footprint,
+            int terminalCount, ControlMount mount) {
         if (!mount.isOnFace())
             return PlacementRefusal.OFF_FACE;
+        for (HostedControl control : controls)
+            if (control.mount().sharesPlaceWith(mount))
+                return PlacementRefusal.OVERLAPS;
         if (footprint.reach(mount) > ControlFootprint.REACH_BUDGET)
             return PlacementRefusal.REACHES_TOO_FAR;
         if (!slots.hasRoom(terminalCount))

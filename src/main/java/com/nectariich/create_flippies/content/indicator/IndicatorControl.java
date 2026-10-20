@@ -49,7 +49,7 @@ public class IndicatorControl extends HostedControl {
     private IndicatorColor color = IndicatorColor.defaultColor();
     private IndicatorLegend legend = IndicatorLegend.BLANK;
 
-    IndicatorControl(IndicatorControlType type) {
+    protected IndicatorControl(IndicatorControlType type) {
         super(type);
     }
 
@@ -106,6 +106,19 @@ public class IndicatorControl extends HostedControl {
                     builder.terminalNode(IndicatorLamp.poleTerminal(pole, 0)),
                     builder.terminalNode(IndicatorLamp.poleTerminal(pole, 1)), made);
         button.setPoles(poles);
+    }
+
+    /**
+     * The part a press lands on, in authored pixels: the cap. A unit with a different
+     * front presses on whatever that front is instead.
+     */
+    public double[] capBox() {
+        return size().lens();
+    }
+
+    /** Sets what a press does without touching the lens or the legend, nor saving. */
+    protected void setAction(IndicatorAction action) {
+        button.setAction(action);
     }
 
     /** The cap is the footprint, and the two sizes differ in nothing else. */

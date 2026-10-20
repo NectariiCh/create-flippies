@@ -44,6 +44,15 @@ public abstract class ControlType {
     public abstract HostedControl create();
 
     /**
+     * A fresh one made from the item being mounted. The same as {@link #create()} for
+     * every kind whose items are all alike; a kind whose item carries what the control
+     * is (a designed control's model and settings) reads it from the stack here.
+     */
+    public HostedControl create(ItemStack stack) {
+        return create();
+    }
+
+    /**
      * The contacts one of these presents when mounted here, in slot order.
      *
      * Built afresh on each call rather than cached per mount, because

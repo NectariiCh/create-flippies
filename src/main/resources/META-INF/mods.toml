@@ -39,3 +39,21 @@ mandatory=true
 versionRange="${powergrid_version_range}"
 ordering="AFTER"
 side="BOTH"
+
+# Renders the custom models the Design Workbench imports. Client only: it has no
+# server half, and it in turn requires Embeddium.
+[[dependencies.${mod_id}]]
+modId="hypergraphical"
+mandatory=true
+versionRange="${hypergraphical_version_range}"
+ordering="AFTER"
+side="CLIENT"
+
+# WIRE GAUGES: optional. When installed, its gauged wires replace Flippies' own copies
+# (same ids under its namespace); Flippies registers none of its own and remaps them in saves.
+[[dependencies.${mod_id}]]
+modId="powerplantgrid"
+mandatory=false
+versionRange="*"
+ordering="NONE"
+side="BOTH"

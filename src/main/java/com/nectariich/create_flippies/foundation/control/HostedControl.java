@@ -92,6 +92,11 @@ public abstract class HostedControl {
         return host;
     }
 
+    /** Where the host holding this control is, or null before it is installed. */
+    public net.minecraft.core.BlockPos hostPos() {
+        return host == null ? null : host.pos();
+    }
+
     /**
      * Fixes where this control lives. The host calls this once, as it installs the
      * control or loads it back; anything else calling it moves a control without
@@ -222,7 +227,16 @@ public abstract class HostedControl {
      * — a relay mount and its relay — gives that back as well.
      */
     public List<ItemStack> drops() {
-        return List.of(type.asItem());
+        return List.of(asItem());
+    }
+
+    /**
+     * The item that is this control, for its drop and for a middle click on it. The
+     * kind's item for nearly everything; a control whose item carries its own
+     * settings gives back an item carrying them.
+     */
+    public ItemStack asItem() {
+        return type.asItem();
     }
 
     /**

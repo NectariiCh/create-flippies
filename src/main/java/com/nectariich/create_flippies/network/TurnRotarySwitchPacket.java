@@ -40,6 +40,16 @@ import net.minecraftforge.network.NetworkEvent;
  * to whatever the server already had — so a notch against an end stop does nothing
  * however many the client sends, and a desynced prediction cannot drive the switch
  * past its stops.
+ *
+ * <h2>Letting go</h2>
+ *
+ * The same packet with no direction is the use key coming up on a switch the client
+ * turned into a detent that springs back (see {@code RotarySwitchSpring}). It is
+ * carried here rather than in a packet of its own because it names its switch the
+ * same way and needs the same reach and permission checks, and it is trusted no
+ * further than a notch is: the switch lets go only if this player is the one holding
+ * it over, and a release that never arrives is made up for by the switch itself as
+ * soon as its holder is no longer standing in front of it.
  */
 public class TurnRotarySwitchPacket {
 
@@ -54,15 +64,19 @@ public class TurnRotarySwitchPacket {
      * How far outside its host cell an aim may be, in block units; see
      * {@link BreakControlPacket}, which bounds the same kind of point the same way.
      */
-    private static final float MAX_OVERHANG = 0.5f;
+    private static final float MAX_OVERHANG = 2f;
 
     private final BlockPos pos;
     private final float localX;
     private final float localY;
     private final float localZ;
+    /** Which way the handle went, or null for a release; see the class comment. */
     private final RotarySwitchSide side;
 
-    /** {@code local} is the grab point as an offset within {@code pos}. */
+    /**
+     * {@code local} is the grab point as an offset within {@code pos}. A null side is
+     * a release, which {@link #release} names more plainly.
+     */
     public TurnRotarySwitchPacket(BlockPos pos, Vec3 local, RotarySwitchSide side) {
         this.pos = pos;
         this.localX = (float) local.x;
@@ -71,12 +85,17 @@ public class TurnRotarySwitchPacket {
         this.side = side;
     }
 
+    /** The use key coming up on the switch grabbed or pushed at {@code local}. */
+    public static TurnRotarySwitchPacket release(BlockPos pos, Vec3 local) {
+        return new TurnRotarySwitchPacket(pos, local, null);
+    }
+
     public TurnRotarySwitchPacket(FriendlyByteBuf buffer) {
         pos = buffer.readBlockPos();
         localX = buffer.readFloat();
         localY = buffer.readFloat();
         localZ = buffer.readFloat();
-        side = buffer.readEnum(RotarySwitchSide.class);
+        side = buffer.readBoolean() ? buffer.readEnum(RotarySwitchSide.class) : null;
     }
 
     public void encode(FriendlyByteBuf buffer) {
@@ -84,7 +103,9 @@ public class TurnRotarySwitchPacket {
         buffer.writeFloat(localX);
         buffer.writeFloat(localY);
         buffer.writeFloat(localZ);
-        buffer.writeEnum(side);
+        buffer.writeBoolean(side != null);
+        if (side != null)
+            buffer.writeEnum(side);
     }
 
     public void handle(Supplier<NetworkEvent.Context> context) {
@@ -99,7 +120,7 @@ public class TurnRotarySwitchPacket {
             // asked; mayInteract still is, so spawn protection holds
             if (!level.mayInteract(player, pos))
                 return;
-            turn(level);
+            turn(level, player);
         });
         context.get().setPacketHandled(true);
     }
@@ -107,18 +128,27 @@ public class TurnRotarySwitchPacket {
     /**
      * Turns whichever form of switch is there. The two are asked in the same order
      * {@code RotarySwitchAim} asks them, so a block and a mounted control are found
-     * by the same rules that decided the crosshair.
+     * by the same rules that decided the crosshair. Without a side this lets go
+     * instead of turning.
      */
-    private void turn(Level level) {
+    private void turn(Level level, ServerPlayer player) {
         BlockState state = level.getBlockState(pos);
         if (state.getBlock() instanceof RotarySwitchBlock) {
-            if (level.getBlockEntity(pos) instanceof RotarySwitchBlockEntity rotary)
-                rotary.turn(side);
+            if (level.getBlockEntity(pos) instanceof RotarySwitchBlockEntity rotary) {
+                if (side == null)
+                    rotary.release(player);
+                else
+                    rotary.turn(side, player);
+            }
             return;
         }
         if (level.getBlockEntity(pos) instanceof ControlRackHolder host
-                && host.controlAt(aimed()) instanceof RotarySwitchControl control)
-            control.turn(side);
+                && host.controlAt(aimed()) instanceof RotarySwitchControl control) {
+            if (side == null)
+                control.release(player);
+            else
+                control.turn(side, player);
+        }
     }
 
     /** The grab point, clamped rather than refused; see {@link BreakControlPacket}. */

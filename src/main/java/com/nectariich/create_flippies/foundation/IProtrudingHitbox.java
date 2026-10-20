@@ -11,9 +11,9 @@ package com.nectariich.create_flippies.foundation;
  * {@link ProtrudingHitboxPicker} while the ray passes through any of the six
  * neighbouring cells.
  *
- * The protruding geometry must stay within one block of its own cell (and,
- * because the server rejects interactions further than that from the block
- * centre, within half a block of the cell's faces).
+ * The protruding geometry must stay within
+ * {@link com.nectariich.create_flippies.foundation.control.ControlFootprint#REACH_BUDGET}
+ * of its own cell, which is as far as the picker looks.
  */
 public interface IProtrudingHitbox {
 }

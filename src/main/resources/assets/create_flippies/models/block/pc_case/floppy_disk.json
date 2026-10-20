@@ -1,0 +1,86 @@
+{
+  "textures": {
+    "3": "create_flippies:block/components-1",
+    "particle": "create_flippies:block/components-1"
+  },
+  "elements": [
+    {
+      "name": "floppy disc",
+      "from": [
+        1,
+        9.625,
+        5.75
+      ],
+      "to": [
+        5,
+        9.875,
+        10.25
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          0,
+          9.625,
+          7
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            11.625,
+            1.4375,
+            12.6875,
+            1.5625
+          ],
+          "texture": "#3"
+        },
+        "east": {
+          "uv": [
+            11.625,
+            1.375,
+            12.8125,
+            1.5
+          ],
+          "texture": "#3"
+        },
+        "south": {
+          "uv": [
+            11.5625,
+            1.375,
+            12.5625,
+            1.5
+          ],
+          "texture": "#3"
+        },
+        "west": {
+          "uv": [
+            11.5,
+            1.5625,
+            12.5,
+            1.6875
+          ],
+          "texture": "#3"
+        },
+        "up": {
+          "uv": [
+            11.25,
+            0,
+            13.25,
+            2
+          ],
+          "texture": "#3"
+        },
+        "down": {
+          "uv": [
+            11.25,
+            0,
+            13.25,
+            2
+          ],
+          "texture": "#3"
+        }
+      }
+    }
+  ]
+}

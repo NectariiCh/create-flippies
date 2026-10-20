@@ -32,22 +32,20 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * the way. Only a hit strictly in front of vanilla's counts, which keeps studs
  * buried inside a solid neighbour unreachable, the way they look.
  *
- * "Near" is the whole three-by-three-by-three neighbourhood, not the six faces.
+ * "Near" is every cell within {@link #SPREAD} along each axis, not the six faces.
  * The six were enough only while a footprint was forbidden from leaving its cell
  * along more than one axis, and that rule was what stopped a control from being
  * mounted across a block boundary — a corner of a face, or a grid ruled over two
  * panel blocks, would put geometry in a cell diagonally adjacent to its own,
  * which a six-face scan never tests and which is therefore unpickable with no
  * error anywhere. A footprint may reach {@link ControlFootprint#REACH_BUDGET}
- * out of its cell along each axis, which is half a block, so its geometry can
- * never land further than one cell away on any axis and this neighbourhood is
+ * out of its cell along each axis, which is two blocks, so its geometry can
+ * never land further than two cells away on any axis and this neighbourhood is
  * exactly wide enough.
  *
- * Twenty-seven cells per step of the walk would be a great deal of repeated work,
- * because consecutive steps overlap in twenty-six of them. So the walk only
- * gathers cell coordinates, and the shapes are clipped afterwards, once each:
- * that costs about as many block lookups as the six-face scan did with its
- * duplicates, for four times the coverage.
+ * A hundred and twenty-five cells per step of the walk would be a great deal of
+ * repeated work, because consecutive steps overlap in most of them. So the walk
+ * only gathers cell coordinates, and the shapes are clipped afterwards, once each.
  */
 public final class ProtrudingHitboxPicker {
 
@@ -55,7 +53,7 @@ public final class ProtrudingHitboxPicker {
     private static final double OVERSHOOT = 1 / 32d;
 
     /** How far, in cells, a protruding block's geometry can reach; see the class comment. */
-    private static final int SPREAD = 1;
+    private static final int SPREAD = 2;
 
     private ProtrudingHitboxPicker() {}
 

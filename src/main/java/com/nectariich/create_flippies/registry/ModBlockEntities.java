@@ -10,12 +10,15 @@ import com.nectariich.create_flippies.content.panel.LargePanelBlockEntity;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlockEntity;
 import com.nectariich.create_flippies.content.procedural_gauge.SquareProceduralGaugeBlockEntity;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralVoltmeterBlockEntity;
+import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseVoltmeterBlockEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
+import com.nectariich.create_flippies.content.keyboard.KeyboardBlockEntity;
+import com.nectariich.create_flippies.content.pc.PcCaseBlockEntity;
 
 public class ModBlockEntities {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
@@ -38,6 +41,23 @@ public class ModBlockEntities {
             BLOCK_ENTITIES.register("square_procedural_gauge", () -> BlockEntityType.Builder
                     .of(SquareProceduralGaugeBlockEntity::new, ModBlocks.SQUARE_PROCEDURAL_GAUGE.get())
                     .build(null));
+
+    public static final RegistryObject<BlockEntityType<EdgewiseVoltmeterBlockEntity>> EDGEWISE_PROCEDURAL_VOLTMETER =
+            BLOCK_ENTITIES.register("edgewise_procedural_voltmeter", () -> BlockEntityType.Builder
+                    .of(EdgewiseVoltmeterBlockEntity::new,
+                            ModBlocks.EDGEWISE_PROCEDURAL_VOLTMETERS.values().stream()
+                                    .map(RegistryObject::get)
+                                    .toArray(Block[]::new))
+                    .build(null));
+
+    // EDGEWISE GAUGES
+    public static final RegistryObject<BlockEntityType<com.nectariich.create_flippies.content.procedural_gauge
+            .EdgewiseProceduralGaugeBlockEntity>> EDGEWISE_PROCEDURAL_GAUGE =
+            BLOCK_ENTITIES.register("edgewise_procedural_gauge", () -> BlockEntityType.Builder
+                    .of(com.nectariich.create_flippies.content.procedural_gauge
+                            .EdgewiseProceduralGaugeBlockEntity::new, ModBlocks.EDGEWISE_PROCEDURAL_GAUGE.get())
+                    .build(null));
+    // EDGEWISE GAUGES end
 
     public static final RegistryObject<BlockEntityType<RotarySwitchBlockEntity>> ROTARY_SWITCH =
             BLOCK_ENTITIES.register("rotary_switch", () -> BlockEntityType.Builder
@@ -77,6 +97,25 @@ public class ModBlockEntities {
             BLOCK_ENTITIES.register("din_rail", () -> BlockEntityType.Builder
                     .of(DinRailBlockEntity::new, ModBlocks.DIN_RAIL.get())
                     .build(null));
+
+    // PC
+    public static final RegistryObject<BlockEntityType<PcCaseBlockEntity>> PC_CASE =
+            BLOCK_ENTITIES.register("pc_case", () -> BlockEntityType.Builder
+                    .of(PcCaseBlockEntity::new, ModBlocks.PC_CASE.get())
+                    .build(null));
+
+    public static final RegistryObject<BlockEntityType<KeyboardBlockEntity>> KEYBOARD =
+            BLOCK_ENTITIES.register("keyboard", () -> BlockEntityType.Builder
+                    .of(KeyboardBlockEntity::new, ModBlocks.KEYBOARD.get())
+                    .build(null));
+    // PC end
+
+    // CRT
+    public static final RegistryObject<BlockEntityType<com.nectariich.create_flippies.content.crt.CrtBlockEntity>> CRT =
+            BLOCK_ENTITIES.register("crt", () -> BlockEntityType.Builder
+                    .of(com.nectariich.create_flippies.content.crt.CrtBlockEntity::new, ModBlocks.CRT.get())
+                    .build(null));
+    // CRT end
 
     public static void register(IEventBus modBus) {
         BLOCK_ENTITIES.register(modBus);

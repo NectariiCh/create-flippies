@@ -41,10 +41,10 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * The one limit below is not a preference. Geometry outside a block's own cell is
  * invisible to vanilla ray tracing and only becomes pickable through
  * {@link IProtrudingHitbox}, whose picker tests the cells around each cell the ray
- * passes through. Half a block is what it tests out to, and also what the server
- * will allow: it refuses an interaction further than that from the face of the cell
- * it thinks was clicked. So a footprint may reach that far out of its cell along
- * every axis at once, and no further along any of them.
+ * passes through, and the control packets clamp a click to a fixed overhang past
+ * the face of the cell they think was clicked. {@link #REACH_BUDGET} is what both
+ * are sized to, so a footprint may reach that far out of its cell along every axis
+ * at once, and no further along any of them.
  *
  * A footprint used to be barred from leaving its cell along more than one axis,
  * because the picker only tested the six face-adjacent cells and a corner in a
@@ -58,11 +58,17 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public record ControlFootprint(double[][] boxes) {
 
     /**
-     * How far, in pixels, a footprint may reach out of its host cell along the one
-     * axis it is allowed to. The rotary switch's rear rack already spends 7.5 of
-     * it, so in practice nothing may be both deep and wide.
+     * How far, in pixels, a footprint may reach out of its host cell along any
+     * axis. Two blocks, which no control that can be built today comes near: the
+     * largest are 32 pixels across with their centre held on the host's face, so
+     * they reach one block out, or a little more on a chamfer. It was half a block,
+     * which refused annunciator racks anywhere but the middle of a cell.
+     *
+     * {@link com.nectariich.create_flippies.foundation.ProtrudingHitboxPicker} and
+     * the control packets' overhang clamps are sized to this, so raising it means
+     * raising them too.
      */
-    public static final double REACH_BUDGET = PlacementGrid.PIXELS_PER_BLOCK / 2.0;
+    public static final double REACH_BUDGET = PlacementGrid.PIXELS_PER_BLOCK * 2.0;
 
     private static final double PIXEL = 1.0 / PlacementGrid.PIXELS_PER_BLOCK;
 

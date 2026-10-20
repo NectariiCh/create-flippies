@@ -23,6 +23,9 @@ public final class ClientConfig {
     public static final ForgeConfigSpec SPEC;
 
     private static final ForgeConfigSpec.EnumValue<RotarySwitchTurnMode> TURN_MODE;
+    // PC
+    private static final ForgeConfigSpec.IntValue KEYBOARD_RELEASE_DOUBLE_PRESS_MILLIS;
+    // PC end
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -34,6 +37,12 @@ public final class ClientConfig {
                         "                  Still experimental.",
                         "Also settable in game with /flippies turnmode, which writes back to here.")
                 .defineEnum("rotarySwitchTurnMode", RotarySwitchTurnMode.PUSH);
+        // PC
+        KEYBOARD_RELEASE_DOUBLE_PRESS_MILLIS = builder
+                .comment("While typing on an in-game keyboard, two Escape presses within this many",
+                        "milliseconds release it. A single Escape is sent to the PC as a normal key.")
+                .defineInRange("keyboardReleaseDoublePressMillis", 300, 150, 1000);
+        // PC end
         SPEC = builder.build();
     }
 
@@ -61,4 +70,11 @@ public final class ClientConfig {
         TURN_MODE.set(mode);
         TURN_MODE.save();
     }
+
+    // PC
+    /** The double-Escape window that releases a captured keyboard (docs/PC_SPEC.md 11.2.12). */
+    public static int keyboardReleaseDoublePressMillis() {
+        return SPEC.isLoaded() ? KEYBOARD_RELEASE_DOUBLE_PRESS_MILLIS.get() : 300;
+    }
+    // PC end
 }

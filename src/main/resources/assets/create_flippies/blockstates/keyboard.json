@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=west": {
+      "model": "create_flippies:block/keyboard"
+    },
+    "facing=north": {
+      "model": "create_flippies:block/keyboard",
+      "y": 90
+    },
+    "facing=east": {
+      "model": "create_flippies:block/keyboard",
+      "y": 180
+    },
+    "facing=south": {
+      "model": "create_flippies:block/keyboard",
+      "y": 270
+    }
+  }
+}

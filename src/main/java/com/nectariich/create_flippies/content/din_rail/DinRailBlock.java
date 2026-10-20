@@ -318,7 +318,7 @@ public class DinRailBlock extends ElectricBlock implements IBE<DinRailBlockEntit
         if (rail != null) {
             HostedControl clipped = rail.controlAt(target.getLocation().subtract(Vec3.atLowerCornerOf(pos)));
             if (clipped != null)
-                return clipped.type().asItem();
+                return clipped.asItem();
         }
         return super.getCloneItemStack(state, target, level, pos, player);
     }

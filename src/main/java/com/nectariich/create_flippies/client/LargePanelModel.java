@@ -3,8 +3,10 @@ package com.nectariich.create_flippies.client;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.nectariich.create_flippies.content.decal.CellPaint;
 import com.nectariich.create_flippies.content.panel.LargePanelBlockEntity;
 import com.nectariich.create_flippies.content.panel.PanelTile;
+import com.nectariich.create_flippies.content.schematic_arrow.CellArrows;
 import com.simibubi.create.content.decoration.copycat.CopycatModel;
 import com.simibubi.create.foundation.model.BakedModelHelper;
 import com.simibubi.create.foundation.model.BakedQuadHelper;
@@ -85,6 +87,9 @@ public class LargePanelModel extends CopycatModel {
      */
     private static final ModelProperty<PanelQuadLight> LIGHT = new ModelProperty<>();
 
+    /** The layer paint is drawn in: its colours are opaque and its texture is a plain white square. */
+    private static final RenderType PAINT_LAYER = RenderType.solid();
+
     public LargePanelModel(BakedModel wrapped) {
         super(wrapped);
     }
@@ -138,6 +143,13 @@ public class LargePanelModel extends CopycatModel {
         PanelTile[] skin = blockEntityData.get(LargePanelBlockEntity.SKIN);
         if (skin != null)
             builder.with(LargePanelBlockEntity.SKIN, skin);
+        CellPaint paint = blockEntityData.get(LargePanelBlockEntity.PAINT);
+        if (paint != null)
+            builder.with(LargePanelBlockEntity.PAINT, paint);
+        // SCHEMATIC ARROWS
+        CellArrows arrows = blockEntityData.get(LargePanelBlockEntity.ARROWS);
+        if (arrows != null)
+            builder.with(LargePanelBlockEntity.ARROWS, arrows);
         builder.with(LIGHT, PanelQuadLight.around(level, pos));
         return builder;
     }
@@ -153,9 +165,13 @@ public class LargePanelModel extends CopycatModel {
     @Override
     public ChunkRenderTypeSet getRenderTypes(BlockState state, RandomSource rand, ModelData data) {
         BlockState material = CopycatModel.getMaterial(data);
-        if (material == null || material.isAir())
-            return super.getRenderTypes(state, rand, data);
-        return CopycatModel.getModelOf(material).getRenderTypes(material, rand, ModelData.EMPTY);
+        ChunkRenderTypeSet worn = material == null || material.isAir() ? super.getRenderTypes(state, rand, data)
+                : CopycatModel.getModelOf(material).getRenderTypes(material, rand, ModelData.EMPTY);
+        // Paint is drawn in the solid layer whatever the plate is made of, so a cell
+        // that has any has to be visited there even when it is wearing glass
+        // SCHEMATIC ARROWS: arrows are drawn in the same layer as paint, for the same reason
+        return data.get(LargePanelBlockEntity.PAINT) == null && data.get(LargePanelBlockEntity.ARROWS) == null ? worn
+                : ChunkRenderTypeSet.union(worn, ChunkRenderTypeSet.of(PAINT_LAYER));
     }
 
     /**
@@ -172,23 +188,36 @@ public class LargePanelModel extends CopycatModel {
         if (side != null)
             return List.of();
 
+        List<BakedQuad> gathered = new ArrayList<>();
+        PanelQuadLight light = data.get(LIGHT);
+        plate(data, rand, renderType, light, gathered);
+        CellPaint paint = data.get(LargePanelBlockEntity.PAINT);
+        if (paint != null && (renderType == null || renderType == PAINT_LAYER))
+            PanelPaintQuads.build(paint, light, gathered);
+        // SCHEMATIC ARROWS
+        CellArrows arrows = data.get(LargePanelBlockEntity.ARROWS);
+        if (arrows != null && (renderType == null || renderType == PAINT_LAYER))
+            PanelArrowQuads.build(arrows, light, gathered);
+        return gathered;
+    }
+
+    /** The plate's own quads, in the layers its material draws in. */
+    private static void plate(ModelData data, RandomSource rand, RenderType renderType, PanelQuadLight light,
+            List<BakedQuad> gathered) {
         PanelTile[] skin = data.get(LargePanelBlockEntity.SKIN);
         BlockState material = CopycatModel.getMaterial(data);
         if (skin == null || skin.length == 0 || material == null || material.isAir())
-            return List.of();
+            return;
 
         BakedModel source = CopycatModel.getModelOf(material);
         if (renderType != null && !source.getRenderTypes(material, rand, ModelData.EMPTY).contains(renderType))
-            return List.of();
+            return;
 
-        PanelQuadLight light = data.get(LIGHT);
-        List<BakedQuad> gathered = new ArrayList<>();
         for (PanelTile tile : skin) {
             crop(source, material, null, rand, renderType, tile, light, gathered);
             for (Direction face : SIDES)
                 crop(source, material, face, rand, renderType, tile, light, gathered);
         }
-        return gathered;
     }
 
     /**

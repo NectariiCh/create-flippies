@@ -1,0 +1,14 @@
+{
+  "resistancePerItem": 0.0058334381,
+  "itemsPerMeter": 0.5,
+  "maximumLength": 12.0,
+  "thermalMass": 41.65549,
+  "maximumCurrent": 88.934493,
+  "texture": "powergrid:textures/special/golden_wire.png",
+  "horizontalCoefficient": 1.02,
+  "verticalCoefficient": 1.4,
+  "wireThickness": 0.078811045,
+  "colorable": false,
+  "cord": false,
+  "insulated": false
+}

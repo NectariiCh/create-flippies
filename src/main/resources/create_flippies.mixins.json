@@ -8,16 +8,31 @@
     "defaultRequire": 1
   },
   "mixins": [
+    "BaseWireEntityBendMixin",
     "BlockWireCutPacketMixin",
     "BlockWireEntityMixin",
     "BlockWirePointMixin",
     "DeferredJunctionEndpointMixin",
+    "HangingWireEntityBendMixin",
+    "CordEntityBendMixin",
+    "StringLightCordEntityBendMixin",
     "EntityPickMixin",
     "VoxelShapeClipMixin",
-    "WireItemMixin"
+    "WireItemMixin",
+    "BaseWireEntityGaugeMixin",
+    "ItemStackWireGaugeMixin"
   ],
   "client": [
     "BakedQuadLightMixin",
-    "ClientWireInteractionsMixin"
+    "CameraMixin",
+    "GameRendererProjectionMixin",
+    "ClientWireInteractionsMixin",
+    "HangingWireEntityClientMixin",
+    "HangingWireRendererMixin",
+    "CordEntityClientMixin",
+    "CordRendererMixin",
+    "WirePreviewDuctMixin",
+    "FontManagerAccessor",
+    "MinecraftFontManagerAccessor"
   ]
 }

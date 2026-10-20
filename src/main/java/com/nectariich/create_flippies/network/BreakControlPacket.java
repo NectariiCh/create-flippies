@@ -27,7 +27,8 @@ import net.minecraftforge.network.NetworkEvent;
  * position, so that it means the same thing however far from the origin the panel
  * is, and so that the bound below can be a plain clamp. It is not clamped to the
  * block itself: a control's contact rack stands in the cell behind the panel and is
- * pickable from there, so a legitimate aim can be half a block outside the host.
+ * pickable from there, and a wide control can overhang its cell, so a legitimate aim
+ * can be well outside the host.
  */
 public class BreakControlPacket {
 
@@ -38,11 +39,10 @@ public class BreakControlPacket {
     private static final double MAX_REACH = 8;
 
     /**
-     * How far outside its host cell an aim may be, in block units. A footprint may
-     * leave its cell by half a block and no more, which is also the furthest the
-     * server will honour an interaction from the face it thinks was clicked.
+     * How far outside its host cell an aim may be, in block units: as far as a
+     * footprint may leave its cell, {@link com.nectariich.create_flippies.foundation.control.ControlFootprint#REACH_BUDGET}.
      */
-    private static final float MAX_OVERHANG = 0.5f;
+    private static final float MAX_OVERHANG = 2f;
 
     private final BlockPos pos;
     private final float localX;

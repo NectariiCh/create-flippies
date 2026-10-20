@@ -5,6 +5,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.content.design_workbench.DesignWorkbenchBlock;
 import com.nectariich.create_flippies.content.din_rail.DinRailBlock;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayBlock;
 import com.nectariich.create_flippies.content.display.DisplayKind;
@@ -18,6 +19,7 @@ import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlock;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchKind;
 import com.nectariich.create_flippies.content.procedural_gauge.SquareProceduralGaugeBlock;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralVoltmeterBlock;
+import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseVoltmeterBlock;
 import com.nectariich.create_flippies.content.procedural_gauge.VoltmeterRange;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -27,6 +29,8 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
+import com.nectariich.create_flippies.content.keyboard.KeyboardBlock;
+import com.nectariich.create_flippies.content.pc.PcCaseBlock;
 
 public class ModBlocks {
     public static final DeferredRegister<Block> BLOCKS =
@@ -44,6 +48,15 @@ public class ModBlocks {
 
     public static final RegistryObject<Block> SQUARE_PROCEDURAL_GAUGE = BLOCKS.register("square_procedural_gauge",
             () -> new SquareProceduralGaugeBlock(panelProperties()));
+
+    public static final Map<VoltmeterRange, RegistryObject<Block>> EDGEWISE_PROCEDURAL_VOLTMETERS =
+            registerEdgewiseVoltmeters();
+
+    // EDGEWISE GAUGES
+    public static final RegistryObject<Block> EDGEWISE_PROCEDURAL_GAUGE = BLOCKS.register("edgewise_procedural_gauge",
+            () -> new com.nectariich.create_flippies.content.procedural_gauge.EdgewiseProceduralGaugeBlock(
+                    panelProperties()));
+    // EDGEWISE GAUGES end
 
     /** One Rotary Switch block per number of detents; the rest is appearance. */
     public static final Map<RotarySwitchKind, RegistryObject<Block>> ROTARY_SWITCHES = registerRotarySwitches();
@@ -96,6 +109,13 @@ public class ModBlocks {
     public static final RegistryObject<Block> PLC_SMALL_PANEL = BLOCKS.register("plc_small_panel",
             () -> new PlcSmallPanelBlock(panelProperties()));
 
+    /** The bench custom controls are designed at. Wood, like the crafting table it is built from. */
+    public static final RegistryObject<Block> DESIGN_WORKBENCH = BLOCKS.register("design_workbench",
+            () -> new DesignWorkbenchBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.WOOD)
+                    .strength(2.5f)
+                    .sound(SoundType.WOOD)));
+
     private static Map<RotarySwitchKind, RegistryObject<Block>> registerRotarySwitches() {
         Map<RotarySwitchKind, RegistryObject<Block>> map = new EnumMap<>(RotarySwitchKind.class);
         for (RotarySwitchKind kind : RotarySwitchKind.values())
@@ -128,6 +148,14 @@ public class ModBlocks {
         return Collections.unmodifiableMap(map);
     }
 
+    private static Map<VoltmeterRange, RegistryObject<Block>> registerEdgewiseVoltmeters() {
+        Map<VoltmeterRange, RegistryObject<Block>> map = new EnumMap<>(VoltmeterRange.class);
+        for (VoltmeterRange range : VoltmeterRange.values())
+            map.put(range, BLOCKS.register(range.edgewiseBlockId(),
+                    () -> new EdgewiseVoltmeterBlock(range, panelProperties())));
+        return Collections.unmodifiableMap(map);
+    }
+
     /** Shared look and feel of the panel-mounted devices. */
     private static BlockBehaviour.Properties panelProperties() {
         return BlockBehaviour.Properties.of()
@@ -136,6 +164,34 @@ public class ModBlocks {
                 .sound(SoundType.METAL)
                 .noOcclusion();
     }
+
+    // PC
+    /** The PC case (docs/PC_SPEC.md 11.2.2). Its parts are items it holds, not block states. */
+    public static final RegistryObject<Block> PC_CASE = BLOCKS.register("pc_case",
+            () -> new PcCaseBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_LIGHT_GRAY)
+                    .strength(1.5f)
+                    .sound(SoundType.METAL)
+                    .noOcclusion()));
+
+    /** The keyboard (docs/PC_SPEC.md 11.2.12), typed on through a data cord to a case. */
+    public static final RegistryObject<Block> KEYBOARD = BLOCKS.register("keyboard",
+            () -> new KeyboardBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_LIGHT_GRAY)
+                    .strength(0.8f)
+                    .sound(SoundType.STONE)
+                    .noOcclusion()));
+    // PC end
+
+    // CRT
+    /** The CRT monitor (docs/PC_SPEC.md 11.2.14): shows a case's VGA display on its screen. */
+    public static final RegistryObject<Block> CRT = BLOCKS.register("crt",
+            () -> new com.nectariich.create_flippies.content.crt.CrtBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_LIGHT_GRAY)
+                    .strength(1.5f)
+                    .sound(SoundType.METAL)
+                    .noOcclusion()));
+    // CRT end
 
     public static void register(IEventBus modBus) {
         BLOCKS.register(modBus);

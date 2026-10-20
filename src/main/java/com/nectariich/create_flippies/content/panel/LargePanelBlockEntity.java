@@ -5,6 +5,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.nectariich.create_flippies.content.decal.CellPaint;
+import com.nectariich.create_flippies.content.decal.PanelDecal;
+import com.nectariich.create_flippies.content.schematic_arrow.CellArrows;
+import com.nectariich.create_flippies.content.schematic_arrow.PanelArrow;
 import com.nectariich.create_flippies.foundation.ShapeUnion;
 import com.nectariich.create_flippies.foundation.control.ControlRack;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
@@ -34,8 +38,10 @@ import org.patryk3211.powergrid.electricity.base.IElectric;
 import org.patryk3211.powergrid.electricity.base.IElectricEntity;
 import org.patryk3211.powergrid.electricity.base.ITerminalPlacement;
 
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.model.data.ModelData;
 import net.minecraftforge.client.model.data.ModelProperty;
+import net.minecraftforge.fml.DistExecutor;
 
 /**
  * One cell of one or more large panels: Create's copycat block entity, plus the
@@ -87,6 +93,17 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
     public static final ModelProperty<PanelTile[]> SKIN = new ModelProperty<>();
 
     /**
+     * The paint on this cell's plates, for the model to draw beside them. Absent on a
+     * cell with none, which is nearly all of them. See {@link PanelDecal}.
+     */
+    public static final ModelProperty<CellPaint> PAINT = new ModelProperty<>();
+
+    // SCHEMATIC ARROWS
+    /** The schematic arrows raised off this cell's plates, absent on a cell with none. See {@link PanelArrow}. */
+    public static final ModelProperty<CellArrows> ARROWS = new ModelProperty<>();
+    // SCHEMATIC ARROWS end
+
+    /**
      * How many panels one block will hold. Well above anything a corner produces —
      * three is a lot, four is a contrivance — and low enough that a cell can never
      * become expensive to draw or to test against.
@@ -94,6 +111,8 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
     public static final int MAX_PANELS = 8;
 
     private static final String PANELS = "Panels";
+    private static final String DECALS = "Decals";
+    private static final String ARROWS_KEY = "Arrows";
 
     /**
      * The panels passing through this cell, in the order they were added. Empty for a
@@ -102,6 +121,16 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
      * breaks alone.
      */
     private final List<PanelDefinition> panels = new ArrayList<>();
+
+    /**
+     * The paint on this cell, oldest first, which is also the order it is stacked in
+     * where two pictures overlap. Held beside the panels rather than in them; see
+     * {@link PanelDecal} for why.
+     */
+    private final List<PanelDecal> decals = new ArrayList<>();
+
+    /** The schematic arrows on this cell, oldest first, kept the way paint is. See {@link PanelArrow}. */
+    private final List<PanelArrow> arrows = new ArrayList<>();
 
     /**
      * Volatile, because these are not filled in by one thread alone. A chunk build
@@ -325,6 +354,9 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
     public boolean removePanel(PanelDefinition panel) {
         if (!panels.remove(panel))
             return false;
+        // Paint goes with the plate it was on
+        decals.removeIf(decal -> !bears(decal));
+        arrows.removeIf(arrow -> !bearsSurface(arrow.cellPlane()));
         forget();
         notifyUpdate();
         return true;
@@ -351,6 +383,128 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
         forget();
         notifyUpdate();
         return true;
+    }
+
+    // Paint
+
+    public List<PanelDecal> decals() {
+        return Collections.unmodifiableList(decals);
+    }
+
+    /**
+     * Takes on a picture painted across this cell, or reports that it will not: the
+     * cell already holds as much paint as it may, holds this picture already, or has
+     * no plate on the surface the picture is on: a cell the rectangle crosses only
+     * where the plate has been cut away.
+     */
+    public boolean addDecal(PanelDecal decal) {
+        if (decals.size() >= PanelDecal.MAX_PER_CELL || !bears(decal))
+            return false;
+        for (PanelDecal held : decals)
+            if (held.id() == decal.id())
+                return false;
+        decals.add(decal);
+        notifyUpdate();
+        return true;
+    }
+
+    /** Whether any panel this cell holds is the surface a picture is painted on. */
+    public boolean bears(PanelDecal decal) {
+        PanelPlane surface = decal.cellPlane();
+        for (PanelDefinition panel : panels)
+            if (panel.plane().sameSurfaceAs(surface))
+                return true;
+        return false;
+    }
+
+    /** Takes off a picture by its id, or reports that this cell did not have it. */
+    public boolean removeDecal(long id) {
+        if (!decals.removeIf(decal -> decal.id() == id))
+            return false;
+        notifyUpdate();
+        return true;
+    }
+
+    /**
+     * The topmost picture on a surface whose rectangle holds a point, or null. The
+     * surface is named the way {@code ScrewdriverAim.Surface} names one, so that a click
+     * on the back of a plate finds the paint on the back.
+     */
+    public PanelDecal decalAt(PanelPlane surface, double depth, Vec3 point) {
+        double u = surface.u(point);
+        double v = surface.v(point);
+        for (int i = decals.size() - 1; i >= 0; i--) {
+            PanelDecal decal = decals.get(i);
+            if (decal.isOn(surface, depth) && decal.holds(u, v))
+                return decal;
+        }
+        return null;
+    }
+
+    // SCHEMATIC ARROWS
+
+    public List<PanelArrow> arrows() {
+        return Collections.unmodifiableList(arrows);
+    }
+
+    /**
+     * Takes on an arrow raised across this cell, or reports that it will not: the cell
+     * holds as many as it may, holds this one already, or has no plate on its surface.
+     */
+    public boolean addArrow(PanelArrow arrow) {
+        if (arrows.size() >= PanelArrow.MAX_PER_CELL || !bearsSurface(arrow.cellPlane()))
+            return false;
+        for (PanelArrow held : arrows)
+            if (held.id() == arrow.id())
+                return false;
+        arrows.add(arrow);
+        notifyUpdate();
+        return true;
+    }
+
+    /** Takes off an arrow by its id, or reports that this cell did not have it. */
+    public boolean removeArrow(long id) {
+        if (!arrows.removeIf(arrow -> arrow.id() == id))
+            return false;
+        notifyUpdate();
+        return true;
+    }
+
+    /** The arrow with that id, or null. */
+    public PanelArrow arrow(long id) {
+        for (PanelArrow arrow : arrows)
+            if (arrow.id() == id)
+                return arrow;
+        return null;
+    }
+
+    /** The topmost arrow on a surface that a point is on, or null; the surface named as for {@link #decalAt}. */
+    public PanelArrow arrowAt(PanelPlane surface, double depth, Vec3 point) {
+        double u = surface.u(point);
+        double v = surface.v(point);
+        for (int i = arrows.size() - 1; i >= 0; i--) {
+            PanelArrow arrow = arrows.get(i);
+            if (arrow.isOn(surface, depth) && arrow.holds(u, v))
+                return arrow;
+        }
+        return null;
+    }
+
+    private boolean bearsSurface(PanelPlane surface) {
+        for (PanelDefinition panel : panels)
+            if (panel.plane().sameSurfaceAs(surface))
+                return true;
+        return false;
+    }
+
+    // SCHEMATIC ARROWS end
+
+    /**
+     * Draws this cell again because a picture it holds has just arrived. Client side
+     * only, like the redraw it asks for.
+     */
+    public void redrawPaint() {
+        redraw();
     }
 
     /**
@@ -507,7 +661,12 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
      */
     @Override
     public ModelData getModelData() {
-        return super.getModelData().derive().with(SKIN, plateTiles()).build();
+        ModelData.Builder data = super.getModelData().derive().with(SKIN, plateTiles());
+        if (!decals.isEmpty())
+            data.with(PAINT, new CellPaint(worldPosition, panels, decals));
+        if (!arrows.isEmpty())
+            data.with(ARROWS, new CellArrows(worldPosition, arrows));
+        return data.build();
     }
 
     @Override
@@ -517,6 +676,17 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
         for (PanelDefinition panel : panels)
             saved.add(panel.save());
         tag.put(PANELS, saved);
+        // Always written, even empty, so that a full update can say a cell has lost
+        // its paint; a partial one carries no panels and is never read for paint
+        ListTag paint = new ListTag();
+        for (PanelDecal decal : decals)
+            paint.add(decal.save());
+        tag.put(DECALS, paint);
+        // Always written, like the paint, so a full update can say the last one went
+        ListTag raised = new ListTag();
+        for (PanelArrow arrow : arrows)
+            raised.add(arrow.save());
+        tag.put(ARROWS_KEY, raised);
         rack.write(tag);
     }
 
@@ -539,6 +709,8 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
         if (!tag.contains(PANELS, Tag.TAG_LIST))
             return;
 
+        boolean repainted = readDecals(tag, clientPacket);
+        repainted |= readArrows(tag, clientPacket);
         List<PanelDefinition> was = new ArrayList<>(panels);
         panels.clear();
         for (Tag element : tag.getList(PANELS, Tag.TAG_COMPOUND)) {
@@ -546,11 +718,53 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
             if (panel != null && panels.size() < MAX_PANELS)
                 panels.add(panel);
         }
-        if (was.equals(panels))
-            return;
-        forget();
-        if (clientPacket)
+        boolean moved = !was.equals(panels);
+        if (moved)
+            forget();
+        if ((moved || repainted) && clientPacket)
             redraw();
+    }
+
+    /**
+     * Reads the paint, and on a client asks for any picture it names that has not
+     * arrived yet. Whether anything changed, which is what decides the redraw.
+     */
+    private boolean readDecals(CompoundTag tag, boolean clientPacket) {
+        List<PanelDecal> read = new ArrayList<>();
+        for (Tag element : tag.getList(DECALS, Tag.TAG_COMPOUND)) {
+            PanelDecal decal = PanelDecal.load((CompoundTag) element);
+            if (decal != null && read.size() < PanelDecal.MAX_PER_CELL)
+                read.add(decal);
+        }
+        if (read.equals(decals))
+            return false;
+        decals.clear();
+        decals.addAll(read);
+        if (clientPacket)
+            for (PanelDecal decal : decals)
+                DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> com.nectariich.create_flippies.client.decal
+                        .ClientDecals.need(decal.art(), worldPosition));
+        return true;
+    }
+
+    /** Reads the arrows the way {@link #readDecals} reads the paint. Whether anything changed. */
+    private boolean readArrows(CompoundTag tag, boolean clientPacket) {
+        List<PanelArrow> read = new ArrayList<>();
+        for (Tag element : tag.getList(ARROWS_KEY, Tag.TAG_COMPOUND)) {
+            PanelArrow arrow = PanelArrow.load((CompoundTag) element);
+            if (arrow != null && read.size() < PanelArrow.MAX_PER_CELL)
+                read.add(arrow);
+        }
+        if (read.equals(arrows))
+            return false;
+        arrows.clear();
+        arrows.addAll(read);
+        if (clientPacket)
+            for (PanelArrow arrow : arrows)
+                if (arrow.isStamped())
+                    DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> com.nectariich.create_flippies.client.decal
+                            .ClientDecals.need(arrow.art(), worldPosition));
+        return true;
     }
 
     /**

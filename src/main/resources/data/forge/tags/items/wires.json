@@ -1,0 +1,205 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "create_flippies:copper_wire_24awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:copper_wire_20awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:copper_wire_16awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:copper_wire_8awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:copper_wire_4awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:copper_wire_2awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:copper_wire_1awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:copper_wire_0awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:iron_wire_24awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:iron_wire_20awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:iron_wire_16awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:iron_wire_8awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:iron_wire_4awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:iron_wire_2awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:iron_wire_1awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:iron_wire_0awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:golden_wire_24awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:golden_wire_20awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:golden_wire_16awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:golden_wire_8awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:golden_wire_4awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:golden_wire_2awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:golden_wire_1awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:golden_wire_0awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_copper_wire_24awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_copper_wire_20awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_copper_wire_16awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_copper_wire_8awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_copper_wire_4awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_copper_wire_2awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_copper_wire_1awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_copper_wire_0awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_24awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_20awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_16awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_12awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_8awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_4awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_2awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_1awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_iron_wire_0awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_24awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_20awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_16awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_12awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_8awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_4awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_2awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_1awg",
+      "required": false
+    },
+    {
+      "id": "create_flippies:insulated_golden_wire_0awg",
+      "required": false
+    }
+  ]
+}

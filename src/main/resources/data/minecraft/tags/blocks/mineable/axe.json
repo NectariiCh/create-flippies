@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "create_flippies:universal_gauge"
+    "create_flippies:universal_gauge",
+    "create_flippies:design_workbench"
   ]
 }

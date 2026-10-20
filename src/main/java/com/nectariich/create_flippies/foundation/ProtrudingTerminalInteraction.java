@@ -52,6 +52,9 @@ public final class ProtrudingTerminalInteraction {
         ItemStack stack = event.getItemStack();
         if (!IWire.isWire(level, stack.getItem()) || IWire.isCord(level, stack.getItem()))
             return;
+        // WIRE DUCTS: a wire routed through a duct is finished by WireDuctEvents instead
+        if (com.nectariich.create_flippies.content.wire_duct.WireDuctEvents.routing(level, stack))
+            return;
 
         BlockPos pos = event.getPos();
         BlockState state = level.getBlockState(pos);

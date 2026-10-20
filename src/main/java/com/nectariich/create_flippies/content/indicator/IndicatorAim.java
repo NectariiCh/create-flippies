@@ -68,7 +68,7 @@ public final class IndicatorAim {
         if (!(control instanceof IndicatorControl unit))
             return null;
         ControlMount mount = unit.mount();
-        return holds(mount.box(unit.size().lens()), local) ? new Target(null, unit) : null;
+        return holds(mount.box(unit.capBox()), local) ? new Target(null, unit) : null;
     }
 
     /** Whether a click there is worth taking away from whatever else it would do. */

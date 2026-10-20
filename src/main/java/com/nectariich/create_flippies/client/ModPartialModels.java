@@ -34,6 +34,10 @@ public class ModPartialModels {
     public static final PartialModel SQUARE_PROCEDURAL_GAUGE_BODY =
             PartialModel.of(CreateFlippies.asResource("block/square_procedural_gauge"));
 
+    // The edgewise voltmeters likewise, all eight on the one model
+    public static final PartialModel EDGEWISE_PROCEDURAL_GAUGE_BODY =
+            PartialModel.of(CreateFlippies.asResource("block/edgewise_procedural_gauge"));
+
     // A label draws its own backing plate, for the same reason: it exists only as a
     // mounted control, so there is no block state anywhere to bake it from.
     public static final PartialModel PANEL_LABEL_PLATE =
@@ -239,5 +243,75 @@ public class ModPartialModels {
     }
 
     /** Classloads the partials; must run during client mod construction. */
+    // The rears designed switches are drawn with: the switch bodies with their front
+    // plates cut off, since an imported model stands in for the plate and handle.
+    // Designed buttons use the indicator body as it is, which is already only the rear.
+    private static final Map<RotarySwitchKind, PartialModel> DESIGNED_REARS = Map.of(
+            RotarySwitchKind.TWO_POSITION, PartialModel.of(CreateFlippies.asResource("block/rotary-switch-med-2p-rear")),
+            RotarySwitchKind.THREE_POSITION, PartialModel.of(CreateFlippies.asResource("block/rotary-switch-med-3p-rear")));
+
+    public static PartialModel designedRear(RotarySwitchKind kind) {
+        return DESIGNED_REARS.get(kind);
+    }
+
+    // WORKBENCH GAUGE: the rear designed gauges are drawn with, the Square gauge's
+    // barrel and studs alone, since an imported model stands in for its face plate
+    public static final PartialModel DESIGNED_GAUGE_REAR =
+            PartialModel.of(CreateFlippies.asResource("block/designed_gauge_rear"));
+    // WORKBENCH GAUGE end
+
+    // PC
+    // The PC case's parts that change (docs/PC_SPEC.md 11.2.1), struck from pc-case-1.json by
+    // tools/gen_pc_case.py. Each keeps its authored coordinates, so the renderer only turns it.
+    public static final PartialModel PC_FRONT_PANEL = pcPartial("front_panel");
+    public static final PartialModel PC_MOTHERBOARD = pcPartial("motherboard");
+    public static final PartialModel PC_CPU = pcPartial("cpu");
+    public static final PartialModel PC_RAM_A = pcPartial("ram_a");
+    public static final PartialModel PC_RAM_B = pcPartial("ram_b");
+    public static final PartialModel PC_HDD = pcPartial("hdd");
+    public static final PartialModel PC_FLOPPY_DISK = pcPartial("floppy_disk");
+    public static final PartialModel PC_POWER_BUTTON = pcPartial("power_button");
+    public static final PartialModel PC_RESET_BUTTON = pcPartial("reset_button");
+    public static final PartialModel PC_POWER_LED = pcPartial("power_led");
+    public static final PartialModel PC_ERROR_LED = pcPartial("error_led");
+    public static final PartialModel PC_POWER_PLUG = pcPartial("power_plug");
+    private static final Map<com.nectariich.create_flippies.content.data_cord.PortType, PartialModel> DATA_PLUGS =
+            dataPlugs();
+
+    private static PartialModel pcPartial(String name) {
+        return PartialModel.of(CreateFlippies.asResource("block/pc_case/" + name));
+    }
+
+    private static Map<com.nectariich.create_flippies.content.data_cord.PortType, PartialModel> dataPlugs() {
+        Map<com.nectariich.create_flippies.content.data_cord.PortType, PartialModel> plugs =
+                new EnumMap<>(com.nectariich.create_flippies.content.data_cord.PortType.class);
+        for (com.nectariich.create_flippies.content.data_cord.PortType type
+                : com.nectariich.create_flippies.content.data_cord.PortType.values())
+            plugs.put(type, pcPartial("data_plug_" + type.name().toLowerCase(java.util.Locale.ROOT)));
+        return Collections.unmodifiableMap(plugs);
+    }
+
+    public static PartialModel dataPlug(com.nectariich.create_flippies.content.data_cord.PortType type) {
+        return DATA_PLUGS.get(type);
+    }
+
+    public static PartialModel pcPart(com.nectariich.create_flippies.content.pc.PcSlot slot) {
+        return switch (slot) {
+            case FRONT_PANEL -> PC_FRONT_PANEL;
+            case MOTHERBOARD -> PC_MOTHERBOARD;
+            case CPU -> PC_CPU;
+            case RAM_A -> PC_RAM_A;
+            case RAM_B -> PC_RAM_B;
+            case HDD -> PC_HDD;
+            case FLOPPY -> PC_FLOPPY_DISK;
+        };
+    }
+    // PC end
+
+    // CRT
+    // The plug drawn behind the CRT's socket while Power Grid's cord is in it, from tools/gen_crt.py
+    public static final PartialModel CRT_POWER_PLUG = PartialModel.of(CreateFlippies.asResource("block/crt/power_plug"));
+    // CRT end
+
     public static void init() {}
 }

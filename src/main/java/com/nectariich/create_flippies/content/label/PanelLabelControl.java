@@ -14,6 +14,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 
 import net.minecraftforge.network.PacketDistributor;
 
@@ -70,6 +71,15 @@ public class PanelLabelControl extends HostedControl implements LinkDrivenContro
     private int height;
 
     /**
+     * How many labels deep this one sits, which is how far it stands off the panel:
+     * see {@link PanelLabel#STACK_STEP}. Settled once, as the label goes on, from
+     * whatever it was laid over: a label underneath that is later taken away leaves
+     * this one where it is, which is a tenth of a pixel nobody will see, rather than
+     * a stack that shuffles every time one of it is removed.
+     */
+    private int layer;
+
+    /**
      * The footprint, kept rather than rebuilt. Every overlap test, hitbox and
      * outline goes through it, so it is asked for several times a click and once a
      * frame, and the boxes behind it never change once the label is made.
@@ -78,7 +88,7 @@ public class PanelLabelControl extends HostedControl implements LinkDrivenContro
 
     PanelLabelControl(PanelLabelControlType type, int width, int height) {
         super(type);
-        resize(width, height);
+        resize(width, height, 0);
     }
 
     /** The legend as written by hand, which is what the editor starts from. */
@@ -113,6 +123,30 @@ public class PanelLabelControl extends HostedControl implements LinkDrivenContro
     /** How tall the strip is across the authored x axis, in the same steps. */
     public int height() {
         return height;
+    }
+
+    /** How many labels deep this one sits; zero for one laid over nothing. */
+    public int layer() {
+        return layer;
+    }
+
+    /** How far the strip stands off the panel, in pixels. */
+    public double standOff() {
+        return PanelLabel.standOff(layer);
+    }
+
+    /** The middle of this strip's outer surface, which is where its legend is printed. */
+    public Vec3 textAnchor() {
+        return PanelLabel.textAnchor(layer);
+    }
+
+    /**
+     * Puts this label on top of the labels its strip is laid over. Only for a label
+     * that has not gone on yet: once mounted, its footprint is part of what the host
+     * has checked and built, for the reason {@link HostedControl} gives about mounts.
+     */
+    public void stackOn(int layer) {
+        resize(width, height, layer);
     }
 
     @Override
@@ -213,6 +247,8 @@ public class PanelLabelControl extends HostedControl implements LinkDrivenContro
         tag.putInt("PlateColour", plateColour);
         tag.putInt("Spans", width);
         tag.putInt("SpansHigh", height);
+        if (layer != 0)
+            tag.putInt("Layer", layer);
         print.write(tag);
     }
 
@@ -224,8 +260,9 @@ public class PanelLabelControl extends HostedControl implements LinkDrivenContro
         plateColour = tag.contains("PlateColour") ? PanelLabel.sanitiseColour(tag.getInt("PlateColour"))
                 : PanelLabel.DEFAULT_PLATE_COLOUR;
         print = PanelLabelPrint.read(tag);
+        // A label saved before labels could stack carries no layer and sits where it did
         resize(span(tag, "Spans", "Width", PanelLabel.DEFAULT_WIDTH),
-                span(tag, "SpansHigh", "Height", PanelLabel.DEFAULT_HEIGHT));
+                span(tag, "SpansHigh", "Height", PanelLabel.DEFAULT_HEIGHT), tag.getInt("Layer"));
     }
 
     /**
@@ -262,13 +299,15 @@ public class PanelLabelControl extends HostedControl implements LinkDrivenContro
      * would retract that evidence a few times a second and have a panel of two dozen
      * instruments rebuild its whole shape for every reading written onto a label.
      */
-    private void resize(int width, int height) {
+    private void resize(int width, int height, int layer) {
         int spanned = PanelLabel.span(width);
         int high = PanelLabel.span(height);
-        if (footprint != null && spanned == this.width && high == this.height)
+        int stacked = PanelLabel.layer(layer);
+        if (footprint != null && spanned == this.width && high == this.height && stacked == this.layer)
             return;
         this.width = spanned;
         this.height = high;
-        this.footprint = PanelLabel.footprint(spanned, high);
+        this.layer = stacked;
+        this.footprint = PanelLabel.footprint(spanned, high, stacked);
     }
 }

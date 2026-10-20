@@ -7,6 +7,7 @@ import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlock;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlockEntity;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchControl;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchSide;
+import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchSpring;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchTurnMode;
 import com.nectariich.create_flippies.foundation.ClientConfig;
 import com.nectariich.create_flippies.foundation.SurfaceMount;
@@ -99,6 +100,18 @@ import net.minecraftforge.fml.common.Mod;
  * Which way the handle goes is the same inversion the push gesture has, so the two
  * modes never disagree: drag to the left, and the switch turns clockwise onto the
  * next detent.
+ *
+ * <h2>Springs</h2>
+ *
+ * A drag into a detent that springs back ({@link RotarySwitchSpring}) holds the
+ * handle there for as long as the drag lasts, because the server records whoever
+ * turned it there as its holder. Letting go of the drag is letting go of the handle:
+ * every drag ends with a release sent to the server, which returns the handle to rest
+ * if this player was holding it over and ignores the release otherwise. A drag also
+ * ends when the player walks out of the reach the server holds a notch to, at the
+ * same distance the server stops honouring the hold, so the chevrons never go on
+ * counting from a handle that has already sprung back. Nothing about the prediction
+ * outlives the drag: the next grab reads the handle afresh.
  */
 @Mod.EventBusSubscriber(modid = CreateFlippies.MOD_ID, value = Dist.CLIENT)
 public final class RotarySwitchDragInput {
@@ -257,8 +270,10 @@ public final class RotarySwitchDragInput {
             return;
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
-        if (player == null || minecraft.level == null || minecraft.screen != null
-                || !minecraft.options.keyUse.isDown() || !minecraft.level.isLoaded(grabbedPos)) {
+        if (player == null || minecraft.level == null || minecraft.screen != null || !player.isAlive()
+                || !minecraft.options.keyUse.isDown() || !minecraft.level.isLoaded(grabbedPos)
+                || player.distanceToSqr(Vec3.atCenterOf(grabbedPos))
+                        > RotarySwitchSpring.MAX_REACH * RotarySwitchSpring.MAX_REACH) {
             release();
             return;
         }
@@ -419,8 +434,17 @@ public final class RotarySwitchDragInput {
         return new Vec3(to[0] - from[0], to[1] - from[1], to[2] - from[2]).normalize();
     }
 
-    /** Lets go. The next grab lays its marks out afresh from wherever the handle is. */
+    /**
+     * Lets go. The next grab lays its marks out afresh from wherever the handle is.
+     *
+     * The server is told every time, not only when the prediction says the handle is
+     * over in a springing detent: the prediction is this client's guess, and a
+     * release the server has no use for costs it nothing.
+     */
     private static void release() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (grabbedPos != null && minecraft.getConnection() != null)
+            ModPackets.CHANNEL.sendToServer(TurnRotarySwitchPacket.release(grabbedPos, grabbedLocal));
         grabbedPos = null;
         grabbedLocal = null;
         planeOrigin = null;

@@ -52,6 +52,12 @@ public class ModClientEvents {
                 ProceduralGaugeRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.SQUARE_PROCEDURAL_GAUGE.get(),
                 ProceduralGaugeRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.EDGEWISE_PROCEDURAL_VOLTMETER.get(),
+                EdgewiseGaugeRenderer::new);
+        // EDGEWISE GAUGES
+        event.registerBlockEntityRenderer(ModBlockEntities.EDGEWISE_PROCEDURAL_GAUGE.get(),
+                EdgewiseGaugeRenderer::new);
+        // EDGEWISE GAUGES end
         event.registerBlockEntityRenderer(ModBlockEntities.ROTARY_SWITCH.get(), RotarySwitchRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.INDICATOR.get(), IndicatorRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.ALPHANUM_DISPLAY.get(),
@@ -63,6 +69,20 @@ public class ModClientEvents {
         event.registerBlockEntityRenderer(ModBlockEntities.DIN_RAIL.get(), ControlHostRenderer::new);
         // A panel cell carries its own controls on a chamfer, and draws them the same way
         event.registerBlockEntityRenderer(ModBlockEntities.LARGE_PANEL.get(), ControlHostRenderer::new);
+        // PC
+        event.registerBlockEntityRenderer(ModBlockEntities.PC_CASE.get(),
+                com.nectariich.create_flippies.client.pc.PcCaseRenderer::new);
+        event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.DATA_CORD.get(),
+                com.nectariich.create_flippies.client.pc.DataCordRenderer::new);
+        // PC end
+        // CRT
+        event.registerBlockEntityRenderer(ModBlockEntities.CRT.get(),
+                com.nectariich.create_flippies.client.pc.CrtRenderer::new);
+        // CRT end
+        // WIRE DUCTS
+        event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.WIRE_DUCT.get(),
+                com.nectariich.create_flippies.client.wire.WireDuctRenderer::new);
+        // WIRE DUCTS end
     }
 
     /**
@@ -76,6 +96,7 @@ public class ModClientEvents {
         RotarySwitchControlRenderer.register();
         PanelLabelRenderer.register();
         MountedGaugeRenderer.register();
+        MountedEdgewiseGaugeRenderer.register();
         CircuitBreakerControlRenderer.register();
         IndicatorControlRenderer.register();
         PlcSmallControlRenderer.register();
@@ -83,5 +104,7 @@ public class ModClientEvents {
         RelayMountControlRenderer.register();
         TerminalBlockControlRenderer.register();
         AlphanumDisplayControlRenderer.register();
+        com.nectariich.create_flippies.client.design.DesignedControlRenderer.register();
+        com.nectariich.create_flippies.client.design.ClientDesigns.setup();
     }
 }

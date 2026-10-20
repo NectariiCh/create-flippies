@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "create_flippies:block/design_workbench" }
+  }
+}
