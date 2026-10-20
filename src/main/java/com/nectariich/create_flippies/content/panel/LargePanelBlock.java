@@ -315,7 +315,7 @@ public class LargePanelBlock extends CopycatBlock implements IProtrudingHitbox {
         LargePanelBlockEntity cell = LargePanelBlockEntity.cellAt(level, pos);
         HostedControl control = cell == null ? null
                 : cell.controlAt(target.getLocation().subtract(Vec3.atLowerCornerOf(pos)));
-        return control != null ? control.type().asItem() : super.getCloneItemStack(state, target, level, pos, player);
+        return control != null ? control.asItem() : super.getCloneItemStack(state, target, level, pos, player);
     }
 
     /**

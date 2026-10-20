@@ -62,12 +62,17 @@ public class RotarySwitchControlType extends ControlType {
     private final ControlFootprint footprint;
 
     private RotarySwitchControlType(RotarySwitchKind kind) {
-        super(kind.blockId());
-        this.kind = kind;
-        this.footprint = ControlFootprint
+        this(kind.blockId(), kind, ControlFootprint
                 .of(ControlFootprint.sweptAboutAxis(kind.size().sweepRadius(), 0, kind.size().frontHeight()),
                         RotarySwitchBlock.NECK, RotarySwitchBlock.RACK)
-                .plus(RotarySwitchBlock.contactBoxes(kind));
+                .plus(RotarySwitchBlock.contactBoxes(kind)));
+    }
+
+    /** For a kind that is this switch behind a different front, under its own name. */
+    protected RotarySwitchControlType(String id, RotarySwitchKind kind, ControlFootprint footprint) {
+        super(id);
+        this.kind = kind;
+        this.footprint = footprint;
     }
 
     /** Adds every switch to the catalogue of mountable controls. */

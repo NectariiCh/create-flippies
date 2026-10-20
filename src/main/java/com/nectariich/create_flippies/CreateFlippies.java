@@ -3,6 +3,11 @@ package com.nectariich.create_flippies;
 import com.mojang.logging.LogUtils;
 import com.nectariich.create_flippies.content.gauge.UniversalGaugeDisplayTarget;
 import com.nectariich.create_flippies.content.circuit_breaker.CircuitBreakerType;
+import com.nectariich.create_flippies.content.design_workbench.DesignTransfers;
+import com.nectariich.create_flippies.content.design_workbench.DesignedButtonControlType;
+import com.nectariich.create_flippies.content.design_workbench.DesignedRackControlType;
+import com.nectariich.create_flippies.content.design_workbench.DesignedGaugeControlType;
+import com.nectariich.create_flippies.content.design_workbench.DesignedSwitchControlType;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayControlType;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayTarget;
 import com.nectariich.create_flippies.content.label.PanelLabelControlType;
@@ -13,6 +18,7 @@ import com.nectariich.create_flippies.content.terminal_block.TerminalBlockType;
 import com.nectariich.create_flippies.content.host.ControlHostDisplayTarget;
 import com.nectariich.create_flippies.content.indicator.IndicatorControlType;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralGaugeDisplayTarget;
+import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseVoltmeterControlType;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralVoltmeterControlType;
 import com.nectariich.create_flippies.content.procedural_gauge.SquareProceduralGaugeControlType;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchControlType;
@@ -21,10 +27,15 @@ import com.nectariich.create_flippies.network.ModPackets;
 import com.nectariich.create_flippies.registry.ModBlockEntities;
 import com.nectariich.create_flippies.registry.ModBlocks;
 import com.nectariich.create_flippies.registry.ModCreativeTabs;
+import com.nectariich.create_flippies.registry.ModEntityTypes;
+import com.nectariich.create_flippies.foundation.ServerConfig;
 import com.nectariich.create_flippies.registry.ModItems;
 import com.nectariich.create_flippies.registry.ModSounds;
 import com.simibubi.create.api.behaviour.display.DisplayTarget;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -51,6 +62,15 @@ public class CreateFlippies {
         ModBlockEntities.register(modBus);
         ModCreativeTabs.register(modBus);
         ModSounds.register(modBus);
+        // PC
+        ModEntityTypes.register(modBus);
+        context.registerConfig(ModConfig.Type.SERVER, ServerConfig.SPEC);
+        // PC end
+        // WIRE GAUGES: registered only without Power Plant Grid, and remapped in saves
+        // to and from its wires as it is installed or removed
+        com.nectariich.create_flippies.registry.ModWires.register(modBus);
+        MinecraftForge.EVENT_BUS.register(com.nectariich.create_flippies.foundation.wire.gauge.WireGaugeCompat.class);
+        // WIRE GAUGES end
 
         // Client type, so the settings are per-installation and never loaded on a
         // dedicated server. ClientConfig imports nothing client-only, so naming it
@@ -75,6 +95,7 @@ public class CreateFlippies {
         RotarySwitchControlType.register();
         PanelLabelControlType.register();
         ProceduralVoltmeterControlType.register();
+        EdgewiseVoltmeterControlType.register();
         IndicatorControlType.register();
         SquareProceduralGaugeControlType.register();
         CircuitBreakerType.register();
@@ -83,6 +104,15 @@ public class CreateFlippies {
         RelayMountType.register();
         TerminalBlockType.register();
         AlphanumDisplayControlType.register();
+        DesignedSwitchControlType.register();
+        DesignedButtonControlType.register();
+        DesignedRackControlType.register();
+        DesignedGaugeControlType.register();
+        // EDGEWISE GAUGES
+        com.nectariich.create_flippies.content.procedural_gauge.EdgewiseProceduralGaugeControlType.register();
+        event.enqueueWork(() -> DisplayTarget.BY_BLOCK_ENTITY
+                .register(ModBlockEntities.EDGEWISE_PROCEDURAL_GAUGE.get(), new ProceduralGaugeDisplayTarget()));
+        // EDGEWISE GAUGES end
         event.enqueueWork(() -> {
             DisplayTarget.BY_BLOCK_ENTITY
                     .register(ModBlockEntities.UNIVERSAL_GAUGE.get(), new UniversalGaugeDisplayTarget());
@@ -109,6 +139,13 @@ public class CreateFlippies {
     }
 
     private void clientSetup(final FMLClientSetupEvent event) {
+    }
+
+    /** A half-finished model upload is dropped with the player who was sending it. */
+    @SubscribeEvent
+    public void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player)
+            DesignTransfers.forget(player);
     }
 
     public static ResourceLocation asResource(String path) {

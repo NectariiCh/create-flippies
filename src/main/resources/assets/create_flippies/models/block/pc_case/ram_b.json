@@ -1,0 +1,88 @@
+{
+  "textures": {
+    "3": "create_flippies:block/components-1",
+    "particle": "create_flippies:block/components-1"
+  },
+  "elements": [
+    {
+      "name": "ram",
+      "from": [
+        7.75,
+        6.625,
+        9.25
+      ],
+      "to": [
+        8,
+        10.625,
+        10.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          3,
+          9.625,
+          7
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            2.875,
+            14,
+            3,
+            16
+          ],
+          "texture": "#3"
+        },
+        "east": {
+          "uv": [
+            6,
+            12.875,
+            16,
+            16
+          ],
+          "rotation": 90,
+          "texture": "#3"
+        },
+        "south": {
+          "uv": [
+            2.0625,
+            14,
+            2.1875,
+            16
+          ],
+          "texture": "#3"
+        },
+        "west": {
+          "uv": [
+            6,
+            12.875,
+            16,
+            16
+          ],
+          "rotation": 90,
+          "texture": "#3"
+        },
+        "up": {
+          "uv": [
+            0,
+            14,
+            0.125,
+            14.625
+          ],
+          "texture": "#3"
+        },
+        "down": {
+          "uv": [
+            2.8125,
+            15.375,
+            2.9375,
+            16
+          ],
+          "texture": "#3"
+        }
+      }
+    }
+  ]
+}

@@ -66,6 +66,26 @@ public final class RotarySwitchAim {
         return null;
     }
 
+    /**
+     * The spring mask of the switch under this hit, by the same rules
+     * {@link #sideAt(BlockGetter, BlockHitResult)} finds it, or 0 if there is no switch
+     * there or it does not spring at all.
+     *
+     * Asked by the client before a push, to decide whether the push has to be held:
+     * a switch with a spring needs the use key watched until it comes up, and one
+     * without is left to the ordinary click.
+     */
+    public static int springsAt(BlockGetter level, BlockHitResult hit) {
+        BlockPos pos = hit.getBlockPos();
+        Vec3 local = hit.getLocation().subtract(Vec3.atLowerCornerOf(pos));
+        if (level.getBlockState(pos).getBlock() instanceof RotarySwitchBlock)
+            return level.getBlockEntity(pos) instanceof RotarySwitchBlockEntity rotary ? rotary.springs() : 0;
+        if (level.getBlockEntity(pos) instanceof ControlRackHolder host
+                && host.controlAt(local) instanceof RotarySwitchControl control)
+            return control.springs();
+        return 0;
+    }
+
     /** As above, for a switch that is a block of its own, aimed by its block state. */
     public static RotarySwitchSide sideAt(Vec3 local, Direction facing, int rotation) {
         double[] p = pixels(local);

@@ -1,13 +1,20 @@
 package com.nectariich.create_flippies.content.rotary_switch;
 
+import java.util.List;
+
+import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 import com.nectariich.create_flippies.registry.ModBlockEntities;
 import com.nectariich.create_flippies.registry.ModSounds;
+import com.simibubi.create.api.equipment.goggles.IHaveGoggleInformation;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -23,7 +30,7 @@ import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
  * {@link RotarySwitchKind} gives it. Exactly one of each section's wires conducts,
  * so turning the handle transfers all three lines at once.
  */
-public class RotarySwitchBlockEntity extends ElectricBlockEntity {
+public class RotarySwitchBlockEntity extends ElectricBlockEntity implements IHaveGoggleInformation {
 
     /** Contact resistance of a made contact, in ohms. */
     public static final float CONTACT_RESISTANCE = 0.01f;
@@ -65,6 +72,16 @@ public class RotarySwitchBlockEntity extends ElectricBlockEntity {
      * which is read off the block state.
      */
     private RotarySwitchAppearance appearance;
+
+    /**
+     * Which detents spring back to rest, as a {@link RotarySwitchSpring} mask. Set
+     * from the menu along with the appearance, and saved and synced with it, so a
+     * client knows to hold the handle over rather than let it go at once.
+     */
+    private int springs;
+
+    /** Who is holding the handle over in a springing detent; never saved. */
+    private final RotarySwitchSpring spring = new RotarySwitchSpring();
 
     /**
      * Per section, one wire from the common to each stud, in the order
@@ -167,6 +184,19 @@ public class RotarySwitchBlockEntity extends ElectricBlockEntity {
         return position;
     }
 
+    public int springs() {
+        return springs;
+    }
+
+    /**
+     * Server-side: change which detents spring back. A handle left in a detent that
+     * now springs, with nobody holding it there, goes back on the next tick.
+     */
+    public void setSprings(int springs) {
+        this.springs = RotarySwitchSpring.sanitise(kind(), springs);
+        notifyUpdate();
+    }
+
     /**
      * Server-side: push one side of the front and turn the handle that way.
      *
@@ -175,16 +205,38 @@ public class RotarySwitchBlockEntity extends ElectricBlockEntity {
      * the middle — and with a direction to the gesture, wrapping would mean a push
      * to the right sometimes throwing the switch hard left.
      *
+     * The player who turned it is remembered if the detent it lands in springs back,
+     * so that it stays there while they hold the use key; see
+     * {@link RotarySwitchSpring}.
+     *
      * @return whether the handle actually moved, so a caller can keep quiet about a
      *         push against a stop
      */
-    public boolean turn(RotarySwitchSide side) {
+    public boolean turn(RotarySwitchSide side, Player player) {
         int target = Mth.clamp(position + side.detentStep(), 0, kind().positions() - 1);
         if (target == position)
             return false;
         setPosition(target);
+        spring.turned(kind(), springs, position, player);
         playTurnSound(level, worldPosition);
         return true;
+    }
+
+    /**
+     * Server-side: this player has let go of the use key. If they were holding the
+     * handle over in a springing detent it goes back to rest; anybody else's release
+     * is ignored.
+     */
+    public void release(Player player) {
+        if (spring.release(kind(), springs, position, player))
+            springBack();
+    }
+
+    /** The handle returning to rest under its spring, with the same clack as a turn. */
+    private void springBack() {
+        spring.clear();
+        setPosition(kind().defaultPosition());
+        playTurnSound(level, worldPosition);
     }
 
     public void setPosition(int position) {
@@ -231,6 +283,10 @@ public class RotarySwitchBlockEntity extends ElectricBlockEntity {
     @Override
     public void tick() {
         super.tick();
+        // Lets go for a holder who is no longer there to hold it, and returns a
+        // handle that was loaded over with nobody holding it at all
+        if (spring.tick(level, worldPosition, kind(), springs, position))
+            springBack();
         prevHandleAngle = handleAngle;
         float target = kind().handleAngle(position);
         handleAngle += (target - handleAngle) * HANDLE_EASING;
@@ -243,6 +299,7 @@ public class RotarySwitchBlockEntity extends ElectricBlockEntity {
         super.write(tag, clientPacket);
         tag.putInt("Position", position);
         appearance.write(tag);
+        tag.putInt("Springs", springs);
     }
 
     @Override
@@ -250,8 +307,35 @@ public class RotarySwitchBlockEntity extends ElectricBlockEntity {
         super.read(tag, clientPacket);
         position = Math.floorMod(tag.getInt("Position"), kind().positions());
         appearance = RotarySwitchAppearance.read(tag, kind());
+        // Absent on a switch saved before there were springs, which reads as none
+        springs = RotarySwitchSpring.sanitise(kind(), tag.getInt("Springs"));
         // The circuit may have been built before this ran, from the position this
         // block entity started at rather than the one it was saved in
         applyContacts();
+    }
+
+    /**
+     * Only a switch with a spring has anything to say through the goggles: which way
+     * its handle springs back from. A plain switch keeps the overlay off, as it
+     * always has.
+     */
+    @Override
+    public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
+        return addSpringTooltip(tooltip, kind(), springs);
+    }
+
+    /** Shared with the mounted form, which says exactly the same thing. */
+    public static boolean addSpringTooltip(List<Component> tooltip, RotarySwitchKind kind, int springs) {
+        springs = RotarySwitchSpring.sanitise(kind, springs);
+        if (springs == 0)
+            return false;
+        String prefix = "gui." + CreateFlippies.MOD_ID + ".rotary_switch.goggles.";
+        tooltip.add(Component.literal("    ")
+                .append(Component.translatable(prefix + "header").withStyle(ChatFormatting.WHITE)));
+        for (int position : RotarySwitchSpring.springable(kind))
+            if (RotarySwitchSpring.springsFrom(kind, springs, position))
+                tooltip.add(Component.literal("    ").append(
+                        RotarySwitchSpring.label(kind, position).copy().withStyle(ChatFormatting.AQUA)));
+        return true;
     }
 }

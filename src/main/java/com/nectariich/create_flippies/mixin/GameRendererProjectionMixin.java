@@ -1,0 +1,46 @@
+package com.nectariich.create_flippies.mixin;
+
+import com.nectariich.create_flippies.client.design.DesignCamera;
+
+import net.minecraft.client.renderer.GameRenderer;
+
+import org.joml.Matrix4f;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+/**
+ * Changes the world's projection while the Design Workbench holds the camera; see
+ * {@link DesignCamera}. The picture is shifted sideways, so the point the camera looks
+ * at is drawn off the middle of the screen, and in the workbench's top view the
+ * perspective is blended into an orthographic projection. The world pass and anything
+ * else drawn with this projection all see the same picture.
+ *
+ * Culling is the exception: vanilla culls with this same method's matrix, and its
+ * culling setup cannot work with an orthographic box (it would step the camera back
+ * forever looking for a frustum a 16-block cube fits in), so while the top view is
+ * coming in the culling matrix is swapped for a wide perspective that holds
+ * everything the top view can show.
+ */
+@Mixin(GameRenderer.class)
+public abstract class GameRendererProjectionMixin {
+
+    @Shadow
+    public abstract float getDepthFar();
+
+    @Inject(method = "getProjectionMatrix", at = @At("RETURN"))
+    private void create_flippies$designProjection(double fov, CallbackInfoReturnable<Matrix4f> cir) {
+        if (DesignCamera.active())
+            DesignCamera.projection(cir.getReturnValue());
+    }
+
+    @ModifyArg(method = "renderLevel", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/LevelRenderer;prepareCullFrustum(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/phys/Vec3;Lorg/joml/Matrix4f;)V"),
+            index = 2)
+    private Matrix4f create_flippies$designCullProjection(Matrix4f projection) {
+        return DesignCamera.cullProjection(projection, getDepthFar());
+    }
+}

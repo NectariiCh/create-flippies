@@ -246,7 +246,7 @@ public class RotarySwitchBlock extends ElectricBlock
             return InteractionResult.SUCCESS;
 
         // turn() is what makes the noise, so a push into a stop is silent
-        withBlockEntityDo(level, pos, rotary -> rotary.turn(side));
+        withBlockEntityDo(level, pos, rotary -> rotary.turn(side, player));
         return InteractionResult.CONSUME;
     }
 

@@ -118,7 +118,7 @@ public class ControlHostBlock extends ElectricBlock implements IBE<ControlHostBl
         if (host == null)
             return ItemStack.EMPTY;
         HostedControl control = host.controlAt(target.getLocation().subtract(Vec3.atLowerCornerOf(pos)));
-        return control != null ? control.type().asItem() : ItemStack.EMPTY;
+        return control != null ? control.asItem() : ItemStack.EMPTY;
     }
 
     /**

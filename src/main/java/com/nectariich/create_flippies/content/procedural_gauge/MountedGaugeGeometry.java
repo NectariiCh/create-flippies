@@ -22,11 +22,14 @@ import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
  * gauge model is authored facing north while a mounted control is authored
  * plate-down. Converting in one place is what lets the authored numbers stay exactly
  * as the model has them.
+ *
+ * The edgewise voltmeters and the gauges made at the Design Workbench stand on the
+ * same three studs, so they take their terminals from here as well.
  */
-final class MountedGaugeGeometry {
+public final class MountedGaugeGeometry {
 
     /** Positive and negative, in the order the block form lists them. */
-    static final int TERMINALS = 2;
+    public static final int TERMINALS = 2;
 
     static final ControlFootprint FOOTPRINT = ControlFootprint.of(
             ProceduralGaugeBlock.mounted(ProceduralGaugeBlock.HEAD),
@@ -43,7 +46,7 @@ final class MountedGaugeGeometry {
      * and it is right here because the boxes are the studs the model draws rather
      * than boxes grown out beyond them.
      */
-    static TerminalBoundingBox[] terminals(ControlMount mount) {
+    public static TerminalBoundingBox[] terminals(ControlMount mount) {
         return new TerminalBoundingBox[] {
                 terminal(mount, IDecoratedTerminal.POSITIVE, ProceduralGaugeBlock.STUD_POSITIVE,
                         IDecoratedTerminal.RED),

@@ -9,6 +9,7 @@ import com.simibubi.create.content.redstone.displayLink.DisplayLinkContext;
 import com.simibubi.create.content.redstone.displayLink.target.DisplayTargetStats;
 
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 public class ProceduralGaugeDisplayTarget extends DisplayTarget {
 
@@ -16,7 +17,9 @@ public class ProceduralGaugeDisplayTarget extends DisplayTarget {
 
     @Override
     public void acceptText(int line, List<MutableComponent> text, DisplayLinkContext context) {
-        if (!(context.getTargetBlockEntity() instanceof SquareProceduralGaugeBlockEntity gauge))
+        BlockEntity target = context.getTargetBlockEntity();
+        if (!(target instanceof SquareProceduralGaugeBlockEntity)
+                && !(target instanceof EdgewiseProceduralGaugeBlockEntity))
             return;
         String rawText = text.isEmpty() ? "" : text.get(0).getString();
         Double number = null;
@@ -31,7 +34,10 @@ public class ProceduralGaugeDisplayTarget extends DisplayTarget {
             } catch (NumberFormatException ignored) {}
             break;
         }
-        gauge.updateFromLink(rawText, number);
+        if (target instanceof SquareProceduralGaugeBlockEntity gauge)
+            gauge.updateFromLink(rawText, number);
+        else if (target instanceof EdgewiseProceduralGaugeBlockEntity gauge)
+            gauge.updateFromLink(rawText, number);
     }
 
     @Override

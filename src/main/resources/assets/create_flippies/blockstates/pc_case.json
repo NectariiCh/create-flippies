@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=west": {
+      "model": "create_flippies:block/pc_case/shell"
+    },
+    "facing=north": {
+      "model": "create_flippies:block/pc_case/shell",
+      "y": 90
+    },
+    "facing=east": {
+      "model": "create_flippies:block/pc_case/shell",
+      "y": 180
+    },
+    "facing=south": {
+      "model": "create_flippies:block/pc_case/shell",
+      "y": 270
+    }
+  }
+}

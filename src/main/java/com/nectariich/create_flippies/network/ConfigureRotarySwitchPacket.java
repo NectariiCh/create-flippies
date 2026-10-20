@@ -19,8 +19,8 @@ import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Applies the appearance menu's result to a rotary switch: the front it is printed
- * with, the paint on the body, the handle fitted to it, and — for the block form —
- * a quarter turn in its panel.
+ * with, the paint on the body, the handle fitted to it, which of its detents spring
+ * back to rest, and, for the block form, a quarter turn in its panel.
  *
  * One packet serves both forms the switch takes, the way
  * {@link ConfigureProceduralGaugePacket} does. A null mount means the block at
@@ -39,25 +39,30 @@ import net.minecraftforge.network.NetworkEvent;
  *
  * The appearance arrives unchecked and is put through
  * {@link RotarySwitchAppearance#forKind} by whichever switch takes it, so a client
- * naming a three-position front for a two-position switch changes nothing.
+ * naming a three-position front for a two-position switch changes nothing. The
+ * spring mask is the same: any int at all may arrive, and
+ * {@code RotarySwitchSpring.sanitise} keeps only the bits for detents the switch
+ * really has, never its rest detent.
  */
 public class ConfigureRotarySwitchPacket {
 
     private final BlockPos pos;
     private final RotarySwitchAppearance appearance;
+    private final int springs;
     private final boolean turn;
     private final ControlMount mount;
 
     /** For the switch that is the block at {@code pos}. */
-    public ConfigureRotarySwitchPacket(BlockPos pos, RotarySwitchAppearance appearance, boolean turn) {
-        this(pos, appearance, turn, null);
+    public ConfigureRotarySwitchPacket(BlockPos pos, RotarySwitchAppearance appearance, int springs, boolean turn) {
+        this(pos, appearance, springs, turn, null);
     }
 
     /** As above, for the switch mounted at {@code mount} in the host block at {@code pos}. */
-    public ConfigureRotarySwitchPacket(BlockPos pos, RotarySwitchAppearance appearance, boolean turn,
+    public ConfigureRotarySwitchPacket(BlockPos pos, RotarySwitchAppearance appearance, int springs, boolean turn,
             ControlMount mount) {
         this.pos = pos;
         this.appearance = appearance;
+        this.springs = springs;
         this.turn = turn;
         this.mount = mount;
     }
@@ -65,6 +70,7 @@ public class ConfigureRotarySwitchPacket {
     public ConfigureRotarySwitchPacket(FriendlyByteBuf buffer) {
         pos = buffer.readBlockPos();
         appearance = RotarySwitchAppearance.read(buffer);
+        springs = buffer.readVarInt();
         turn = buffer.readBoolean();
         mount = buffer.readBoolean() ? ControlMount.read(buffer) : null;
     }
@@ -72,6 +78,7 @@ public class ConfigureRotarySwitchPacket {
     public void encode(FriendlyByteBuf buffer) {
         buffer.writeBlockPos(pos);
         appearance.write(buffer);
+        buffer.writeVarInt(springs);
         buffer.writeBoolean(turn);
         buffer.writeBoolean(mount != null);
         if (mount != null)
@@ -90,13 +97,16 @@ public class ConfigureRotarySwitchPacket {
                 if (!(level.getBlockEntity(pos) instanceof ControlRackHolder host))
                     return;
                 HostedControl mounted = host.installedAt(mount);
-                if (mounted instanceof RotarySwitchControl rotary)
+                if (mounted instanceof RotarySwitchControl rotary) {
                     rotary.setAppearance(appearance);
+                    rotary.setSprings(springs);
+                }
                 return;
             }
             if (!(level.getBlockEntity(pos) instanceof RotarySwitchBlockEntity rotary))
                 return;
             rotary.setAppearance(appearance);
+            rotary.setSprings(springs);
             if (turn)
                 RotarySwitchBlock.turn(level, pos);
         });

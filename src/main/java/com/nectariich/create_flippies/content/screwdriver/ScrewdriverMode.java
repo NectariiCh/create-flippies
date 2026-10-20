@@ -103,7 +103,28 @@ public enum ScrewdriverMode {
      * the one that is already right — a gauge dressed with its printing, a switch
      * wired to something — while everything around it is still moving.
      */
-    PROTECT_CONTROLS(new int[][] {});
+    PROTECT_CONTROLS(new int[][] {}),
+
+    /**
+     * Paint a picture onto a large panel: pick two corners on the plate and the
+     * picture chosen in the menu is fitted between them; left-click a picture to take
+     * it off again.
+     *
+     * A mode of the screwdriver because it is the tool's own gesture (two corners on
+     * a surface) on the surfaces the tool builds, and because paint is the last thing
+     * done to a panel the tool has just fitted out. It rules nothing.
+     */
+    PAINT_DECAL(new int[][] {}),
+
+    // SCHEMATIC ARROWS
+    /**
+     * Raise schematic arrows and mimic strips off a large panel: click points to draw
+     * one, stamp an imported SVG between two corners, or pick one up and move it;
+     * left-click to take a point back or an arrow off. See
+     * {@link com.nectariich.create_flippies.content.schematic_arrow.SchematicArrowActions}.
+     */
+    SCHEMATIC_ARROW(new int[][] {});
+    // SCHEMATIC ARROWS end
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".screwdriver.mode.";
 
@@ -140,7 +161,7 @@ public enum ScrewdriverMode {
      */
     public boolean claimsLeftClick() {
         return this == DEFINE_GRID || this == DEFINE_BREAK_PROTECTION || this == PROTECT_CONTROLS
-                || this == EDIT_PANEL;
+                || this == EDIT_PANEL || this == PAINT_DECAL || this == SCHEMATIC_ARROW;
     }
 
     /** The rulings this mode offers, as {@code columns, rows} pairs. */

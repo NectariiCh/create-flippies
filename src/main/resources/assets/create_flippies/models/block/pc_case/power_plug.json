@@ -1,0 +1,77 @@
+{
+  "textures": {
+    "plug": "powergrid:block/plug",
+    "particle": "powergrid:block/plug"
+  },
+  "elements": [
+    {
+      "name": "power plug",
+      "from": [
+        14.25,
+        1.5,
+        9.25
+      ],
+      "to": [
+        15.5,
+        2.75,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#plug"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#plug"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#plug"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#plug"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#plug"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#plug"
+        }
+      }
+    }
+  ]
+}

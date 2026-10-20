@@ -2,6 +2,8 @@ package com.nectariich.create_flippies.network;
 
 import java.util.function.Supplier;
 
+import com.nectariich.create_flippies.content.schematic_arrow.ArrowDraft;
+import com.nectariich.create_flippies.content.schematic_arrow.ArrowGrab;
 import com.nectariich.create_flippies.content.panel.PanelEditKind;
 import com.nectariich.create_flippies.content.screwdriver.DynamicBlockKind;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
@@ -101,6 +103,9 @@ public class ConfigureScrewdriverPacket {
                 ScrewdriverSettings.setFirstPoint(stack, null);
                 ScrewdriverSettings.setFirstPanel(stack, null);
                 ScrewdriverSettings.setEditPanel(stack, null);
+                // SCHEMATIC ARROWS
+                ArrowDraft.write(stack, null);
+                ArrowGrab.write(stack, null);
             }
         });
         context.get().setPacketHandled(true);

@@ -1,0 +1,2 @@
+# Un-ignore for ripgrep / Claude search; .ignore overrides .gitignore
+!/hypergraphical-lib/

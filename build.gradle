@@ -122,6 +122,12 @@ dependencies {
     implementation fg.deobf("maven.modrinth:power-grid:${powergrid_version}")
     implementation fg.deobf("dev.architectury:architectury-forge:${architectury_version}")
 
+    // Hypergraphical Lib, built from the local clone in hypergraphical-lib/ (see
+    // settings.gradle). It is a source build in official mappings, so no fg.deobf.
+    // Embeddium is its hard requirement and is only needed to run the game here.
+    implementation "dev.nectariich.hypergraphical:hypergraphical:${hypergraphical_version}"
+    runtimeOnly fg.deobf("maven.modrinth:embeddium:${embeddium_version}")
+
     // Unit tests. The PLC's emulator (content/plc/mcu) is pure Java, so its tests run
     // on the plain JUnit platform with no game or mod loader behind them.
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
@@ -143,6 +149,7 @@ tasks.named('processResources', ProcessResources).configure {
             mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
             mod_authors: mod_authors, mod_description: mod_description,
             create_version_range: create_version_range, powergrid_version_range: powergrid_version_range,
+            hypergraphical_version_range: hypergraphical_version_range,
     ]
     inputs.properties replaceProperties
 

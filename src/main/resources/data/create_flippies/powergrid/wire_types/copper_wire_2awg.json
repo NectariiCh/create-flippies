@@ -1,0 +1,14 @@
+{
+  "resistancePerItem": 0.00099908316,
+  "itemsPerMeter": 0.5,
+  "maximumLength": 24.0,
+  "thermalMass": 232.02585,
+  "maximumCurrent": 304.29325,
+  "texture": "powergrid:textures/special/copper_wire.png",
+  "horizontalCoefficient": 1.01,
+  "verticalCoefficient": 1.2,
+  "wireThickness": 0.15801863,
+  "colorable": false,
+  "cord": false,
+  "insulated": false
+}

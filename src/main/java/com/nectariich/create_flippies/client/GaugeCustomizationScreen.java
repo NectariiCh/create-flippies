@@ -6,6 +6,7 @@ import java.util.List;
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.procedural_gauge.SquareProceduralGaugeBlockEntity;
 import com.nectariich.create_flippies.content.procedural_gauge.GaugeFaceDefinition;
+import com.nectariich.create_flippies.content.procedural_gauge.MountedEdgewiseGauge;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralGaugeBlockEntity;
 import com.nectariich.create_flippies.content.procedural_gauge.SupplyVoltage;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
@@ -79,6 +80,9 @@ public class GaugeCustomizationScreen extends Screen {
                     new GaugeCustomizationScreen(pos, mount, gauge.faceDefinition(), true, gauge.getSupply()));
         else if (control instanceof ProceduralVoltmeterControl gauge)
             minecraft.setScreen(new GaugeCustomizationScreen(pos, mount, gauge.faceDefinition(), false, null));
+        // The edgewise gauges share the packet that asks for this menu but have one of their own
+        else if (control instanceof MountedEdgewiseGauge)
+            EdgewiseGaugeCustomizationScreen.open(pos, mount);
     }
 
     private GaugeCustomizationScreen(ProceduralGaugeBlockEntity gauge) {

@@ -1,0 +1,51 @@
+package com.nectariich.create_flippies.registry;
+
+import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.content.data_cord.DataCordEntity;
+
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobCategory;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
+
+public class ModEntityTypes {
+    public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
+            DeferredRegister.create(ForgeRegistries.ENTITY_TYPES, CreateFlippies.MOD_ID);
+
+    /**
+     * A data cord between two ports (spec 11.2.5). Never summoned and never saved
+     * from a spawn egg; it exists only between two ports a cord was used on. Tracked
+     * as far as a cord can reach so both ends' players see it.
+     */
+    public static final RegistryObject<EntityType<DataCordEntity>> DATA_CORD = ENTITY_TYPES.register("data_cord",
+            () -> EntityType.Builder.<DataCordEntity>of(DataCordEntity::new, MobCategory.MISC)
+                    .sized(0.1f, 0.1f)
+                    .clientTrackingRange(10)
+                    .updateInterval(Integer.MAX_VALUE)
+                    .noSummon()
+                    .fireImmune()
+                    .build(CreateFlippies.asResource("data_cord").toString()));
+
+    // WIRE DUCTS
+    /**
+     * One straight stretch of wire duct lying on a face. Placed by a duct item only;
+     * it never moves, so it is sent once and never updated.
+     */
+    public static final RegistryObject<EntityType<com.nectariich.create_flippies.content.wire_duct.WireDuctEntity>>
+            WIRE_DUCT = ENTITY_TYPES.register("wire_duct",
+            () -> EntityType.Builder.<com.nectariich.create_flippies.content.wire_duct.WireDuctEntity>of(
+                    com.nectariich.create_flippies.content.wire_duct.WireDuctEntity::new, MobCategory.MISC)
+                    .sized(0.25f, 0.25f)
+                    .clientTrackingRange(8)
+                    .updateInterval(Integer.MAX_VALUE)
+                    .noSummon()
+                    .fireImmune()
+                    .build(CreateFlippies.asResource("wire_duct").toString()));
+    // WIRE DUCTS end
+
+    public static void register(IEventBus modBus) {
+        ENTITY_TYPES.register(modBus);
+    }
+}

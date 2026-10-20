@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "create_flippies:block/design_workbench/front",
+    "down": "create_flippies:block/design_workbench/bottom",
+    "up": "create_flippies:block/design_workbench/top",
+    "north": "create_flippies:block/design_workbench/front",
+    "east": "create_flippies:block/design_workbench/side",
+    "south": "create_flippies:block/design_workbench/side",
+    "west": "create_flippies:block/design_workbench/front"
+  }
+}

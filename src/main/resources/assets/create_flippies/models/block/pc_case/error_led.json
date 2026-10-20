@@ -1,0 +1,86 @@
+{
+  "textures": {
+    "2": "create_flippies:block/indicator-red",
+    "particle": "create_flippies:block/indicator-red"
+  },
+  "elements": [
+    {
+      "name": "error indicator",
+      "from": [
+        2.5,
+        13,
+        7.35
+      ],
+      "to": [
+        3,
+        13.25,
+        7.85
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          2.25,
+          13,
+          6.35
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            4,
+            0,
+            6,
+            1
+          ],
+          "texture": "#2"
+        },
+        "east": {
+          "uv": [
+            4,
+            4,
+            6,
+            5
+          ],
+          "texture": "#2"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            2,
+            9
+          ],
+          "texture": "#2"
+        },
+        "west": {
+          "uv": [
+            8,
+            0,
+            10,
+            1
+          ],
+          "texture": "#2"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "texture": "#2"
+        },
+        "down": {
+          "uv": [
+            0,
+            4,
+            2,
+            6
+          ],
+          "texture": "#2"
+        }
+      }
+    }
+  ]
+}

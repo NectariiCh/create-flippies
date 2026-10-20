@@ -13,3 +13,7 @@ plugins {
 }
 
 rootProject.name = 'create-flippies'
+
+// Hypergraphical Lib, from the local clone (gitignored; clone it with
+// git clone https://github.com/NectariiCh/hypergraphical-lib hypergraphical-lib).
+includeBuild('hypergraphical-lib')

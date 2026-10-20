@@ -1,0 +1,86 @@
+{
+  "textures": {
+    "0": "create_flippies:block/pc-case-1",
+    "particle": "create_flippies:block/pc-case-1"
+  },
+  "elements": [
+    {
+      "name": "reset button",
+      "from": [
+        2.25,
+        13,
+        10
+      ],
+      "to": [
+        3.25,
+        13.25,
+        11
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          2,
+          13,
+          9
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0.1875,
+            0.4375,
+            0.4375,
+            0.5
+          ],
+          "texture": "#0"
+        },
+        "east": {
+          "uv": [
+            0,
+            0.4375,
+            0.25,
+            0.5
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            0.0625,
+            0.4375,
+            0.3125,
+            0.5
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            0.25,
+            0.4375,
+            0.5,
+            0.5
+          ],
+          "texture": "#0"
+        },
+        "up": {
+          "uv": [
+            3.75,
+            15.75,
+            4,
+            16
+          ],
+          "texture": "#0"
+        },
+        "down": {
+          "uv": [
+            0.0625,
+            0,
+            0.3125,
+            0.25
+          ],
+          "texture": "#0"
+        }
+      }
+    }
+  ]
+}

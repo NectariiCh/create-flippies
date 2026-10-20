@@ -22,6 +22,7 @@ public enum VoltmeterRange implements StringRepresentable {
     private final float min;
     private final float max;
     private final GaugeFaceDefinition face;
+    private final EdgewiseFaceDefinition edgewiseFace;
 
     VoltmeterRange(String name, float min, float max, float majorTick, int minorPerMajor, String labelFormat) {
         this.name = name;
@@ -33,6 +34,22 @@ public enum VoltmeterRange implements StringRepresentable {
                 .majorTickInterval(majorTick)
                 .minorTicksPerMajor(minorPerMajor)
                 .labelFormat(labelFormat)
+                .build();
+        // The same scale on the edgewise voltmeter's three by twelve pixel plate. The
+        // ticks are pushed in so the pointer has room beside them and the labels room
+        // after them, and the scale stops short of the bottom to leave the units room
+        this.edgewiseFace = EdgewiseFaceDefinition.builder(min, max)
+                .units("V")
+                .majorTickInterval(majorTick)
+                .minorTicksPerMajor(minorPerMajor)
+                .labelFormat(labelFormat)
+                .faceAspect((EdgewiseVoltmeterBlock.PLATE_MAX_Y - EdgewiseVoltmeterBlock.PLATE_MIN_Y)
+                        / (EdgewiseVoltmeterBlock.PLATE_MAX_X - EdgewiseVoltmeterBlock.PLATE_MIN_X))
+                .scale(0.05f, 0.86f)
+                .tickEdge(0.3f)
+                .band(0.3f, 0.12f)
+                .labelSize(0.24f)
+                .textSize(0.26f)
                 .build();
     }
 
@@ -48,6 +65,11 @@ public enum VoltmeterRange implements StringRepresentable {
         return face;
     }
 
+    /** The face the edgewise voltmeter of this range is printed with. */
+    public EdgewiseFaceDefinition edgewiseFace() {
+        return edgewiseFace;
+    }
+
     public Component label() {
         return Component.translatable("gui.create_flippies.voltmeter.range." + name);
     }
@@ -55,6 +77,11 @@ public enum VoltmeterRange implements StringRepresentable {
     /** Registry id of this variant's block. */
     public String blockId() {
         return "square_procedural_voltmeter_" + name;
+    }
+
+    /** Registry id of this range's edgewise voltmeter block. */
+    public String edgewiseBlockId() {
+        return "edgewise_procedural_voltmeter_" + name;
     }
 
     @Override

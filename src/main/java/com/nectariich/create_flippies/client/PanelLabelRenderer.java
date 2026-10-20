@@ -93,9 +93,10 @@ public class PanelLabelRenderer implements ControlRenderer {
         // player has just mounted has to be visible, or a placement reads as a failure
         ms.translate(PanelLabel.TEXT_ANCHOR.x, 0, PanelLabel.TEXT_ANCHOR.z);
         // One authored plate stretched to the strip the player drew, rather than a
-        // model per size there could be no end of. Only the two in-plane axes move,
-        // so the plate stays exactly as proud of the panel as it was authored
-        ms.scale(width / (float) PanelLabel.DEFAULT_WIDTH, 1, height / (float) PanelLabel.DEFAULT_HEIGHT);
+        // model per size there could be no end of. The plate is authored on the panel,
+        // so stretching it outwards stands it as far off as this label's layer says
+        ms.scale(width / (float) PanelLabel.DEFAULT_WIDTH, (float) (label.standOff() / PanelLabel.PROUD),
+                height / (float) PanelLabel.DEFAULT_HEIGHT);
         ms.translate(-PanelLabel.TEXT_ANCHOR.x, 0, -PanelLabel.TEXT_ANCHOR.z);
         // The plate's material is white, so the tint is the colour that was picked
         // rather than a shade of it; see PanelLabel.DEFAULT_PLATE_COLOUR
@@ -133,7 +134,8 @@ public class PanelLabelRenderer implements ControlRenderer {
         Component text = Component.literal(drawn).withStyle(style);
         float scale = PanelLabelPrint.scale(size);
 
-        ms.translate(PanelLabel.TEXT_ANCHOR.x, PanelLabel.TEXT_ANCHOR.y, PanelLabel.TEXT_ANCHOR.z);
+        Vec3 anchor = label.textAnchor();
+        ms.translate(anchor.x, anchor.y, anchor.z);
         ms.mulPose(Axis.XP.rotationDegrees(TEXT_PLANE_TURN));
         // A quarter turn about the axis the plate faces along, applied after that turn
         // and so in the plane of the strip, and before the scale so that the negative

@@ -52,12 +52,9 @@ public interface SpannedControlType {
     int MIN_SPAN = 1;
 
     /**
-     * The largest span, in steps. Two blocks, which is what
-     * {@link ControlFootprint#REACH_BUDGET} allows a control centred on its cell to
-     * cover, and only when it is centred — anything drawn wider is refused by the
-     * host with {@link PlacementRefusal#REACHES_TOO_FAR} rather than by this bound,
-     * because how far a rectangle actually reaches out of its cell depends on where
-     * its centre landed as well as on how big it is.
+     * The largest span, in steps. Two blocks; with its centre anywhere on the
+     * host's face that reaches at most one block out of the cell, well inside
+     * {@link ControlFootprint#REACH_BUDGET}.
      */
     int MAX_SPAN = 2 * PlacementGrid.PIXELS_PER_BLOCK * SPANS_PER_PIXEL;
 

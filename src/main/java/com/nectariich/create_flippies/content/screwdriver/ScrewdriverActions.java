@@ -7,6 +7,10 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.content.decal.DecalSelection;
+import com.nectariich.create_flippies.content.decal.PanelDecal;
+import com.nectariich.create_flippies.content.label.PanelLabelControl;
+import com.nectariich.create_flippies.content.label.PanelLabelStacking;
 import com.nectariich.create_flippies.content.panel.PanelAim;
 import com.nectariich.create_flippies.content.panel.PanelPoint;
 import com.nectariich.create_flippies.content.panel.LargePanelBlock;
@@ -15,6 +19,7 @@ import com.nectariich.create_flippies.content.panel.PanelChamfer;
 import com.nectariich.create_flippies.content.panel.PanelEdit;
 import com.nectariich.create_flippies.content.panel.PanelEditKind;
 import com.nectariich.create_flippies.content.panel.PanelFold;
+import com.nectariich.create_flippies.content.schematic_arrow.SchematicArrowActions;
 import com.nectariich.create_flippies.foundation.panel.PanelDefinition;
 import com.nectariich.create_flippies.foundation.panel.PanelPlane;
 import com.nectariich.create_flippies.foundation.SurfaceMount;
@@ -39,6 +44,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
@@ -91,6 +97,9 @@ public final class ScrewdriverActions {
             // panel, which may be the one the crosshair went through rather than the
             // one it landed on. See PanelEdit
             case EDIT_PANEL -> editPanel(player, level, stack, settings, false);
+            case PAINT_DECAL -> paint(player, level, stack, settings, panel, face, point);
+            // SCHEMATIC ARROWS
+            case SCHEMATIC_ARROW -> SchematicArrowActions.use(player, level, stack, settings, panel, face, point);
             // The idle mode never claims the click, so a packet asking for one is a
             // client that disagrees with this build about what the tool does
             case NONE -> { }
@@ -118,6 +127,9 @@ public final class ScrewdriverActions {
             case DEFINE_BREAK_PROTECTION -> removeArea(player, level, clicked);
             case PROTECT_CONTROLS -> lockControl(player, level, clicked, point, false);
             case EDIT_PANEL -> editPanel(player, level, tool, settings, true);
+            case PAINT_DECAL -> unpaint(player, level, clicked, face, point);
+            // SCHEMATIC ARROWS
+            case SCHEMATIC_ARROW -> SchematicArrowActions.remove(player, level, tool, clicked, face, point);
             default -> { }
         }
     }
@@ -319,7 +331,7 @@ public final class ScrewdriverActions {
         int turn = turnFor(surface.plane(), player, settings);
         ScrewdriverAim.Placement placement = ScrewdriverAim.placementFor(target, surface.depth(), turn);
 
-        place(player, level, holding, type.create(), placement);
+        place(player, level, holding, type.create(player.getItemInHand(holding)), placement);
     }
 
     /**
@@ -764,9 +776,15 @@ public final class ScrewdriverActions {
             return;
         }
 
+        // A label drawn over others goes on a step proud of the highest of them, so
+        // the two are never printed at one depth; see PanelLabelStacking
+        HostedControl control = spanned.createSpanning(width, height);
+        if (control instanceof PanelLabelControl label)
+            label.stackOn(PanelLabelStacking.layerFor(level, placement.host(), mount, label.footprint()));
+
         // Forgotten only on success: a rectangle refused for meeting something is
         // nearly always about to be drawn again from the same first corner
-        if (place(player, level, holding, spanned.createSpanning(width, height), placement))
+        if (place(player, level, holding, control, placement))
             ScrewdriverSettings.setCorner(tool, null);
     }
 
@@ -836,6 +854,112 @@ public final class ScrewdriverActions {
         if (!level.mayInteract(player, hostPos))
             return false;
         return level.setBlock(hostPos, ModBlocks.CONTROL_HOST.get().defaultBlockState(), 3);
+    }
+
+    // Painting
+
+    /**
+     * The lattice a painted rectangle's corners snap to: half a pixel, the pitch a
+     * control drawn to size is built in. Finer than the panel's own pixel so a picture
+     * can be centred on something an odd number of pixels wide.
+     */
+    public static final int PAINT_STEP = SpannedControlType.UNITS_PER_SPAN;
+
+    /**
+     * A click in the paint mode: pick a corner on a panel, or paint the chosen picture
+     * between it and the corner picked before.
+     *
+     * The picture is fitted inside the rectangle rather than stretched to it, and turned
+     * the quarter turns the menu says. It is written into every cell the rectangle
+     * crosses that has plate on that surface; a cell where the plate has been cut away
+     * simply takes none, which is the hole showing through the paint.
+     */
+    private static void paint(ServerPlayer player, ServerLevel level, ItemStack tool, ScrewdriverSettings settings,
+            BlockPos clicked, Direction face, Vec3 point) {
+        DecalSelection selection = DecalSelection.read(tool);
+        if (!selection.hasArt()) {
+            refuse(player, "paint_no_art");
+            return;
+        }
+        if (LargePanelBlockEntity.panelAt(level, clicked, point) == null) {
+            refuse(player, "paint_not_a_panel");
+            return;
+        }
+        ScrewdriverAim.Surface surface = ScrewdriverAim.surfaceAt(level, clicked, face, point,
+                player.getEyePosition());
+        GridCorner picked = GridCorner.snapped(surface.plane(), point, PAINT_STEP);
+        GridCorner first = settings.corner();
+        if (first == null || !first.sharesPlaneWith(picked)) {
+            ScrewdriverSettings.setCorner(tool, picked);
+            confirm(player, first == null ? "first_corner" : "corner_moved", picked.pixelU(), picked.pixelV());
+            return;
+        }
+
+        if (first.u() == picked.u() || first.v() == picked.v()) {
+            refuse(player, "flat_rectangle");
+            return;
+        }
+        int quarters = settings.turn() & 3;
+        int[] rectangle = PanelDecal.fit(first.u(), first.v(), picked.u(), picked.v(), selection.width(),
+                selection.height(), quarters);
+        int depth = (int) Math.round(surface.depth() * PanelPlane.UNITS_PER_BLOCK);
+        PanelDecal decal = new PanelDecal(level.random.nextLong(), selection.art(), surface.plane(), depth,
+                rectangle[0], rectangle[1], rectangle[2], rectangle[3], quarters, selection.tint());
+        PanelDecal.Problem problem = decal.check();
+        if (!problem.ok()) {
+            refuse(player, "paint_" + problem.key(), PanelDecal.MAX_CELLS);
+            return;
+        }
+
+        int painted = 0;
+        boolean full = false;
+        for (BlockPos cell : decal.cells()) {
+            LargePanelBlockEntity held = LargePanelBlockEntity.cellAt(level, cell);
+            if (held == null)
+                continue;
+            if (held.addDecal(decal))
+                painted++;
+            else
+                full |= held.decals().size() >= PanelDecal.MAX_PER_CELL;
+        }
+        if (painted == 0) {
+            refuse(player, full ? "paint_full" : "paint_not_a_panel");
+            return;
+        }
+        // Forgotten only on success, like a rectangle drawn for a label
+        ScrewdriverSettings.setCorner(tool, null);
+        level.playSound(null, clicked, SoundEvents.DYE_USE, SoundSource.BLOCKS, 1, 1);
+        confirm(player, "paint_done", GridCorner.pixels(rectangle[2] - rectangle[0]),
+                GridCorner.pixels(rectangle[3] - rectangle[1]));
+    }
+
+    /**
+     * A left click in the paint mode: take off the topmost picture under the crosshair,
+     * all of it, from every cell it was painted across.
+     *
+     * Protection counts here as it does for an edit. Paint is not a block, but a wall
+     * the player has said is finished includes what is painted on it.
+     */
+    private static void unpaint(ServerPlayer player, ServerLevel level, BlockPos clicked, Direction face,
+            Vec3 point) {
+        LargePanelBlockEntity cell = LargePanelBlockEntity.cellAt(level, clicked);
+        ScrewdriverAim.Surface surface = ScrewdriverAim.surfaceAt(level, clicked, face, point,
+                player.getEyePosition());
+        PanelDecal decal = cell == null ? null : cell.decalAt(surface.plane(), surface.depth(), point);
+        if (decal == null) {
+            refuse(player, "paint_none_here");
+            return;
+        }
+        // Break protection guards the blocks, not the paint on them; paint mode
+        // claims the left click, so the block under it is never broken here
+        cell.removeDecal(decal.id());
+        for (BlockPos other : decal.cells()) {
+            LargePanelBlockEntity held = LargePanelBlockEntity.cellAt(level, other);
+            if (held != null)
+                held.removeDecal(decal.id());
+        }
+        level.playSound(null, clicked, SoundEvents.BRUSH_GENERIC, SoundSource.BLOCKS, 1, 1);
+        confirm(player, "paint_removed");
     }
 
     // Saying so

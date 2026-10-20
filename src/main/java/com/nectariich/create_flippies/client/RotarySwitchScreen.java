@@ -10,6 +10,7 @@ import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchAppearan
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlockEntity;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchControl;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchKind;
+import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchSpring;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 import com.nectariich.create_flippies.foundation.control.HostedControl;
 import com.nectariich.create_flippies.network.ConfigureRotarySwitchPacket;
@@ -18,14 +19,20 @@ import com.nectariich.create_flippies.network.ModPackets;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
 /**
  * Wrench menu of the rotary switches: what is printed on the front, the paint on
- * the body, the handle fitted to it, and — for a switch that is a block of its own
- * — a quarter turn in its panel.
+ * the body, the handle fitted to it, which detents spring back to rest, and, for a
+ * switch that is a block of its own, a quarter turn in its panel.
+ *
+ * The springs are checkboxes rather than another cycling button, one per detent that
+ * can have one: a single "Spring return" on a two-position switch, and one for each
+ * side of a three-position switch's centre, named by the way the handle is turned to
+ * get there. Each is independent of the other, which a cycling button would hide.
  *
  * Cycling buttons and a Done, rather than the boxes-and-Apply the gauge menu
  * needs: every choice here is one of a handful of named alternatives, so there is
@@ -59,9 +66,12 @@ public class RotarySwitchScreen extends Screen {
 
     private RotarySwitchAppearance appearance;
 
+    /** The spring mask as this screen has it; sent whole with every change. */
+    private int springs;
+
     public static void open(RotarySwitchBlockEntity rotary) {
         Minecraft.getInstance().setScreen(new RotarySwitchScreen(rotary.getBlockPos(), null, rotary.kind(),
-                rotary.appearance()));
+                rotary.appearance(), rotary.springs()));
     }
 
     /**
@@ -78,21 +88,23 @@ public class RotarySwitchScreen extends Screen {
             return;
         HostedControl control = host.installedAt(mount);
         if (control instanceof RotarySwitchControl rotary)
-            minecraft.setScreen(new RotarySwitchScreen(pos, mount, rotary.kind(), rotary.appearance()));
+            minecraft.setScreen(new RotarySwitchScreen(pos, mount, rotary.kind(), rotary.appearance(),
+                    rotary.springs()));
     }
 
     private RotarySwitchScreen(BlockPos pos, ControlMount mount, RotarySwitchKind kind,
-            RotarySwitchAppearance appearance) {
+            RotarySwitchAppearance appearance, int springs) {
         super(Component.translatable(LANG_PREFIX + "title"));
         this.pos = pos;
         this.mount = mount;
         this.kind = kind;
         this.appearance = appearance;
+        this.springs = RotarySwitchSpring.sanitise(kind, springs);
     }
 
     /**
-     * Which cycling rows this switch actually has, worked out at open time and kept
-     * so that {@link #render} can caption them.
+     * Which rows this switch actually has, worked out at open time and kept so that
+     * {@link #render} can caption them. A null caption is a row that labels itself.
      *
      * A choice with one alternative is not offered at all. Not every switch has
      * every part authored in more than one flavour — the large switch has one front,
@@ -113,6 +125,21 @@ public class RotarySwitchScreen extends Screen {
         if (kind.size().styles().size() > 1) {
             cycle(x, "paint", this::paintLabel, () -> appearance.nextPaint());
             cycle(x, "handle", this::handleLabel, () -> appearance.nextHandle());
+        }
+
+        // The checkbox carries its own label, so the row is left uncaptioned
+        for (int position : RotarySwitchSpring.springable(kind)) {
+            boolean checked = RotarySwitchSpring.springsFrom(kind, springs, position);
+            addRenderableWidget(new Checkbox(x, rowY(rows.size()), BUTTON_WIDTH, 20,
+                    RotarySwitchSpring.label(kind, position), checked) {
+                @Override
+                public void onPress() {
+                    super.onPress();
+                    springs = RotarySwitchSpring.with(kind, springs, position, selected());
+                    send(false);
+                }
+            });
+            rows.add(null);
         }
 
         // A mounted switch cannot be turned in place; nothing but the block form has
@@ -154,12 +181,13 @@ public class RotarySwitchScreen extends Screen {
     private int totalRows() {
         int captioned = (kind.markings().size() > 1 ? 1 : 0)
                 + (kind.size().styles().size() > 1 ? 2 : 0)
+                + RotarySwitchSpring.springable(kind).size()
                 + (mount == null ? 1 : 0);
         return captioned + 1;
     }
 
     private void send(boolean turn) {
-        ModPackets.CHANNEL.sendToServer(new ConfigureRotarySwitchPacket(pos, appearance, turn, mount));
+        ModPackets.CHANNEL.sendToServer(new ConfigureRotarySwitchPacket(pos, appearance, springs, turn, mount));
     }
 
     private Component markingLabel() {
@@ -183,7 +211,8 @@ public class RotarySwitchScreen extends Screen {
         graphics.drawCenteredString(font, Component.translatable(LANG_PREFIX + "positions", kind.positions()), cx,
                 top - 16, 0x909090);
         for (int row = 0; row < rows.size(); row++)
-            label(graphics, rows.get(row), cx + LABEL_OFFSET, rowY(row));
+            if (rows.get(row) != null)
+                label(graphics, rows.get(row), cx + LABEL_OFFSET, rowY(row));
         super.render(graphics, mouseX, mouseY, partialTicks);
     }
 

@@ -27,3 +27,6 @@ out/
 # Misc
 *.log
 eclipse/
+
+# Local reference clone
+/hypergraphical-lib/

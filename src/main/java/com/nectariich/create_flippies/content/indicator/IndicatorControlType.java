@@ -46,7 +46,12 @@ public class IndicatorControlType extends ControlType {
     private final IndicatorKind kind;
 
     private IndicatorControlType(IndicatorKind kind) {
-        super(kind.blockId());
+        this(kind.blockId(), kind);
+    }
+
+    /** For a kind that is this unit behind a different front, under its own name. */
+    protected IndicatorControlType(String id, IndicatorKind kind) {
+        super(id);
         this.kind = kind;
     }
 

@@ -1,6 +1,8 @@
 package com.nectariich.create_flippies.client;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.content.decal.DecalSelection;
+import com.nectariich.create_flippies.content.decal.PanelDecal;
 import com.nectariich.create_flippies.content.panel.LargePanelBlockEntity;
 import com.nectariich.create_flippies.content.panel.PanelAim;
 import com.nectariich.create_flippies.content.panel.PanelChamfer;
@@ -11,6 +13,7 @@ import com.nectariich.create_flippies.content.screwdriver.GridCorner;
 import com.nectariich.create_flippies.foundation.panel.PanelCut;
 import com.nectariich.create_flippies.foundation.panel.PanelDefinition;
 import com.nectariich.create_flippies.foundation.panel.PanelPlane;
+import com.nectariich.create_flippies.content.screwdriver.ScrewdriverActions;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverAim;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverMode;
@@ -114,6 +117,8 @@ public final class ScrewdriverOverlay {
     private static final Object CROSSHAIR_KEY = new Object();
     private static final Object CORNER_KEY = new Object();
     private static final Object[] EDGE_KEYS = keys(2);
+    private static final Object[] PAINTED_KEYS = keys(4);
+    private static final Object PAINT_TOP_KEY = new Object();
 
     /** As many protected areas as are drawn at once before the rest are left out. */
     private static final int AREA_BUDGET = 32;
@@ -160,12 +165,21 @@ public final class ScrewdriverOverlay {
             drawEdit(player, settings);
             return;
         }
+        // SCHEMATIC ARROWS: a half-drawn arrow is still drawn with the crosshair off the panel
+        if (settings.mode() == ScrewdriverMode.SCHEMATIC_ARROW) {
+            com.nectariich.create_flippies.client.schematic_arrow.ArrowOverlay.draw(player, hand, settings, aimed);
+            return;
+        }
         if (aimed == null)
             return;
         BlockHitResult hit = aimed;
         GridIndex index = GridIndex.of(minecraft.level);
         BlockPos panel = hit.getBlockPos();
         Direction face = hit.getDirection();
+        if (settings.mode() == ScrewdriverMode.PAINT_DECAL) {
+            drawPaint(player, hand, settings, hit);
+            return;
+        }
         // Protected boxes are drawn in the mode that draws them and nowhere else. A
         // red box across the panel every time the tool comes out says nothing the
         // player does not already know, and it hides the ruling they are aiming at;
@@ -214,6 +228,63 @@ public final class ScrewdriverOverlay {
     /** One block as a box, drawn a hair proud so it does not z-fight with the block. */
     private static AABB blockBox(BlockPos pos) {
         return new AABB(pos).inflate(AREA_OUTSET);
+    }
+
+    // Painting
+
+    /**
+     * The corner picked so far, the rectangle to the crosshair, and inside it the
+     * rectangle the picture would actually fill, with a mark at the middle of what
+     * will be its top edge, which on a floor is the only way to tell which way up it
+     * goes on.
+     *
+     * Before a corner is picked, the picture under the crosshair is outlined instead,
+     * in the colour of things the tool would take away: that is the one a left click
+     * would remove, and on a wall of overlapping paint it is not obvious which.
+     */
+    private static void drawPaint(LocalPlayer player, InteractionHand hand, ScrewdriverSettings settings,
+            BlockHitResult hit) {
+        BlockPos clicked = hit.getBlockPos();
+        Vec3 point = hit.getLocation();
+        LargePanelBlockEntity cell = LargePanelBlockEntity.cellAt(player.level(), clicked);
+        if (cell == null || cell.nearest(point) == null)
+            return;
+        ScrewdriverAim.Surface surface = ScrewdriverAim.surfaceAt(player.level(), clicked, hit.getDirection(),
+                point, player.getEyePosition());
+        PanelPlane plane = surface.plane();
+        double proud = proudOf(surface);
+
+        GridCorner crosshair = GridCorner.snapped(plane, point, ScrewdriverActions.PAINT_STEP);
+        show(CROSSHAIR_KEY, marker(crosshair.toVec(proud)), PENDING_COLOUR);
+
+        GridCorner picked = settings.corner();
+        if (picked == null) {
+            PanelDecal under = cell.decalAt(plane, surface.depth(), point);
+            if (under != null)
+                rectangle(PAINTED_KEYS, FaceRegion.spanned(plane, under.minU(), under.minV(), under.maxU(),
+                        under.maxV()).corners(proud), PROTECTED_COLOUR);
+            return;
+        }
+        show(CORNER_KEY, marker(picked.toVec(proud)), PENDING_COLOUR);
+        if (!picked.sharesPlaneWith(crosshair))
+            return;
+        rectangle(PENDING_KEYS, FaceRegion.spanned(plane, Math.min(picked.u(), crosshair.u()),
+                Math.min(picked.v(), crosshair.v()), Math.max(picked.u(), crosshair.u()),
+                Math.max(picked.v(), crosshair.v())).corners(proud), PENDING_COLOUR);
+
+        DecalSelection selection = DecalSelection.read(player.getItemInHand(hand));
+        if (!selection.hasArt() || picked.u() == crosshair.u() || picked.v() == crosshair.v())
+            return;
+        int quarters = settings.turn() & 3;
+        int[] fit = PanelDecal.fit(picked.u(), picked.v(), crosshair.u(), crosshair.v(), selection.width(),
+                selection.height(), quarters);
+        rectangle(MOUNT_KEYS, FaceRegion.spanned(plane, fit[0], fit[1], fit[2], fit[3]).corners(proud),
+                MOUNT_COLOUR);
+        PanelDecal preview = new PanelDecal(0, selection.art(), plane, 0, fit[0], fit[1], fit[2], fit[3], quarters,
+                PanelDecal.OWN_COLOURS);
+        double[] top = new double[2];
+        preview.map(0.5, 0, top);
+        show(PAINT_TOP_KEY, marker(plane.at(top[0], top[1], proud)), MOUNT_COLOUR);
     }
 
     // Modes 1 and 3

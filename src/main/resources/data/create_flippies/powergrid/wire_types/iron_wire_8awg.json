@@ -1,0 +1,14 @@
+{
+  "resistancePerItem": 0.023214215,
+  "itemsPerMeter": 0.5,
+  "maximumLength": 64.0,
+  "thermalMass": 59.151665,
+  "maximumCurrent": 44.581588,
+  "texture": "powergrid:textures/special/iron_wire.png",
+  "horizontalCoefficient": 1.0075,
+  "verticalCoefficient": 1.125,
+  "wireThickness": 0.078811045,
+  "colorable": false,
+  "cord": false,
+  "insulated": false
+}

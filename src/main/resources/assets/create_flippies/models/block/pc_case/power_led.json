@@ -1,0 +1,86 @@
+{
+  "textures": {
+    "1": "create_flippies:block/indicator-green",
+    "particle": "create_flippies:block/indicator-green"
+  },
+  "elements": [
+    {
+      "name": "power indicator",
+      "from": [
+        2.5,
+        13,
+        6.55
+      ],
+      "to": [
+        3,
+        13.25,
+        7.05
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          2.25,
+          13,
+          5.55
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            4,
+            0,
+            6,
+            1
+          ],
+          "texture": "#1"
+        },
+        "east": {
+          "uv": [
+            4,
+            4,
+            6,
+            5
+          ],
+          "texture": "#1"
+        },
+        "south": {
+          "uv": [
+            0,
+            8,
+            2,
+            9
+          ],
+          "texture": "#1"
+        },
+        "west": {
+          "uv": [
+            8,
+            0,
+            10,
+            1
+          ],
+          "texture": "#1"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "texture": "#1"
+        },
+        "down": {
+          "uv": [
+            0,
+            4,
+            2,
+            6
+          ],
+          "texture": "#1"
+        }
+      }
+    }
+  ]
+}
