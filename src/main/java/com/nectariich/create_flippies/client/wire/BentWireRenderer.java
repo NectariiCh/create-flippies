@@ -27,9 +27,6 @@ import org.patryk3211.powergrid.electricity.wire.registry.WireItemEntry;
  * tube ({@link WireSweep}) in Power Grid's look (its texture, colour, level of detail
  * and light sampled per piece), so the legs meet flush at each bend point and the
  * texture runs on unbroken from one leg into the next.
- *
- * WIRE DUCTS: a leg that runs inside a duct is drawn as dashes along the duct's lid
- * in the wire's own texture and colour, so a wire keeps its colour all the way through.
  */
 public final class BentWireRenderer {
 
@@ -84,7 +81,7 @@ public final class BentWireRenderer {
         RenderType type = detail.simple() ? RenderType.entityCutoutNoCull(entry.texture())
                 : RenderType.entityCutout(entry.texture());
         double h = entry.horizontalCoefficient(), v = entry.verticalCoefficient(), t = entry.wireThickness();
-        List<WireSweep.Strip> strips = WireSweep.sweep(path, wire.bendDuctLegs(), h, v, t, detail.segmentSize(),
+        List<WireSweep.Strip> strips = WireSweep.sweep(path, 0, h, v, t, detail.segmentSize(),
                 firstCross(path, h, v, t));
         draw(ms, buffers.getBuffer(type), strips, pos, levelLight(entity.level()), entity.getColor() | 0xFF000000,
                 (float) t, entity.getId() / 16f, detail.simple());

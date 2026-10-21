@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -101,17 +102,31 @@ class DuctPlacementTest {
     }
 
     @Test
-    void checkRefusesTooShortTooLongAndOutOfReach() {
-        Vec3 eye = new Vec3(0, 65, 0);
-        List<DuctSegment> ok = DuctPlacement.plan(new Vec3(1, 64.0625, 0), new Vec3(3, 64.0625, 0), Direction.UP,
-                DuctSize.SMALL);
-        assertEquals(DuctPlacement.Verdict.OK, DuctPlacement.check(ok, eye, 5));
-        List<DuctSegment> far = DuctPlacement.plan(new Vec3(1, 64.0625, 0), new Vec3(20, 64.0625, 0), Direction.UP,
-                DuctSize.SMALL);
-        assertEquals(DuctPlacement.Verdict.OUT_OF_REACH, DuctPlacement.check(far, eye, 5));
-        List<DuctSegment> huge = DuctPlacement.plan(new Vec3(1, 64.0625, 0), new Vec3(80, 64.0625, 0),
-                Direction.UP, DuctSize.SMALL);
-        assertEquals(DuctPlacement.Verdict.TOO_LONG, DuctPlacement.check(huge, eye, 100));
+    void aDuctMayBeAnyLengthAsLongAsTheEndClickedIsInReach() {
+        // A thousand blocks down a corridor: one placement, cut into joined section-long pieces
+        Vec3 a = new Vec3(3, 64.0625, 1), b = new Vec3(1003, 64.0625, 1);
+        List<DuctSegment> pieces = DuctPlacement.plan(a, b, Direction.UP, DuctSize.SMALL);
+        assertEquals(1000, DuctPlacement.totalLength(pieces), 1e-6);
+        assertEquals(63, pieces.size());
+        for (int i = 0; i + 1 < pieces.size(); i++) {
+            assertTrue(pieces.get(i).length() <= 16 + EPS);
+            assertVec(pieces.get(i).to(), pieces.get(i).jointWith(pieces.get(i + 1)));
+        }
+        // Standing at the far end, where the second click is made
+        Vec3 eye = new Vec3(1002, 65.6, 1);
+        assertEquals(DuctPlacement.Verdict.OK, DuctPlacement.check(pieces, eye, 5));
+        // Only the end being clicked has to be in reach
+        assertEquals(DuctPlacement.Verdict.OUT_OF_REACH, DuctPlacement.check(pieces, new Vec3(3, 65.6, 1), 5));
+        // And a slide along all of it is one pass through 63 joined pieces
+        DuctPass pass = DuctNetwork.route(pieces, 0, a, pieces.size() - 1, b, 0);
+        assertEquals(1000, pass.length(), 1e-6);
+    }
+
+    @Test
+    void checkStillRefusesTooShort() {
+        List<DuctSegment> tiny = List.of(new DuctSegment(new Vec3(1, 64.0625, 0), new Vec3(1.01, 64.0625, 0),
+                Direction.UP, DuctSize.SMALL));
+        assertEquals(DuctPlacement.Verdict.TOO_SHORT, DuctPlacement.check(tiny, new Vec3(1, 65, 0), 5));
     }
 
     @Test
@@ -139,5 +154,29 @@ class DuctPlacementTest {
         List<DuctSegment> floor = DuctPlacement.plan(corner, new Vec3(7, 64 + h, 2), Direction.UP, DuctSize.SMALL);
         assertEquals(1, floor.size());
         assertVec(corner, wall.jointWith(floor.get(0)));
+    }
+
+    // Colour
+
+    @Test
+    void aDuctIsWhiteUntilDyedAndKeepsItsColourThroughASave() {
+        // A save from before ducts had colours, or a plain item, reads as white
+        assertEquals(DuctColor.WHITE, DuctColor.read(new CompoundTag()));
+        assertEquals(DuctColor.WHITE, DuctColor.read(null));
+        // Red dye's diffuse colour, as the game gives it
+        int red = DuctColor.of(new float[] {0.6901961f, 0.18039216f, 0.14901961f});
+        assertEquals(0xB02E26, red);
+        CompoundTag saved = new CompoundTag();
+        DuctColor.write(saved, red);
+        assertEquals(red, DuctColor.read(saved));
+        // Read back from a copy, as a save is
+        assertEquals(red, DuctColor.read(saved.copy()));
+    }
+
+    @Test
+    void shadingDarkensEachChannelAndKeepsWhiteWhiteOnTop() {
+        assertEquals(0xFFFFFFFF, DuctColor.shaded(DuctColor.WHITE, 1f));
+        assertEquals(0xFF808080, DuctColor.shaded(DuctColor.WHITE, 128 / 255f));
+        assertEquals(0xFF400000, DuctColor.shaded(0x800000, 0.5f));
     }
 }

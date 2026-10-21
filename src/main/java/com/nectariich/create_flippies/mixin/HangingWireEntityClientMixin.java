@@ -31,7 +31,7 @@ public class HangingWireEntityClientMixin {
             return;
         List<Vec3> path = wire.bendPath();
         if (path != null)
-            cir.setReturnValue(BendGeometry.raycast(from, to, path, wire.bendDuctLegs(), wire.bendHorizontalCoefficient(),
+            cir.setReturnValue(BendGeometry.raycast(from, to, path, 0, wire.bendHorizontalCoefficient(),
                     wire.bendVerticalCoefficient(), wire.bendThickness()));
     }
 }

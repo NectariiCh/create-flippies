@@ -6,8 +6,7 @@ import com.nectariich.create_flippies.foundation.wire.bend.BendGeometry;
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBendService;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBends;
-import com.nectariich.create_flippies.foundation.wire.duct.DuctRoute;
-import com.nectariich.create_flippies.foundation.wire.duct.WireDuctSync;
+import com.nectariich.create_flippies.foundation.wire.duct.LegacyDuctKeys;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -48,20 +47,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * The resistance and the save write live on {@code BaseWireEntity}, where Power
  * Grid declares them; see {@link BaseWireEntityBendMixin}.
  *
- * WIRE DUCTS: a wire routed through ducts (see {@link DuctRoute}) keeps its path
- * in the same points, with a mark on each leg that lies in a duct. Those legs are
- * straight, insulated by the duct, and reversed with the points on a swap. Such a
- * wire is priced in items by its whole path when it is made, so its resistance
- * is Power Grid's own and is not scaled again.
+ * WIRE DUCTS 2: wire ducts carry placeable wires only. A hanging wire saved while
+ * ducts still routed hanging wires loads as a plain one ({@link LegacyDuctKeys}).
  */
 @Mixin(value = HangingWireEntity.class, remap = false)
 public abstract class HangingWireEntityBendMixin implements BendableWire {
 
     @Unique
     private List<Vec3> create_flippies$bends = List.of();
-
-    @Unique
-    private long create_flippies$ductLegs;
 
     @Unique
     private HangingWireEntity create_flippies$self() {
@@ -80,18 +73,7 @@ public abstract class HangingWireEntityBendMixin implements BendableWire {
 
     @Override
     public void setBendPoints(List<Vec3> points) {
-        setBendRoute(points, 0);
-    }
-
-    @Override
-    public long bendDuctLegs() {
-        return create_flippies$ductLegs;
-    }
-
-    @Override
-    public void setBendRoute(List<Vec3> points, long ductLegs) {
         create_flippies$bends = List.copyOf(points);
-        create_flippies$ductLegs = points.isEmpty() ? 0 : ductLegs;
         HangingWireEntity self = create_flippies$self();
         // Re-setting the position is what refits an entity's box
         if (self.terminalPos1 != null && self.terminalPos2 != null)
@@ -143,7 +125,7 @@ public abstract class HangingWireEntityBendMixin implements BendableWire {
      */
     @Override
     public double bendResistanceScale() {
-        if (bendPoints().isEmpty() || bendDucted())
+        if (bendPoints().isEmpty())
             return 1;
         HangingWireEntity self = create_flippies$self();
         Vec3 start = self.terminalPos1;
@@ -171,13 +153,8 @@ public abstract class HangingWireEntityBendMixin implements BendableWire {
 
     @Inject(method = "readAdditionalSaveData(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("HEAD"), remap = true)
     private void create_flippies$readBends(CompoundTag tag, CallbackInfo ci) {
+        LegacyDuctKeys.strip(tag);
         List<Vec3> points = WireBends.read(tag);
-        long ductLegs = 0;
-        DuctRoute.Built ducted = DuctRoute.read(tag);
-        if (ducted != null) {
-            points = ducted.points();
-            ductLegs = ducted.ductLegs();
-        }
         HangingWireEntity self = create_flippies$self();
         // The same correction Power Grid makes to the endpoints, and on the same side
         if (!points.isEmpty() && !self.level().isClientSide && tag.contains("LastKnownPos")) {
@@ -187,7 +164,6 @@ public abstract class HangingWireEntityBendMixin implements BendableWire {
                 points = WireBends.offset(points, Vec3.atLowerCornerOf(now.subtract(last)));
         }
         create_flippies$bends = points;
-        create_flippies$ductLegs = points.isEmpty() ? 0 : ductLegs;
     }
 
     @Inject(method = "makeBoundingBox()Lnet/minecraft/world/phys/AABB;", at = @At("HEAD"), cancellable = true,
@@ -197,7 +173,7 @@ public abstract class HangingWireEntityBendMixin implements BendableWire {
             return;
         List<Vec3> path = bendPath();
         if (path != null)
-            cir.setReturnValue(BendGeometry.bounds(path, bendDuctLegs(), bendHorizontalCoefficient(),
+            cir.setReturnValue(BendGeometry.bounds(path, 0, bendHorizontalCoefficient(),
                     bendVerticalCoefficient(), bendThickness()));
     }
 
@@ -215,21 +191,18 @@ public abstract class HangingWireEntityBendMixin implements BendableWire {
             return;
         List<Vec3> path = bendPath();
         if (path != null)
-            cir.setReturnValue(BendGeometry.touches(path, bendDuctLegs(), bendHorizontalCoefficient(),
+            cir.setReturnValue(BendGeometry.touches(path, 0, bendHorizontalCoefficient(),
                     bendVerticalCoefficient(), bendThickness(), entity.getBoundingBox()));
     }
 
     @Inject(method = "flipEndpoints()V", at = @At("HEAD"))
     private void create_flippies$flipBends(CallbackInfo ci) {
-        create_flippies$ductLegs = DuctRoute.reversed(create_flippies$ductLegs, bendPoints().size() + 1);
         create_flippies$bends = WireBends.reversed(bendPoints());
     }
 
     @Inject(method = "flipEndpoints()V", at = @At("TAIL"))
     private void create_flippies$syncFlippedBends(CallbackInfo ci) {
-        if (bendDucted())
-            WireDuctSync.sync(create_flippies$self());
-        else if (!bendPoints().isEmpty())
+        if (!bendPoints().isEmpty())
             WireBendService.sync(create_flippies$self());
     }
 }

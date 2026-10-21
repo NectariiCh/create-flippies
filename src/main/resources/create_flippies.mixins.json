@@ -20,7 +20,9 @@
     "VoxelShapeClipMixin",
     "WireItemMixin",
     "BaseWireEntityGaugeMixin",
-    "ItemStackWireGaugeMixin"
+    "ItemStackWireGaugeMixin",
+    "BlockWireEntityDuctMixin",
+    "WireItemDuctMixin"
   ],
   "client": [
     "BakedQuadLightMixin",
@@ -32,6 +34,8 @@
     "CordEntityClientMixin",
     "CordRendererMixin",
     "WirePreviewDuctMixin",
+    "BlockWireRendererDuctMixin",
+    "ClientWireInteractionsDuctMixin",
     "FontManagerAccessor",
     "MinecraftFontManagerAccessor"
   ]

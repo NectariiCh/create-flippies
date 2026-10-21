@@ -6,6 +6,7 @@ import com.nectariich.create_flippies.content.wire_duct.WireDuctService;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -17,30 +18,45 @@ import net.minecraftforge.network.NetworkEvent;
 public class DuctActionPacket {
 
     public enum Action {
-        /** With a wire being placed: take it into the duct, or out of it, at {@code hit}. */
+        /** With a placeable wire being laid: take it into the duct at {@code hit}, or along to there. */
         ROUTE,
         /** Left click: break the duct. */
         BREAK,
         /** Wrench, sneaking: take the duct back into the inventory. */
         WRENCH,
-        /** Wire cutters, sneaking, on a wire routed through ducts: cut the whole wire. */
-        CUT
+        /** Wire cutters, sneaking, on a placeable wire run through ducts: cut the whole wire. */
+        CUT,
+        /** A dye: recolour the duct's run. */
+        DYE,
+        /**
+         * WIRE DUCTS 3: with the end of the wire being laid ({@code entityId}) in a
+         * duct, a click on a block elsewhere: out of the duct, then on to {@code block}.
+         */
+        EXIT
     }
 
     private final Action action;
     private final int entityId;
     private final Vec3 hit;
+    /** The block clicked, for {@link Action#EXIT} only. */
+    private final BlockHitResult block;
 
     public DuctActionPacket(Action action, int entityId, Vec3 hit) {
+        this(action, entityId, hit, null);
+    }
+
+    public DuctActionPacket(Action action, int entityId, Vec3 hit, BlockHitResult block) {
         this.action = action;
         this.entityId = entityId;
         this.hit = hit;
+        this.block = block;
     }
 
     public DuctActionPacket(FriendlyByteBuf buffer) {
         action = buffer.readEnum(Action.class);
         entityId = buffer.readVarInt();
         hit = new Vec3(buffer.readDouble(), buffer.readDouble(), buffer.readDouble());
+        block = action == Action.EXIT ? buffer.readBlockHitResult() : null;
     }
 
     public void encode(FriendlyByteBuf buffer) {
@@ -49,13 +65,15 @@ public class DuctActionPacket {
         buffer.writeDouble(hit.x);
         buffer.writeDouble(hit.y);
         buffer.writeDouble(hit.z);
+        if (action == Action.EXIT)
+            buffer.writeBlockHitResult(block);
     }
 
     public void handle(Supplier<NetworkEvent.Context> context) {
         context.get().enqueueWork(() -> {
             ServerPlayer player = context.get().getSender();
             if (player != null)
-                WireDuctService.act(player, action, entityId, hit);
+                WireDuctService.act(player, action, entityId, hit, block);
         });
         context.get().setPacketHandled(true);
     }
