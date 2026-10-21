@@ -13,10 +13,11 @@ import net.minecraft.world.phys.Vec3;
  * Both clicks snap to a one-pixel grid on the face, and the centre line runs half
  * the duct's depth out from it. Two points in line give one straight run; two
  * points that differ along both of the face's axes give an L, turning once, the
- * longer leg first. Every run is then cut where it crosses a section border, so each
- * piece lives and is saved wholly in one chunk and a duct never half vanishes when
- * only one of two chunks it spans is loaded. The pieces join end to end, which is
- * all a wire routed through them needs ({@link DuctNetwork}).
+ * longer leg first. A run may be any length. It is cut where it crosses a section
+ * border, so each piece lives and is saved wholly in one chunk and a duct never
+ * half vanishes when only one of two chunks it spans is loaded; the cuts are
+ * invisible, and the pieces join end to end, which is all a wire run through them
+ * needs ({@link DuctNetwork}).
  *
  * A click near the end of a duct already there snaps onto that end, which is how
  * a new run continues an old one, turns a corner from it in the face, or turns
@@ -30,9 +31,6 @@ public final class DuctPlacement {
     /** How near an existing duct end a click must be to snap onto it, blocks. */
     public static final double END_SNAP = 0.3;
 
-    /** The longest duct one placement makes, blocks. */
-    public static final double MAX_LENGTH = 64;
-
     /** The shortest stretch worth placing, blocks. */
     public static final double MIN_LENGTH = GRID;
 
@@ -43,8 +41,8 @@ public final class DuctPlacement {
         OK("ok"),
         NOT_FLAT("not_flat"),
         TOO_SHORT("too_short"),
-        TOO_LONG("too_long"),
         OUT_OF_REACH("out_of_reach"),
+        NOT_LOADED("not_loaded"),
         MISSING_ITEMS("missing_items");
 
         private final String key;
@@ -114,18 +112,20 @@ public final class DuctPlacement {
         return pieces;
     }
 
-    /** Whether a planned duct may be placed, before the items are counted. */
+    /**
+     * Whether a planned duct may be placed, before the items are counted. There is no
+     * longest duct: the first point may be anywhere, and only the second, the one
+     * being clicked, has to be within the player's reach.
+     */
     public static Verdict check(List<DuctSegment> pieces, Vec3 eye, double reach) {
         if (pieces.isEmpty())
             return Verdict.NOT_FLAT;
         double total = totalLength(pieces);
         if (total < MIN_LENGTH - EPS)
             return Verdict.TOO_SHORT;
-        if (total > MAX_LENGTH + EPS)
-            return Verdict.TOO_LONG;
         double range = reach + 2;
-        Vec3 first = pieces.get(0).from(), last = pieces.get(pieces.size() - 1).to();
-        if (eye.distanceToSqr(first) > range * range || eye.distanceToSqr(last) > range * range)
+        Vec3 last = pieces.get(pieces.size() - 1).to();
+        if (eye.distanceToSqr(last) > range * range)
             return Verdict.OUT_OF_REACH;
         return Verdict.OK;
     }
@@ -145,8 +145,7 @@ public final class DuctPlacement {
     /**
      * A run cut at every chunk section border (a multiple of 16) it crosses. On X
      * and Z that keeps each piece in one chunk; on Y it keeps every piece at most 16
-     * long, so any point of a piece is within 8 blocks of the piece's own position,
-     * which is all a search for ducts near a point has to allow for.
+     * long, like every other.
      */
     public static List<DuctSegment> splitAtChunks(DuctSegment run) {
         Direction.Axis axis = run.axis();

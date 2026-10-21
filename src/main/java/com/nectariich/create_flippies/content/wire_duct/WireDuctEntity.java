@@ -1,5 +1,8 @@
 package com.nectariich.create_flippies.content.wire_duct;
 
+import java.util.UUID;
+
+import com.nectariich.create_flippies.foundation.wire.duct.DuctColor;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSegment;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSize;
 import com.nectariich.create_flippies.registry.ModEntityTypes;
@@ -25,17 +28,18 @@ import net.minecraftforge.network.NetworkHooks;
 
 /**
  * One straight stretch of wire duct lying flat on a face ({@link DuctSegment}). It
- * carries nothing electrical and belongs to no terminal; wires routed through it
- * keep their own way and only lie along it.
+ * carries nothing electrical and belongs to no terminal; placeable wires run
+ * through it keep their own way and only lie along it.
  *
  * An entity rather than a block, so that it can sit on any face at any pixel
  * without taking up the space in front of it. Placement cuts a duct at every
  * section border, so each stretch lives wholly in one chunk and is at most 16
- * blocks long.
+ * blocks long; the stretches laid by one placement share a run id, which is what
+ * a dye recolours together. Its colour is plain RGB, white unless dyed.
  *
  * The game never targets it (it is not pickable): it would otherwise steal clicks
- * from the block it lies on. This mod picks it itself, client side, for placing
- * wires through it and for breaking it ({@code WireDuctInput}).
+ * from the block it lies on. This mod picks it itself, client side, for running
+ * wires through it, dyeing it and breaking it ({@code WireDuctInput}).
  */
 public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData {
 
@@ -44,6 +48,8 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
             SynchedEntityData.defineId(WireDuctEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> EXTEND_TO =
             SynchedEntityData.defineId(WireDuctEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Integer> COLOR =
+            SynchedEntityData.defineId(WireDuctEntity.class, EntityDataSerializers.INT);
 
     private Vec3 from;
     private Vec3 to;
@@ -51,6 +57,8 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
     private DuctSize size = DuctSize.SMALL;
     /** The duct items this stretch cost, and gives back. */
     private int items = 1;
+    /** Shared by the stretches laid together by one placement. */
+    private UUID run = UUID.randomUUID();
     private DuctSegment segment;
 
     public WireDuctEntity(EntityType<?> type, Level level) {
@@ -58,13 +66,15 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         noPhysics = true;
     }
 
-    public static WireDuctEntity create(Level level, DuctSegment segment, int items) {
+    public static WireDuctEntity create(Level level, DuctSegment segment, int items, UUID run, int color) {
         WireDuctEntity duct = new WireDuctEntity(ModEntityTypes.WIRE_DUCT.get(), level);
         duct.from = segment.from();
         duct.to = segment.to();
         duct.face = segment.face();
         duct.size = segment.size();
         duct.items = items;
+        duct.run = run;
+        duct.entityData.set(COLOR, color & 0xFFFFFF);
         duct.placed();
         return duct;
     }
@@ -80,6 +90,24 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
 
     public int items() {
         return items;
+    }
+
+    public UUID run() {
+        return run;
+    }
+
+    /** Plain RGB. */
+    public int color() {
+        return entityData.get(COLOR);
+    }
+
+    public void setColor(int color) {
+        entityData.set(COLOR, color & 0xFFFFFF);
+    }
+
+    /** The duct items this stretch is made of, in its colour. */
+    public ItemStack asItems(int count) {
+        return WireDuctItem.withColor(new ItemStack(ModItems.wireDuct(size), count), color());
     }
 
     public float extendFrom() {
@@ -123,6 +151,15 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
     protected void defineSynchedData() {
         entityData.define(EXTEND_FROM, 0f);
         entityData.define(EXTEND_TO, 0f);
+        entityData.define(COLOR, DuctColor.WHITE);
+    }
+
+    /** Whatever changes about a duct after it is placed changes how the wires in it are drawn. */
+    @Override
+    public void onSyncedDataUpdated(EntityDataAccessor<?> accessor) {
+        super.onSyncedDataUpdated(accessor);
+        if (level() != null && (accessor == EXTEND_FROM || accessor == EXTEND_TO || accessor == COLOR))
+            DuctIndex.touch(level());
     }
 
     @Override
@@ -152,7 +189,7 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     public ItemStack getPickResult() {
-        return new ItemStack(ModItems.wireDuct(size));
+        return asItems(1);
     }
 
     @Override
@@ -173,6 +210,10 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         items = Math.max(1, tag.getInt("Items"));
         entityData.set(EXTEND_FROM, tag.getFloat("ExtendFrom"));
         entityData.set(EXTEND_TO, tag.getFloat("ExtendTo"));
+        entityData.set(COLOR, DuctColor.read(tag));
+        // A duct saved before runs existed is a run of its own
+        if (tag.hasUUID("Run"))
+            run = tag.getUUID("Run");
         placed();
     }
 
@@ -187,6 +228,8 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         tag.putInt("Items", items);
         tag.putFloat("ExtendFrom", extendFrom());
         tag.putFloat("ExtendTo", extendTo());
+        DuctColor.write(tag, color());
+        tag.putUUID("Run", run);
     }
 
     private static Vec3 readVec(CompoundTag tag, String key) {
