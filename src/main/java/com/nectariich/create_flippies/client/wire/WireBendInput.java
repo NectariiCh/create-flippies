@@ -251,8 +251,7 @@ public final class WireBendInput {
                 e -> e instanceof BendableWire && e.isAlive())) {
             BendableWire wire = (BendableWire) entity;
             List<Vec3> path = wire.bendPath();
-            // WIRE DUCTS: a wire routed through ducts takes its shape from them
-            if (path == null || wire.bendDucted())
+            if (path == null)
                 continue;
             BendGeometry.Hit hit = BendGeometry.pick(eye, look, limit, wire.bendPoints(), path,
                     wire.bendHorizontalCoefficient(), wire.bendVerticalCoefficient(), wire.bendThickness());
@@ -290,8 +289,6 @@ public final class WireBendInput {
         for (Entity entity : level.getEntities((Entity) null, player.getBoundingBox().inflate(SHOW_RANGE),
                 e -> e instanceof BendableWire && e.isAlive())) {
             BendableWire wire = (BendableWire) entity;
-            if (wire.bendDucted())
-                continue;
             List<Vec3> points = wire.bendPoints();
             for (int i = 0; i < points.size(); i++) {
                 boolean held = entity.getId() == dragEntity && i == dragIndex;

@@ -36,14 +36,8 @@ public class BaseWireEntityBendMixin {
 
     @Inject(method = "addAdditionalSaveData(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("TAIL"), remap = true)
     private void create_flippies$writeBends(CompoundTag tag, CallbackInfo ci) {
-        if ((Object) this instanceof BendableWire wire) {
-            // WIRE DUCTS: a routed wire's points go under the duct key, which has the room for them
-            if (wire.bendDucted())
-                com.nectariich.create_flippies.foundation.wire.duct.DuctRoute.write(tag, wire.bendPoints(),
-                        wire.bendDuctLegs());
-            else
-                WireBends.write(tag, wire.bendPoints());
-        }
+        if ((Object) this instanceof BendableWire wire)
+            WireBends.write(tag, wire.bendPoints());
     }
 
     // WIRE BENDS 2: a cord's points follow its ends round when Power Grid swaps them.

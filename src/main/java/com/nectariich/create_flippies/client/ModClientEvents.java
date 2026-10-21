@@ -85,6 +85,17 @@ public class ModClientEvents {
         // WIRE DUCTS end
     }
 
+    // WIRE DUCTS 2
+    /** A duct item shows the colour of the duct it lays. */
+    @SubscribeEvent
+    public static void registerItemColors(net.minecraftforge.client.event.RegisterColorHandlersEvent.Item event) {
+        event.register((stack, tint) -> tint == 0
+                ? 0xFF000000 | com.nectariich.create_flippies.content.wire_duct.WireDuctItem.color(stack) : -1,
+                com.nectariich.create_flippies.registry.ModItems.WIRE_DUCT.get(),
+                com.nectariich.create_flippies.registry.ModItems.LARGE_WIRE_DUCT.get());
+    }
+    // WIRE DUCTS 2 end
+
     /**
      * A mounted control is drawn by a renderer looked up on this side alone; see
      * {@link ControlRenderers} for why the control abstraction cannot carry one

@@ -2,56 +2,121 @@ package com.nectariich.create_flippies.foundation.wire.duct;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Ducts joined end to end, and the way a wire takes through them.
+ * Ducts joined end to end, and the way a wire slides through them.
  *
  * Two stretches are joined when an end of one is an end of the other and they are
  * the same size; nothing else connects them, so ducts that merely cross or touch
- * stay apart. A wire entering at one point and leaving at another follows the
- * fewest stretches between the two, turning at each joint on the way.
+ * stay apart. A wire sliding from one point to another follows the fewest
+ * stretches between the two, turning at each joint on the way.
+ *
+ * There is no limit on how far apart the two may be. The search walks the joints
+ * it is handed (a level looks them up by position, not by searching a radius), and
+ * stops only after {@link #MAX_VISITED} stretches, which no honest network reaches
+ * and which keeps one click from walking a pathological one for ever.
  */
 public final class DuctNetwork {
 
-    /** The most stretches one pass through ducts may cross. */
-    public static final int MAX_SEGMENTS = 32;
+    /** A safety cap on the stretches one search may visit, not a limit on distance. */
+    public static final int MAX_VISITED = 1 << 16;
 
     private DuctNetwork() {}
 
     /**
-     * The centre line a wire follows from {@code fromPoint} on stretch
-     * {@code fromIndex} to {@code toPoint} on stretch {@code toIndex}, as a pass in
-     * lane {@code lane}; null if the two are not joined or are too far apart.
-     * Both points are moved onto their stretch's centre line first.
+     * The stretches from {@code from} to {@code to}, both included, fewest first;
+     * null if they are not joined. {@code neighbours} answers the stretches joined
+     * to one, and {@code segmentOf} the geometry of each.
      */
+    public static <T> List<T> chain(T from, T to, Function<T, DuctSegment> segmentOf,
+            Function<T, Collection<T>> neighbours) {
+        Map<T, T> previous = new HashMap<>();
+        previous.put(from, null);
+        Deque<T> queue = new ArrayDeque<>();
+        queue.add(from);
+        boolean found = from.equals(to);
+        while (!queue.isEmpty() && !found) {
+            T at = queue.poll();
+            DuctSegment a = segmentOf.apply(at);
+            for (T next : neighbours.apply(at)) {
+                if (previous.containsKey(next) || a.jointWith(segmentOf.apply(next)) == null)
+                    continue;
+                previous.put(next, at);
+                if (next.equals(to)) {
+                    found = true;
+                    break;
+                }
+                if (previous.size() >= MAX_VISITED)
+                    return null;
+                queue.add(next);
+            }
+        }
+        if (!found)
+            return null;
+        List<T> chain = new ArrayList<>();
+        for (T at = to; at != null; at = previous.get(at))
+            chain.add(at);
+        Collections.reverse(chain);
+        return chain;
+    }
+
+    /** {@link #chain} over a plain list, every pair tested for a joint. */
+    public static List<Integer> chain(List<DuctSegment> segments, int from, int to) {
+        List<Integer> all = new ArrayList<>();
+        for (int i = 0; i < segments.size(); i++)
+            all.add(i);
+        return chain(from, to, segments::get, at -> all);
+    }
+
+    /**
+     * The centre line a wire follows along joined stretches ({@code chain}, in
+     * order) from {@code fromPoint} to {@code toPoint}, as a pass {@code offset}
+     * across the duct; null if it has no length. Both points are moved onto the centre
+     * line of their stretch first.
+     */
+    public static DuctPass route(List<DuctSegment> chain, Vec3 fromPoint, Vec3 toPoint, double offset) {
+        if (chain.isEmpty())
+            return null;
+        DuctSegment first = chain.get(0);
+        List<Vec3> points = new ArrayList<>();
+        List<Direction> faces = new ArrayList<>();
+        points.add(first.project(fromPoint));
+        for (int i = 0; i + 1 < chain.size(); i++) {
+            DuctSegment a = chain.get(i);
+            Vec3 joint = a.jointWith(chain.get(i + 1));
+            if (joint == null)
+                return null;
+            addLeg(points, faces, joint, a.face());
+        }
+        DuctSegment last = chain.get(chain.size() - 1);
+        addLeg(points, faces, last.project(toPoint), last.face());
+        if (faces.isEmpty())
+            return null;
+        return new DuctPass(points, faces, first.size(), offset);
+    }
+
+    /** {@link #route(List, Vec3, Vec3, double)} between two stretches of a list; null if they are not joined. */
     public static DuctPass route(List<DuctSegment> segments, int fromIndex, Vec3 fromPoint, int toIndex,
-            Vec3 toPoint, int lane) {
+            Vec3 toPoint, double offset) {
         if (fromIndex < 0 || toIndex < 0 || fromIndex >= segments.size() || toIndex >= segments.size())
             return null;
         List<Integer> chain = chain(segments, fromIndex, toIndex);
         if (chain == null)
             return null;
-        DuctSegment first = segments.get(fromIndex);
-        List<Vec3> points = new ArrayList<>();
-        List<Direction> faces = new ArrayList<>();
-        points.add(first.project(fromPoint));
-        for (int i = 0; i + 1 < chain.size(); i++) {
-            DuctSegment a = segments.get(chain.get(i));
-            Vec3 joint = a.jointWith(segments.get(chain.get(i + 1)));
-            addLeg(points, faces, joint, a.face());
-        }
-        DuctSegment last = segments.get(toIndex);
-        addLeg(points, faces, last.project(toPoint), last.face());
-        if (faces.isEmpty())
-            return null;
-        return new DuctPass(points, faces, first.size(), lane);
+        List<DuctSegment> along = new ArrayList<>(chain.size());
+        for (int i : chain)
+            along.add(segments.get(i));
+        return route(along, fromPoint, toPoint, offset);
     }
 
     private static void addLeg(List<Vec3> points, List<Direction> faces, Vec3 next, Direction face) {
@@ -61,80 +126,28 @@ public final class DuctNetwork {
         faces.add(face);
     }
 
-    /** The stretches from one to the other, both included, fewest first; null if not joined. */
-    static List<Integer> chain(List<DuctSegment> segments, int from, int to) {
-        int n = segments.size();
-        int[] previous = new int[n];
-        Arrays.fill(previous, -2);
-        previous[from] = -1;
-        Deque<Integer> queue = new ArrayDeque<>();
-        queue.add(from);
-        while (!queue.isEmpty()) {
-            int at = queue.poll();
-            if (at == to)
-                break;
-            for (int next = 0; next < n; next++) {
-                if (previous[next] != -2 || segments.get(at).jointWith(segments.get(next)) == null)
-                    continue;
-                previous[next] = at;
-                queue.add(next);
-            }
-        }
-        if (previous[to] == -2)
-            return null;
-        List<Integer> chain = new ArrayList<>();
-        for (int at = to; at != -1; at = previous[at])
-            chain.add(at);
-        Collections.reverse(chain);
-        return chain.size() > MAX_SEGMENTS ? null : chain;
-    }
-
     /**
      * How far each of two joined stretches' boxes reach past their shared end, as
-     * {existing, added}: for a turn within one face the existing one stops short by
-     * half its width and the added one runs on by as much, so the corner square is
-     * drawn once rather than twice or not at all. Anything else meets end to end.
+     * {existing, added}, so that together they tile the corner exactly: one solid
+     * shape with no gap, no overlap and so no doubled faces.
+     * <ul>
+     * <li>A turn within one face: the existing one stops short by half its width and
+     * the added one runs on by as much, so the corner square is drawn once.</li>
+     * <li>A turn from one face onto another (a wall down onto the floor, the inside
+     * corner): the centre lines meet half a depth off both faces, so the existing one
+     * runs on by half a depth, down to the other face, and the added one stops short
+     * by as much, starting where the existing one's lid is.</li>
+     * <li>Straight on: end to end.</li>
+     * </ul>
      */
     public static double[] jointExtensions(DuctSegment existing, DuctSegment added) {
-        if (existing.face() != added.face() || existing.axis() == added.axis())
+        if (existing.axis() == added.axis())
             return new double[] {0, 0};
-        double half = existing.size().width() / 2;
-        return new double[] {-half, half};
-    }
-
-    /**
-     * The lowest lane free along every stretch of a pass, given the legs of wires
-     * already in ducts nearby ({@code legs} as pairs: start, end, start, end...);
-     * -1 when every lane is taken somewhere.
-     */
-    public static int freeLane(DuctSize size, List<DuctSegment> along, List<Vec3> legs) {
-        boolean[] taken = new boolean[size.lanes()];
-        for (DuctSegment segment : along) {
-            for (int i = 0; i + 1 < legs.size(); i += 2) {
-                Vec3 p = legs.get(i), q = legs.get(i + 1);
-                if (segment.holdsLeg(p, q))
-                    taken[size.nearestLane(segment.lateralOffset(p.add(q).scale(0.5)))] = true;
-            }
+        if (existing.face() == added.face()) {
+            double half = existing.size().width() / 2;
+            return new double[] {-half, half};
         }
-        for (int lane = 0; lane < taken.length; lane++)
-            if (!taken[lane])
-                return lane;
-        return -1;
-    }
-
-    /** The stretches a pass runs along, in order, looked up among {@code segments}. */
-    public static List<DuctSegment> segmentsOf(DuctPass pass, List<DuctSegment> segments) {
-        List<DuctSegment> along = new ArrayList<>();
-        List<Vec3> c = pass.centers();
-        for (int i = 0; i + 1 < c.size(); i++) {
-            Vec3 mid = c.get(i).add(c.get(i + 1)).scale(0.5);
-            for (DuctSegment s : segments) {
-                if (s.size() == pass.size() && s.face() == pass.faces().get(i)
-                        && s.project(mid).distanceToSqr(mid) < 1e-6 && !along.contains(s)) {
-                    along.add(s);
-                }
-            }
-        }
-        return along;
+        double half = existing.size().depth() / 2;
+        return new double[] {half, -half};
     }
 }

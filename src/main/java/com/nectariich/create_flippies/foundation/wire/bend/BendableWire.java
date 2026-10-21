@@ -50,29 +50,6 @@ public interface BendableWire {
         return WireBends.resistanceScale(bendStart(), bendPoints(), bendEnd());
     }
 
-    /**
-     * Which legs of the path run inside a wire duct (bit {@code i}: the leg from path
-     * point {@code i}); see {@code DuctRoute}. Zero for a wire through no duct, which
-     * is every wire but a Power Grid hanging wire routed through one.
-     */
-    default long bendDuctLegs() {
-        return 0;
-    }
-
-    /**
-     * Replaces the points and the marks of which legs run in ducts together. Only a
-     * wire that can be routed through ducts keeps the marks; any other takes the
-     * points alone.
-     */
-    default void setBendRoute(List<Vec3> points, long ductLegs) {
-        setBendPoints(points);
-    }
-
-    /** Whether any leg runs inside a duct; such a wire's points are fixed by its ducts and cannot be bent by hand. */
-    default boolean bendDucted() {
-        return bendDuctLegs() != 0;
-    }
-
     /** Called on the server once an edit is final, for a wire whose behaviour depends on its shape. */
     default void bendsCommitted() {}
 

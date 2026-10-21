@@ -18,9 +18,6 @@ public record DuctSegment(Vec3 from, Vec3 to, Direction face, DuctSize size) {
     /** How close two ends must be to count as one joint, blocks. */
     public static final double JOINT_EPSILON = 1e-4;
 
-    /** How far above the lid a wire laid in the duct may sit and still count as in it, blocks. */
-    public static final double LID_SLACK = 0.1;
-
     public Vec3 normal() {
         return Vec3.atLowerCornerOf(face.getNormal());
     }
@@ -108,38 +105,6 @@ public record DuctSegment(Vec3 from, Vec3 to, Direction face, DuctSize size) {
 
     private static Vec3 abs(Vec3 v) {
         return new Vec3(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z));
-    }
-
-    /**
-     * Whether {@code p} lies in the duct or just on its lid, where the strokes of a
-     * wire running through it are drawn.
-     */
-    public boolean containsLid(Vec3 p) {
-        double t = along(p);
-        if (t < -JOINT_EPSILON - size.width() / 2 || t > length() + JOINT_EPSILON + size.width() / 2)
-            return false;
-        Vec3 rel = p.subtract(from);
-        Vec3 lat = lateral();
-        double side = lat.lengthSqr() < 1e-9 ? 0 : rel.dot(lat);
-        double up = rel.dot(normal());
-        return Math.abs(side) <= size.width() / 2 + 1e-3 && up >= -size.depth() / 2 - 1e-3
-                && up <= size.depth() / 2 + LID_SLACK;
-    }
-
-    /**
-     * Whether a wire leg from {@code p} to {@code q} runs along this duct, inside it
-     * or on its lid; that is what takes up one of its lanes.
-     */
-    public boolean holdsLeg(Vec3 p, Vec3 q) {
-        Vec3 d = q.subtract(p);
-        double l = d.length();
-        if (l < 1e-6)
-            return false;
-        if (Math.abs(d.scale(1 / l).dot(direction())) < 0.99)
-            return false;
-        Vec3 mid = p.add(q).scale(0.5);
-        double t = along(mid);
-        return t > JOINT_EPSILON && t < length() - JOINT_EPSILON && containsLid(mid);
     }
 
     /** Sideways offset of {@code p} from the centre line, along {@link #lateral()}. */

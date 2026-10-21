@@ -36,9 +36,6 @@ public final class WireBendService {
         Entity entity = level.getEntity(entityId);
         if (!(entity instanceof BendableWire wire) || !entity.isAlive())
             return;
-        // WIRE DUCTS: a wire routed through ducts takes its shape from them
-        if (wire.bendDucted())
-            return;
         boolean settles = commit || op != WireBends.Op.MOVE;
         if (!WireBendItems.holdsWireItem(player) || !level.mayInteract(player, entity.blockPosition())) {
             refuse(player, wire, null, settles);

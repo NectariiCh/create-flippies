@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.content.wire_duct;
 
 import java.util.List;
 
+import com.nectariich.create_flippies.foundation.wire.duct.DuctColor;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctPlacement;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSize;
 
@@ -23,8 +24,11 @@ import net.minecraft.world.phys.Vec3;
 /**
  * A wire duct. Click one point on a face, then another on the same face, and a
  * duct is laid flat between them: straight, or as an L when the two are not in
- * line (see {@link DuctPlacement}). The first point is kept in the stack until
- * then; sneak-clicking forgets it. One item per block of duct.
+ * line (see {@link DuctPlacement}), of any length. The first point is kept in the
+ * stack until then; sneak-clicking forgets it. One item per block of duct.
+ *
+ * A duct item may carry a colour ({@link DuctColor}), which the duct it lays takes;
+ * without one it lays a white duct.
  */
 public class WireDuctItem extends Item {
 
@@ -98,6 +102,21 @@ public class WireDuctItem extends Item {
                 : text.copy().withStyle(ChatFormatting.GRAY), true);
     }
 
+    /** The colour a duct laid from {@code stack} takes. */
+    public static int color(ItemStack stack) {
+        return DuctColor.read(stack.getTag());
+    }
+
+    /** {@code stack} given {@code color}; white is no colour at all, so plain stacks still stack together. */
+    public static ItemStack withColor(ItemStack stack, int color) {
+        if ((color & 0xFFFFFF) == DuctColor.WHITE) {
+            stack.removeTagKey(DuctColor.TAG);
+        } else {
+            DuctColor.write(stack.getOrCreateTag(), color);
+        }
+        return stack;
+    }
+
     @Override
     public boolean isFoil(ItemStack stack) {
         return stack.getTagElement(TAG_START) != null;
@@ -105,7 +124,7 @@ public class WireDuctItem extends Item {
 
     @Override
     public void appendHoverText(ItemStack stack, Level level, List<Component> tooltip, TooltipFlag flag) {
-        tooltip.add(Component.translatable("item.create_flippies.wire_duct.tooltip", size.lanes())
+        tooltip.add(Component.translatable("item.create_flippies.wire_duct.tooltip", size.capacityAwg())
                 .withStyle(ChatFormatting.GRAY));
     }
 }
