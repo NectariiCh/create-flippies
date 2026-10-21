@@ -137,8 +137,7 @@ public class ModPackets {
         // WIRE DUCTS
         CHANNEL.registerMessage(index++, DuctActionPacket.class, DuctActionPacket::encode,
                 DuctActionPacket::new, DuctActionPacket::handle, TO_SERVER);
-        CHANNEL.registerMessage(index++, DuctRouteSyncPacket.class, DuctRouteSyncPacket::encode,
-                DuctRouteSyncPacket::new, DuctRouteSyncPacket::handle, TO_CLIENT);
+        // WIRE DUCTS 2: no route sync packet any more; a placeable wire in a duct syncs as Power Grid syncs it
         // WIRE DUCTS end
         // EDGEWISE GAUGES
         CHANNEL.registerMessage(index++, ConfigureEdgewiseGaugePacket.class, ConfigureEdgewiseGaugePacket::encode,
