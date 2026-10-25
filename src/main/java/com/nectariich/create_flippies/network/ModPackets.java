@@ -143,5 +143,9 @@ public class ModPackets {
         CHANNEL.registerMessage(index++, ConfigureEdgewiseGaugePacket.class, ConfigureEdgewiseGaugePacket::encode,
                 ConfigureEdgewiseGaugePacket::new, ConfigureEdgewiseGaugePacket::handle, TO_SERVER);
         // EDGEWISE GAUGES end
+        CHANNEL.registerMessage(index++, ConfigureAlarmSpeakerPacket.class, ConfigureAlarmSpeakerPacket::encode,
+                ConfigureAlarmSpeakerPacket::new, ConfigureAlarmSpeakerPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, OpenAlarmSpeakerPacket.class, OpenAlarmSpeakerPacket::encode,
+                OpenAlarmSpeakerPacket::new, OpenAlarmSpeakerPacket::handle, TO_CLIENT);
     }
 }

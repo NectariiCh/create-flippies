@@ -159,6 +159,12 @@ public class ModPartialModels {
     private static final Map<DisplayForm, PartialModel> DISPLAY_SCREENS = displayParts(DisplayForm::screenModel);
     private static final Map<DisplayForm, PartialModel> DISPLAY_BODIES = displayParts(DisplayForm::bodyModel);
 
+    // The alarm speakers have no baked block model either: the device reaches
+    // orientations a block state variant cannot express. Nothing on it moves or
+    // lights, so the whole export is one partial, shared by every rating.
+    public static final PartialModel ALARM_SPEAKER =
+            PartialModel.of(CreateFlippies.asResource("block/speaker_1_alarm_body"));
+
     public static PartialModel displayScreen(DisplayForm form) {
         return DISPLAY_SCREENS.get(form);
     }
