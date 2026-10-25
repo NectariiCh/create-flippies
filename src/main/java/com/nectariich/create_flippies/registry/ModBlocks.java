@@ -8,6 +8,8 @@ import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.design_workbench.DesignWorkbenchBlock;
 import com.nectariich.create_flippies.content.din_rail.DinRailBlock;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayBlock;
+import com.nectariich.create_flippies.content.speaker.AlarmSpeakerBlock;
+import com.nectariich.create_flippies.content.speaker.SpeakerKind;
 import com.nectariich.create_flippies.content.display.DisplayKind;
 import com.nectariich.create_flippies.content.gauge.UniversalGaugeBlock;
 import com.nectariich.create_flippies.content.host.ControlHostBlock;
@@ -78,6 +80,12 @@ public class ModBlocks {
     public static final Map<DisplayKind, RegistryObject<Block>> ALPHANUM_DISPLAYS = registerDisplays();
 
     /**
+     * One Alarm Speaker block per channel input rating and supply rating, both of
+     * them resistances on a live line. What it plays is per-unit screwdriver state.
+     */
+    public static final Map<SpeakerKind, RegistryObject<Block>> ALARM_SPEAKERS = registerSpeakers();
+
+    /**
      * Rail for panel gear to clip onto. One block for all three rail counts: a
      * rail is added to one already on the wall rather than placed as its own
      * kind, so the count is a block state and not a registry entry.
@@ -137,6 +145,14 @@ public class ModBlocks {
         for (DisplayKind kind : DisplayKind.values())
             map.put(kind, BLOCKS.register(kind.blockId(),
                     () -> new AlphanumDisplayBlock(kind, panelProperties())));
+        return Collections.unmodifiableMap(map);
+    }
+
+    private static Map<SpeakerKind, RegistryObject<Block>> registerSpeakers() {
+        Map<SpeakerKind, RegistryObject<Block>> map = new EnumMap<>(SpeakerKind.class);
+        for (SpeakerKind kind : SpeakerKind.values())
+            map.put(kind, BLOCKS.register(kind.blockId(),
+                    () -> new AlarmSpeakerBlock(kind, panelProperties())));
         return Collections.unmodifiableMap(map);
     }
 
