@@ -1,0 +1,89 @@
+{
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "1": "create_flippies:block/copper_contacts",
+    "2": "create_flippies:block/display-a",
+    "particle": "create_flippies:block/display-a"
+  },
+  "__generated": "tools/gen_display.py from oled-display-brdrl-4x10.json; re-run after re-exporting",
+  "elements": [
+    {
+      "name": "screen",
+      "from": [
+        3.0,
+        0,
+        6.0
+      ],
+      "to": [
+        13.0,
+        0.15,
+        10.0
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          3.0,
+          0,
+          6.0
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            12,
+            4,
+            15,
+            4.3125
+          ],
+          "texture": "#2"
+        },
+        "east": {
+          "uv": [
+            12,
+            6,
+            15,
+            6.3125
+          ],
+          "texture": "#2"
+        },
+        "south": {
+          "uv": [
+            8,
+            12,
+            11,
+            12.3125
+          ],
+          "texture": "#2"
+        },
+        "west": {
+          "uv": [
+            12,
+            8,
+            15,
+            8.3125
+          ],
+          "texture": "#2"
+        },
+        "up": {
+          "uv": [
+            7,
+            11,
+            4,
+            8
+          ],
+          "texture": "#2"
+        },
+        "down": {
+          "uv": [
+            11,
+            8,
+            8,
+            11
+          ],
+          "texture": "#2"
+        }
+      }
+    }
+  ]
+}

@@ -6,10 +6,10 @@
     2
   ],
   "textures": {
-    "0": "create_flippies:block/CB8-DIN-WO-230V-1M-SP-body",
+    "0": "create_flippies:block/cb8_din_wo_230v_1m_sp_body",
     "1": "create_flippies:block/copper_contacts",
-    "2": "create_flippies:block/CB8-DIN-WO-230V-1M-SP-lever",
-    "particle": "create_flippies:block/CB8-DIN-WO-230V-1M-SP-body"
+    "2": "create_flippies:block/cb8_din_wo_230v_1m_sp_lever",
+    "particle": "create_flippies:block/cb8_din_wo_230v_1m_sp_body"
   },
   "elements": [
     {

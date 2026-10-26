@@ -1,8 +1,10 @@
 package com.nectariich.create_flippies.mixin;
 
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
+import com.nectariich.create_flippies.foundation.wire.bend.LegSag;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBendService;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBends;
+import com.nectariich.create_flippies.foundation.wire.gauge.WireGaugeCompat;
 
 import net.minecraft.nbt.CompoundTag;
 
@@ -36,8 +38,19 @@ public class BaseWireEntityBendMixin {
 
     @Inject(method = "addAdditionalSaveData(Lnet/minecraft/nbt/CompoundTag;)V", at = @At("TAIL"), remap = true)
     private void create_flippies$writeBends(CompoundTag tag, CallbackInfo ci) {
-        if ((Object) this instanceof BendableWire wire)
-            WireBends.write(tag, wire.bendPoints());
+        if (!((Object) this instanceof BendableWire wire))
+            return;
+        WireBends.write(tag, wire.bendPoints());
+        // WIRE SAG: a bent wire's legs under Flippies' key; an unbent wire's one value
+        // under Power Plant Grid's, in its format, but only while Power Plant Grid is not
+        // installed to write it itself (see HangingWireEntityBendMixin)
+        float[] sags = wire.bendLegSags();
+        if (sags == null)
+            return;
+        if (!wire.bendPoints().isEmpty())
+            LegSag.write(tag, sags);
+        else if (!WireGaugeCompat.ppgLoaded() && sags.length > 0)
+            LegSag.writePpg(tag, sags[0]);
     }
 
     // WIRE BENDS 2: a cord's points follow its ends round when Power Grid swaps them.

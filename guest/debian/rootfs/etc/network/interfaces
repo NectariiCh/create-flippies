@@ -1,0 +1,8 @@
+# The PC's network card, linked to the modem (spec 12.4), which hands out 10.88.0.2 by DHCP.
+source /etc/network/interfaces.d/*
+
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet dhcp

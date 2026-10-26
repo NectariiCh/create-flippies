@@ -1,9 +1,16 @@
 package com.nectariich.create_flippies.content.host;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import com.nectariich.create_flippies.content.display.element.ElementDisplay;
+import com.nectariich.create_flippies.content.display.link.ElementAddressedTarget;
+import com.nectariich.create_flippies.content.display.link.LinkAddress;
+import com.nectariich.create_flippies.content.display.link.LinkRouting;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.foundation.control.HostedControl;
@@ -12,6 +19,8 @@ import com.simibubi.create.api.behaviour.display.DisplayTarget;
 import com.simibubi.create.content.redstone.displayLink.DisplayLinkContext;
 import com.simibubi.create.content.redstone.displayLink.target.DisplayTargetStats;
 
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -63,8 +72,18 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * held by the cell its centre is in. So a link has to be pointed at that cell, which
  * is not always the cell the crosshair would suggest for a control sitting over an
  * edge.
+ *
+ * <h2>Elements</h2>
+ *
+ * A row that shows {@link ElementDisplay elements} (an alphanumeric display, a
+ * designed screen) has more than one thing on it a link could mean, so the link also
+ * names one of its lettering elements. Both travel in the link's one line number,
+ * packed by {@link LinkAddress}; a link saved before elements existed reads as its
+ * row's element 0, which is the display's one line migrated. Where the lines then go
+ * is {@link LinkRouting}'s rule, and the second picker in Create's screen is fed by
+ * {@link ElementAddressedTarget}.
  */
-public class ControlHostDisplayTarget extends DisplayTarget {
+public class ControlHostDisplayTarget extends DisplayTarget implements ElementAddressedTarget {
 
     private static final String LINE_KEY = "gui." + CreateFlippies.MOD_ID + ".control_host.line";
     private static final String NAMED_LINE_KEY = "gui." + CreateFlippies.MOD_ID + ".control_host.line_named";
@@ -76,12 +95,6 @@ public class ControlHostDisplayTarget extends DisplayTarget {
      * complete older array and never a half-filled one.
      */
     private static volatile Component[] lastRowNames;
-
-    /**
-     * What a row is when the host has none, so a link aimed at an empty panel still
-     * has something to select.
-     */
-    private static final int NO_ROWS_WIDTH = 16;
 
     /**
      * Rows have to be numbered the same on both sides of the connection and the same
@@ -98,25 +111,60 @@ public class ControlHostDisplayTarget extends DisplayTarget {
     /**
      * A source offering several lines fills consecutive rows from the chosen one,
      * which is what a sign does with its four rows and what makes a multi-line source
-     * useful on a panel of instruments.
+     * useful on a panel of instruments; on a row showing elements it fills that row's
+     * lettering elements first. See {@link LinkRouting}.
      */
     @Override
     public void acceptText(int line, List<MutableComponent> text, DisplayLinkContext context) {
-        List<LinkDrivenControl> rows = rowsOf(context.getTargetBlockEntity());
-        for (int i = 0; i < text.size(); i++) {
-            int index = line + i;
-            if (index < 0 || index >= rows.size())
-                continue;
-            rows.get(index).acceptLine(text.get(i).getString());
+        BlockEntity target = context.getTargetBlockEntity();
+        List<LinkDrivenControl> rows = rowsOf(target);
+        List<String> lines = new ArrayList<>(text.size());
+        for (MutableComponent component : text)
+            lines.add(component.getString());
+        if (!CreateFlippies.LOGGER.isDebugEnabled() || target == null) {
+            LinkRouting.route(rows, line, lines);
+            return;
         }
+        CompoundTag before = target.getUpdateTag();
+        LinkRouting.route(rows, line, lines);
+        logSync(target, before);
     }
 
+    /**
+     * How many lines will land and how wide, from where the link is aimed; see
+     * {@link LinkRouting#stats}. A link aimed at a label or gauge is told what it always
+     * was: every row, as wide as the widest of them, since one number has to stand
+     * for rows that differ (a small label holds eight characters, a gauge wants a
+     * whole line so its digits survive) and anything too long for a particular row is
+     * trimmed by that row as it is used. A link aimed at a lettering element is told
+     * that element's width, because that is the one its single line goes to.
+     */
     @Override
     public DisplayTargetStats provideStats(DisplayLinkContext context) {
         List<LinkDrivenControl> rows = rowsOf(context.getTargetBlockEntity());
         if (context.level() != null && context.level().isClientSide)
             rememberRowNames(rows);
-        return new DisplayTargetStats(Math.max(1, rows.size()), widthOf(rows), this);
+        LinkRouting.Stats stats = LinkRouting.stats(rows, context.blockEntity().targetLine);
+        return new DisplayTargetStats(stats.rows(), stats.columns(), this);
+    }
+
+    @Override
+    public List<Component> displayNames(DisplayLinkContext context) {
+        List<LinkDrivenControl> rows = rowsOf(context.getTargetBlockEntity());
+        if (rows.isEmpty())
+            return List.of(Component.translatable(LINE_KEY, 1));
+        List<Component> names = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++)
+            names.add(Component.translatable(NAMED_LINE_KEY, i + 1, rows.get(i).linkRowName()));
+        return names;
+    }
+
+    @Override
+    public List<LinkElementChoice> elements(DisplayLinkContext context, int display) {
+        List<LinkDrivenControl> rows = rowsOf(context.getTargetBlockEntity());
+        if (display < 0 || display >= rows.size() || !rows.get(display).isElementDisplay())
+            return null;
+        return ElementAddressedTarget.choices((ElementDisplay) rows.get(display));
     }
 
     /**
@@ -144,13 +192,21 @@ public class ControlHostDisplayTarget extends DisplayTarget {
      *
      * A row whose name is not known falls back to the bare number rather than
      * guessing, which is what a link aimed at an empty panel gets.
+     *
+     * Only a fallback now: Create's screen gets {@link #displayNames} and the element
+     * picker instead (see {@code DisplayLinkScreenMixin}), so this is for anything
+     * else that asks with a packed line. It names the row, and the element after a
+     * slash when the link names one other than the first slot.
      */
     @Override
     public Component getLineOptionText(int line) {
+        int row = LinkAddress.row(line);
         Component[] names = lastRowNames;
-        if (names != null && line >= 0 && line < names.length)
-            return Component.translatable(NAMED_LINE_KEY, line + 1, names[line]);
-        return Component.translatable(LINE_KEY, line + 1);
+        MutableComponent text = names != null && row < names.length
+                ? Component.translatable(NAMED_LINE_KEY, row + 1, names[row])
+                : Component.translatable(LINE_KEY, row + 1);
+        int element = LinkAddress.element(line);
+        return element == 0 ? text : text.append(" / #" + element);
     }
 
     private static void rememberRowNames(List<LinkDrivenControl> rows) {
@@ -180,19 +236,28 @@ public class ControlHostDisplayTarget extends DisplayTarget {
     }
 
     /**
-     * How many characters a link is told it may send. One number has to stand for
-     * every row on the panel and they may differ — a small label holds eight
-     * characters, a gauge wants a whole line so its digits survive — so it is the most
-     * generous of them. A link given the narrowest figure would trim text the row it
-     * is actually driving could have taken in full, while anything too long for a
-     * particular row is trimmed by that row as it is used.
+     * Debug only: how big the host's full sync is when a link transfer changed it.
+     *
+     * Link text reaches the client the same way a menu edit does, as the whole host's
+     * update tag, so a clock source on a dense panel resends every control on it once
+     * a second. Whether that is worth a delta packet (slice 5 of the screen elements
+     * work) is a question of how big those tags really get, which this answers in
+     * the log rather than by guessing. Comparing the tag before and after is the
+     * only way to know a sync happened without asking every kind of control to say;
+     * it costs two tag builds per transfer, which is why it runs only with debug
+     * logging on.
      */
-    private static int widthOf(List<LinkDrivenControl> rows) {
-        if (rows.isEmpty())
-            return NO_ROWS_WIDTH;
-        int columns = 0;
-        for (LinkDrivenControl row : rows)
-            columns = Math.max(columns, row.linkColumns());
-        return columns;
+    private static void logSync(BlockEntity target, CompoundTag before) {
+        CompoundTag after = target.getUpdateTag();
+        if (after.equals(before))
+            return;
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            NbtIo.write(after, out);
+        } catch (IOException e) {
+            return;
+        }
+        CreateFlippies.LOGGER.debug("Display link synced host {} at {}: update tag {} bytes uncompressed",
+                target.getType(), target.getBlockPos(), bytes.size());
     }
 }

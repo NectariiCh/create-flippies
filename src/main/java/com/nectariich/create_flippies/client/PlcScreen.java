@@ -36,9 +36,10 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 
 /**
- * The DIN-rail PLC's menu: a code editor, the Arduino IDE's three verbs — Verify,
- * Upload, and the board's Reset — an output pane for what the toolchain says, and a
- * live pane for what the PLC is doing.
+ * The PLC's menu, the same for the DIN-rail and panel mountings: a code editor,
+ * the Arduino IDE's three verbs (Verify, Upload, and the board's Reset), an
+ * output pane for what the toolchain says, and a live pane for what the PLC is
+ * doing.
  *
  * <h2>Verify and Upload</h2>
  *

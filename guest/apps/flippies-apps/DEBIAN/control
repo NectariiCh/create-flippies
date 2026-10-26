@@ -1,0 +1,11 @@
+Package: flippies-apps
+Version: 1.0
+Architecture: all
+Maintainer: Create Flippies <flippies@deb.flip>
+Section: admin
+Priority: optional
+Depends: python3, python3-tk, apt, sudo
+Description: Package center for the Create Flippies desktop
+ Flippies Apps lists the programs the network modem's archive at http://deb.flip/
+ offers, shows which are installed and their sizes, and installs or removes one
+ with a click (apt-get through sudo). Made for 640x480 at 256 colours.

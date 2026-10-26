@@ -1,4 +1,4 @@
-"""Write the DIN-rail small PLC's models from the authored Blockbench export.
+"""Write the small PLC's models, in both mountings, from the authored Blockbench export.
 
 The export -- `plc_fwm32f103_iop_small_din.json` -- is the one place the PLC is
 authored, and it is drawn standing on a short length of rail so that it can be
@@ -6,7 +6,7 @@ checked against the lips it clips to. Everything the game loads is struck from i
 here, so a re-export is wired up by re-running this rather than by editing anything
 by hand.
 
-Two files come out of it:
+Four files come out of it, two per mounting:
 
 * `models/block/plc_s32f103-d_din.json` -- the partial `PlcSmallControlRenderer` draws
   for a PLC clipped to a rail (`ModPartialModels.PLC_S32F103_D_DIN`). The rail section
@@ -15,6 +15,13 @@ Two files come out of it:
   first wherever a PLC sits.
 * `models/item/plc_s32f103-d_din.json` -- the same body, lifted so it sits in the middle
   of an item's box, with the display transforms the hand-made item model already had.
+* `models/block/plc_s32f103-d_panel.json` -- the partial for the same PLC screwed to a
+  panel (`ModPartialModels.PLC_S32F103_D_PANEL`): the DIN body without the clips
+  that hook the rail's lips (every element that stands no higher than the lips),
+  lowered by the lips' height onto the plate, with two screw ears added either end.
+  `PlcSmallGeometry.PANEL_DROP` and `PANEL_BOXES` describe the same thing.
+* `models/item/plc_s32f103-d_panel.json` -- that body lifted to the same height in the
+  item's box the DIN one's base stands at, so the two icons match.
 
 What is kept and what is dropped:
 
@@ -58,6 +65,42 @@ ITEM_MODELS = os.path.join(ASSETS, "models", "item")
 
 SOURCE = "plc_fwm32f103_iop_small_din"
 TARGET = "plc_s32f103-d_din"
+PANEL_TARGET = "plc_s32f103-d_panel"
+
+# The height of the rail's lips the DIN PLC stands on (PlcSmallGeometry.DIN_FLOOR).
+# The panel PLC drops every kept element by this much, and drops altogether the
+# clips that stand below it.
+DIN_FLOOR = 0.75
+
+# The panel PLC's two screw ears, one either end of the base, flat on the plate.
+# Authored in the drawn frame (after the half turn), as PlcSmallGeometry.PANEL_BOXES
+# has them, with the uv the hand-made panel model gave them.
+PANEL_EARS = [
+    {
+        "name": "ear_west",
+        "from": [12, 0, 6.5],
+        "to": [13, 0.25, 9.5],
+        "faces": {
+            "south": {"uv": [1, 12, 2, 12.25], "texture": "#0"},
+            "north": {"uv": [1, 12.5, 2, 12.75], "texture": "#0"},
+            "east": {"uv": [1, 11.5, 4, 11.75], "texture": "#0"},
+            "up": {"uv": [0, 11.5, 1, 14.5], "texture": "#0", "rotation": 180},
+            "down": {"uv": [0, 11.5, 1, 14.5], "texture": "#0", "rotation": 180},
+        },
+    },
+    {
+        "name": "ear_east",
+        "from": [3, 0, 6.5],
+        "to": [4, 0.25, 9.5],
+        "faces": {
+            "south": {"uv": [5, 12, 6, 12.25], "texture": "#0"},
+            "west": {"uv": [5, 11.5, 8, 11.75], "texture": "#0"},
+            "north": {"uv": [5, 12.5, 6, 12.75], "texture": "#0"},
+            "up": {"uv": [4, 11.5, 5, 14.5], "texture": "#0", "rotation": 180},
+            "down": {"uv": [4, 11.5, 5, 14.5], "texture": "#0", "rotation": 180},
+        },
+    },
+]
 
 # The group that is the reference length of rail, not part of the PLC.
 RAIL_GROUP = "din_rail_1"
@@ -193,6 +236,25 @@ def lifted(element, dy):
     return copy
 
 
+def panel_body(elements):
+    """The DIN body as screwed to a plate: clips gone, the rest lowered, ears added."""
+    kept = [e for e in elements if max(e["from"][1], e["to"][1]) > DIN_FLOOR]
+    assert all(min(e["from"][1], e["to"][1]) >= DIN_FLOOR for e in kept), \
+        f"{SOURCE}: an element straddles the rail's lips; the panel body cannot be struck from it"
+    return [json.loads(json.dumps(e)) for e in PANEL_EARS] + [lifted(e, -DIN_FLOOR) for e in kept]
+
+
+def write_item(export, target, elements, lift):
+    item_path = os.path.join(ITEM_MODELS, target + ".json")
+    display = DEFAULT_DISPLAY
+    if os.path.exists(item_path):
+        display = read_json(item_path).get("display", DEFAULT_DISPLAY)
+    item = head(export)
+    item["elements"] = [lifted(e, lift) for e in elements]
+    item["display"] = display
+    write_json(item_path, item)
+
+
 def report_terminals(elements):
     by_name = {e.get("name"): e for e in elements}
     missing = [name for name in TERMINALS if name not in by_name]
@@ -215,20 +277,25 @@ def main():
     block["elements"] = elements
     write_json(os.path.join(MODELS, TARGET + ".json"), block)
 
-    item_path = os.path.join(ITEM_MODELS, TARGET + ".json")
-    display = DEFAULT_DISPLAY
-    if os.path.exists(item_path):
-        display = read_json(item_path).get("display", DEFAULT_DISPLAY)
-    item = head(export)
-    item["elements"] = [lifted(e, ITEM_LIFT) for e in elements]
-    item["display"] = display
-    write_json(item_path, item)
+    write_item(export, TARGET, elements, ITEM_LIFT)
+
+    panel = panel_body(elements)
+    block = head(export)
+    block["elements"] = panel
+    write_json(os.path.join(MODELS, PANEL_TARGET + ".json"), block)
+    # The base stands at 0 rather than at the lips, so it is lifted by the lips'
+    # height more to land where the DIN icon's base does
+    write_item(export, PANEL_TARGET, panel, ITEM_LIFT + DIN_FLOOR)
 
     lo = [min(min(e["from"][a], e["to"][a]) for e in elements) for a in range(3)]
     hi = [max(max(e["from"][a], e["to"][a]) for e in elements) for a in range(3)]
     print(f"wrote {TARGET} (block partial, item): {len(elements)} elements, "
           f"dropped {len(export['elements']) - len(elements)} rail elements")
     print(f"body bounds {fmt(lo)} -> {fmt(hi)}")
+    plo = [min(min(e["from"][a], e["to"][a]) for e in panel) for a in range(3)]
+    phi = [max(max(e["from"][a], e["to"][a]) for e in panel) for a in range(3)]
+    print(f"wrote {PANEL_TARGET} (block partial, item): {len(panel)} elements, "
+          f"body bounds {fmt(plo)} -> {fmt(phi)}")
     report_terminals(elements)
 
 

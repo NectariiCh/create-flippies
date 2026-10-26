@@ -17,10 +17,12 @@ import net.minecraft.network.chat.Component;
 /**
  * The gauge mode's Dial tab: what the gauge measures, and the settings of the face
  * generator its kind uses, the rotary dial's or the edgewise scale's: the range,
- * ticks, labels, name and units, the dial's sweep or the edgewise layout, the
- * colours and the colour bands. The face it prints becomes the material of the
- * submesh picked with "D" in the parts list or in the material editor, and the
- * rows at the bottom say which one that is and how the face is fitted to it.
+ * ticks, labels, name and units, the edgewise layout, the colours and the colour
+ * bands. The face it prints becomes the material of the submesh picked with "D" in
+ * the parts list or in the material editor, and the rows at the bottom say which
+ * one that is and how the face is fitted to it: the UV rectangle it fills, and its
+ * offset, scale, rotation and mirroring within that rectangle. A rotary dial's sweep is set in the
+ * Motion tab, with the needle it moves.
  */
 public final class DialTab {
 
@@ -72,12 +74,8 @@ public final class DialTab {
                     t("gauge.ticks.tooltip"), () -> gauge.flipTicks = !gauge.flipTicks);
             toggle(panel, host, 1, () -> t(gauge.nameOnSide ? "gauge.name.side" : "gauge.name.top"),
                     t("gauge.name.tooltip"), () -> gauge.nameOnSide = !gauge.nameOnSide);
-        } else {
-            panel.label(t("gauge.sweep"), 0xA0A0A0);
-            panel.number(0, 2, gauge.startAngle, any(host, value -> gauge.startAngle = value), t("gauge.start"));
-            panel.number(1, 2, gauge.endAngle, any(host, value -> gauge.endAngle = value), t("gauge.end"));
+            panel.row();
         }
-        panel.row();
 
         panel.label(t("gauge.colours"), 0xA0A0A0);
         RackTab.hex(panel, host, 0, gauge.faceColor, value -> gauge.faceColor = value, t("gauge.colour.face"));
@@ -106,32 +104,9 @@ public final class DialTab {
         remove.active = !gauge.bands.isEmpty();
         panel.row();
 
-        // Where the face is printed, and how it is fitted there
-        panel.gap(2);
-        panel.label(t("gauge.printed"), 0xE0E0E0);
-        panel.label(() -> {
-            boolean placed = gauge.face != null && state.elementKeys().contains(gauge.face);
-            return placed ? t("gauge.printed.on", gauge.face.replace("#", " / "))
-                    : t("gauge.error.face").withStyle(s -> s.withColor(0xFF8060));
-        }, 0xA0A0A0);
-        boolean placed = gauge.face != null && state.elementKeys().contains(gauge.face);
-        Button fit = panel.button(t("gauge.uv.fit"), 0, 2, t("gauge.uv.fit.tooltip"), b -> {
-            int split = gauge.face.indexOf('#');
-            state.assignFace(gauge.face.substring(0, split), gauge.face.substring(split + 1));
-            host.rebuild();
-        });
-        fit.active = placed && state.blob != null;
-        Button whole = panel.button(t("gauge.uv.whole"), 1, 2, t("gauge.uv.whole.tooltip"), b -> {
-            gauge.uv = null;
-            host.rebuild();
-        });
-        whole.active = placed;
-        panel.row();
-        panel.label(() -> {
-            float[] uv = gauge.build().uv();
-            return t("gauge.uv", NumberBox.format(uv[0]), NumberBox.format(uv[1]), NumberBox.format(uv[2]),
-                    NumberBox.format(uv[3]));
-        }, 0xA0A0A0);
+        // Where the face is printed, and how it is fitted there: the same rows the
+        // screen tab places its viewport with
+        PlacementSection.build(panel, host, gauge, "gauge");
 
         panel.label(() -> {
             GaugeDial built = gauge.build();

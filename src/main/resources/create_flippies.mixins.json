@@ -22,7 +22,11 @@
     "BaseWireEntityGaugeMixin",
     "ItemStackWireGaugeMixin",
     "BlockWireEntityDuctMixin",
-    "WireItemDuctMixin"
+    "WireItemDuctMixin",
+    "WireEndpointTypeMixin",
+    "CordItemAccessor",
+    "LevelDeviceCollisionMixin",
+    "DisplayLinkBlockEntityMixin"
   ],
   "client": [
     "BakedQuadLightMixin",
@@ -37,6 +41,10 @@
     "BlockWireRendererDuctMixin",
     "ClientWireInteractionsDuctMixin",
     "FontManagerAccessor",
-    "MinecraftFontManagerAccessor"
+    "MinecraftFontManagerAccessor",
+    "GameRendererDevicePickMixin",
+    "MouseHandlerAccessor",
+    "MouseHandlerPcMouseMixin",
+    "DisplayLinkScreenMixin"
   ]
 }

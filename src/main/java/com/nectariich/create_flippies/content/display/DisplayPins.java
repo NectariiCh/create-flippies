@@ -159,6 +159,16 @@ public final class DisplayPins {
         return FOOTPRINTS.get(form);
     }
 
+    /**
+     * Everything behind the glass, with {@code front} in its place: the barrel, the
+     * grown contacts and the pins nothing is wired to. What a designed screen stands
+     * on, since it is the same device with an imported model for its front, so its
+     * wires land on exactly the boxes a display's do.
+     */
+    public static ControlFootprint rearFootprint(double[] front) {
+        return ControlFootprint.of(front, BARREL).plus(CONTACT_BOXES).plus(UNWIRED);
+    }
+
     public static double[][] outlineBoxes(DisplayForm form) {
         return OUTLINES.get(form);
     }
@@ -236,7 +246,7 @@ public final class DisplayPins {
     private static Map<DisplayForm, ControlFootprint> footprints() {
         Map<DisplayForm, ControlFootprint> footprints = new EnumMap<>(DisplayForm.class);
         for (DisplayForm form : DisplayForm.values())
-            footprints.put(form, ControlFootprint.of(form.glass(), BARREL).plus(CONTACT_BOXES).plus(UNWIRED));
+            footprints.put(form, rearFootprint(form.front()));
         return Collections.unmodifiableMap(footprints);
     }
 
@@ -244,7 +254,7 @@ public final class DisplayPins {
         Map<DisplayForm, double[][]> outlines = new EnumMap<>(DisplayForm.class);
         for (DisplayForm form : DisplayForm.values()) {
             double[][] boxes = new double[2 + CONTACT_BOXES.length + UNWIRED.length][];
-            boxes[0] = form.glass();
+            boxes[0] = form.front();
             boxes[1] = BARREL;
             System.arraycopy(CONTACT_BOXES, 0, boxes, 2, CONTACT_BOXES.length);
             System.arraycopy(UNWIRED, 0, boxes, 2 + CONTACT_BOXES.length, UNWIRED.length);

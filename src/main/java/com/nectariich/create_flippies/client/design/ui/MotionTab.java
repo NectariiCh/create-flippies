@@ -36,8 +36,8 @@ import net.minecraft.network.chat.Component;
  * same convention as the handle's, and the flag's own pivot.
  *
  * A gauge's needle has a section of its own ({@link #needle}): a rotary needle turns
- * about the pivot across the dial's sweep, so only the angle it is modelled at and
- * which way the face runs are set; an edgewise needle slides or swings between a
+ * about the pivot across the dial's sweep, so the sweep itself, the angle it is
+ * modelled at and which way the face runs are set; an edgewise needle slides or swings between a
  * pose at the minimum and one at the maximum, which can be fitted to the ends of
  * the printed scale. The pivot is set as a switch's is.
  */
@@ -160,6 +160,11 @@ public final class MotionTab {
         boolean pivoted;
         if (!gauge.edgewise) {
             panel.label(t("needle.rotary"), 0xE0E0E0);
+            panel.label(t("gauge.sweep"), 0xA0A0A0);
+            panel.number(0, 2, gauge.startAngle, DialTab.any(host, value -> gauge.startAngle = value),
+                    t("gauge.start"));
+            panel.number(1, 2, gauge.endAngle, DialTab.any(host, value -> gauge.endAngle = value), t("gauge.end"));
+            panel.row();
             panel.number(0, 2, gauge.needleZero, DialTab.any(host, value -> gauge.needleZero = value),
                     t("needle.zero"));
             panel.button(t(gauge.reverse ? "needle.reverse.on" : "needle.reverse.off"), 1, 2,

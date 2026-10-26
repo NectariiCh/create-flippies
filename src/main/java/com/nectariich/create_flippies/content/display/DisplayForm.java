@@ -35,7 +35,99 @@ public enum DisplayForm {
      * round it, so there is no bezel to hide an overrun and everything that does not
      * fit has to be cut — see {@link DisplayPrint}.
      */
-    BRDRL_1P5_SQ("brdrl_1p5_sq", 1.5, 0.15, 0.1);
+    BRDRL_1P5_SQ("brdrl_1p5_sq", 1.5, 1.5, 0.15, 0.1, null),
+    BRDRL_1X1P5("brdrl_1x1p5", 1.5, 1, 0.15, 0.1, null),
+    BRDRL_1X2("brdrl_1x2", 2, 1, 0.15, 0.1, null),
+    BRDRL_2X3("brdrl_2x3", 3, 2, 0.15, 0.1, null),
+    BRDRL_3X4("brdrl_3x4", 4, 3, 0.15, 0.1, null),
+    BRDRL_3X5("brdrl_3x5", 5, 3, 0.15, 0.1, null),
+    BRDRL_4X5("brdrl_4x5", 5, 4, 0.15, 0.1, null),
+    BRDRL_4X6("brdrl_4x6", 6, 4, 0.15, 0.1, null),
+    BRDRL_5X8("brdrl_5x8", 8, 5, 0.15, 0.1, null),
+    BRDRL_4X10("brdrl_4x10", 10, 4, 0.15, 0.1, null),
+    BRDRL_6X10("brdrl_6x10", 10, 6, 0.15, 0.1, null),
+    BRDRL_8X12("brdrl_8x12", 12, 8, 0.15, 0.1, null),
+    BRDRL_8X15("brdrl_8x15", 15, 8, 0.15, 0.1, null),
+
+    /** Bordered: the same glass with a quarter-pixel bezel standing round it. */
+    BRD_1P5_SQ("brd_1p5_sq", 1.5, 1.5, 0.15, 0.1, new double[] { 7, 0, 7, 9, 0.25, 9 }),
+    BRD_1X1P5("brd_1x1p5", 1.5, 1, 0.15, 0.1, new double[] { 7, 0, 7.25, 9, 0.25, 8.75 }),
+    BRD_1X2("brd_1x2", 2, 1, 0.15, 0.1, new double[] { 6.75, 0, 7.25, 9.25, 0.25, 8.75 }),
+    BRD_2X3("brd_2x3", 3, 2, 0.15, 0.1,
+            new double[] { 6.25, 0, 6.75, 9.75, 0.25, 9.25 }),
+    BRD_3X4("brd_3x4", 4, 3, 0.15, 0.1,
+            new double[] { 5.75, 0, 6.25, 10.25, 0.25, 9.75 }),
+    BRD_3X5("brd_3x5", 5, 3, 0.15, 0.1,
+            new double[] { 5.25, 0, 6.25, 10.75, 0.25, 9.75 }),
+    BRD_4X5("brd_4x5", 5, 4, 0.15, 0.1,
+            new double[] { 5.25, 0, 5.75, 10.75, 0.25, 10.25 }),
+    BRD_4X6("brd_4x6", 6, 4, 0.15, 0.1,
+            new double[] { 4.75, 0, 5.75, 11.25, 0.25, 10.25 }),
+    BRD_5X8("brd_5x8", 8, 5, 0.15, 0.1,
+            new double[] { 3.75, 0, 5.25, 12.25, 0.25, 10.75 }),
+    BRD_4X10("brd_4x10", 10, 4, 0.15, 0.1,
+            new double[] { 2.75, 0, 5.75, 13.25, 0.25, 10.25 }),
+    BRD_6X10("brd_6x10", 10, 6, 0.15, 0.1,
+            new double[] { 2.75, 0, 4.75, 13.25, 0.25, 11.25 }),
+    BRD_8X12("brd_8x12", 12, 8, 0.15, 0.1,
+            new double[] { 1.75, 0, 3.75, 14.25, 0.25, 12.25 }),
+    BRD_8X15("brd_8x15", 15, 8, 0.15, 0.1,
+            new double[] { 0.25, 0, 3.75, 15.75, 0.25, 12.25 }),
+
+    /**
+     * A bezel with a light shade over the top edge, which is what makes the front
+     * deeper than the glass on one side only. Short and long are how far it reaches.
+     */
+    LIGHT_SHADE_SHORT_1P5_SQ("light_shade_short_1p5_sq", 1.5, 1.5, 0.15, 0.1, new double[] { 7, 0, 7, 9, 0.5, 9 }),
+    LIGHT_SHADE_SHORT_1X1P5("light_shade_short_1x1p5", 1.5, 1, 0.15, 0.1,
+            new double[] { 7, 0, 7.25, 9, 0.5, 8.75 }),
+    LIGHT_SHADE_SHORT_1X2("light_shade_short_1x2", 2, 1, 0.15, 0.1,
+            new double[] { 6.75, 0, 7.25, 9.25, 0.5, 8.75 }),
+    LIGHT_SHADE_SHORT_2X3("light_shade_short_2x3", 3, 2, 0.15, 0.1,
+            new double[] { 6.25, 0, 6.75, 9.75, 0.5, 9.25 }),
+    LIGHT_SHADE_SHORT_3X4("light_shade_short_3x4", 4, 3, 0.15, 0.1,
+            new double[] { 5.75, 0, 6.25, 10.25, 0.75, 9.75 }),
+    LIGHT_SHADE_SHORT_3X5("light_shade_short_3x5", 5, 3, 0.15, 0.1,
+            new double[] { 5.25, 0, 6.25, 10.75, 0.75, 9.75 }),
+    LIGHT_SHADE_SHORT_4X5("light_shade_short_4x5", 5, 4, 0.15, 0.1,
+            new double[] { 5.25, 0, 5.75, 10.75, 1, 10.25 }),
+    LIGHT_SHADE_SHORT_4X6("light_shade_short_4x6", 6, 4, 0.15, 0.1,
+            new double[] { 4.75, 0, 5.75, 11.25, 1, 10.25 }),
+    LIGHT_SHADE_SHORT_5X8("light_shade_short_5x8", 8, 5, 0.15, 0.1,
+            new double[] { 3.75, 0, 5.25, 12.25, 1.25, 10.75 }),
+    LIGHT_SHADE_SHORT_4X10("light_shade_short_4x10", 10, 4, 0.15, 0.1,
+            new double[] { 2.75, 0, 5.75, 13.25, 1, 10.25 }),
+    LIGHT_SHADE_SHORT_6X10("light_shade_short_6x10", 10, 6, 0.15, 0.1,
+            new double[] { 2.75, 0, 4.75, 13.25, 1.5, 11.25 }),
+    LIGHT_SHADE_SHORT_8X12("light_shade_short_8x12", 12, 8, 0.15, 0.1,
+            new double[] { 1.75, 0, 3.75, 14.25, 2, 12.25 }),
+    LIGHT_SHADE_SHORT_8X15("light_shade_short_8x15", 15, 8, 0.15, 0.1,
+            new double[] { 0.25, 0, 3.75, 15.75, 2, 12.25 }),
+    LIGHT_SHADE_LONG_1P5_SQ("light_shade_long_1p5_sq", 1.5, 1.5, 0.15, 0.1, new double[] { 7, 0, 7, 9, 0.75, 9 }),
+    LIGHT_SHADE_LONG_1X1P5("light_shade_long_1x1p5", 1.5, 1, 0.15, 0.1,
+            new double[] { 7, 0, 7.25, 9, 0.75, 8.75 }),
+    LIGHT_SHADE_LONG_1X2("light_shade_long_1x2", 2, 1, 0.15, 0.1,
+            new double[] { 6.75, 0, 7.25, 9.25, 0.75, 8.75 }),
+    LIGHT_SHADE_LONG_2X3("light_shade_long_2x3", 3, 2, 0.15, 0.1,
+            new double[] { 6.25, 0, 6.75, 9.75, 1, 9.25 }),
+    LIGHT_SHADE_LONG_3X4("light_shade_long_3x4", 4, 3, 0.15, 0.1,
+            new double[] { 5.75, 0, 6.25, 10.25, 1.5, 9.75 }),
+    LIGHT_SHADE_LONG_3X5("light_shade_long_3x5", 5, 3, 0.15, 0.1,
+            new double[] { 5.25, 0, 6.25, 10.75, 1.5, 9.75 }),
+    LIGHT_SHADE_LONG_4X5("light_shade_long_4x5", 5, 4, 0.15, 0.1,
+            new double[] { 5.25, 0, 5.75, 10.75, 2, 10.25 }),
+    LIGHT_SHADE_LONG_4X6("light_shade_long_4x6", 6, 4, 0.15, 0.1,
+            new double[] { 4.75, 0, 5.75, 11.25, 2, 10.25 }),
+    LIGHT_SHADE_LONG_5X8("light_shade_long_5x8", 8, 5, 0.15, 0.1,
+            new double[] { 3.75, 0, 5.25, 12.25, 2.5, 10.75 }),
+    LIGHT_SHADE_LONG_4X10("light_shade_long_4x10", 10, 4, 0.15, 0.1,
+            new double[] { 2.75, 0, 5.75, 13.25, 2, 10.25 }),
+    LIGHT_SHADE_LONG_6X10("light_shade_long_6x10", 10, 6, 0.15, 0.1,
+            new double[] { 2.75, 0, 4.75, 13.25, 3, 11.25 }),
+    LIGHT_SHADE_LONG_8X12("light_shade_long_8x12", 12, 8, 0.15, 0.1,
+            new double[] { 1.75, 0, 3.75, 14.25, 4, 12.25 }),
+    LIGHT_SHADE_LONG_8X15("light_shade_long_8x15", 15, 8, 0.15, 0.1,
+            new double[] { 0.25, 0, 3.75, 15.75, 4, 12.25 });
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".alphanum_display.form.";
 
@@ -44,18 +136,23 @@ public enum DisplayForm {
 
     private final String id;
     private final double width;
+    private final double height;
     private final double proud;
     private final double padding;
     private final double[] glass;
+    private final double[] front;
 
-    DisplayForm(String id, double width, double proud, double padding) {
+    /** {@code front} is null when nothing but the glass stands in front of the panel. */
+    DisplayForm(String id, double width, double height, double proud, double padding, double[] front) {
         this.id = id;
         this.width = width;
+        this.height = height;
         this.proud = proud;
         this.padding = padding;
         this.glass = new double[] {
-                MIDDLE - width / 2, 0, MIDDLE - width / 2,
-                MIDDLE + width / 2, proud, MIDDLE + width / 2 };
+                MIDDLE - width / 2, 0, MIDDLE - height / 2,
+                MIDDLE + width / 2, proud, MIDDLE + height / 2 };
+        this.front = front == null ? glass : front;
     }
 
     /** This form's half of the block ids and of the model names, and what a save holds. */
@@ -65,33 +162,36 @@ public enum DisplayForm {
 
     /** The partial the glass is drawn from, written by {@code tools/gen_display.py}. */
     public String screenModel() {
-        return "block/alphanum_display_" + id + "_screen";
+        return "block/oled_display_" + id + "_screen";
     }
 
     /** The partial the barrel and the pins are drawn from. */
     public String bodyModel() {
-        return "block/alphanum_display_" + id + "_body";
+        return "block/oled_display_" + id + "_body";
     }
 
-    /**
-     * The glass as an authored pixel box in the {@code SurfaceMount} frame: the only
-     * part of the device inside its own cell, and the part a click lands on.
-     */
+    /** The glass as an authored pixel box in the {@code SurfaceMount} frame. */
     public double[] glass() {
         return glass;
     }
 
     /**
-     * How far across the glass is, in authored pixels.
-     *
-     * One number because every form so far is square, which is also what makes a
-     * quarter turn of the lettering cost nothing here — unlike on a label, where the
-     * two spans differ and a turn exchanges them. A form that is not square needs a
-     * second span and {@link DisplayPrint} needs to be told which of the two caps the
-     * height; until one exists, a second number would be a guess at what it should be.
+     * Everything inside the device's own cell, bezel and shade included, as one box:
+     * the footprint, and the part a click lands on. The glass itself on a borderless
+     * form.
      */
+    public double[] front() {
+        return front;
+    }
+
+    /** How far across the glass is along x, the way an upright line runs, in authored pixels. */
     public double width() {
         return width;
+    }
+
+    /** How far the glass is along z, across an upright line, in authored pixels. */
+    public double height() {
+        return height;
     }
 
     /** How far the glass stands proud of the panel, in authored pixels. */
@@ -112,9 +212,17 @@ public enum DisplayForm {
         return padding;
     }
 
-    /** How much of the glass may be printed on, in authored pixels. */
-    public double usable() {
-        return Math.max(0, width - 2 * padding);
+    /**
+     * How much of the glass a line may run along, in authored pixels, at that many
+     * quarter turns of the lettering. A turn exchanges the two spans.
+     */
+    public double usableAlong(int quarters) {
+        return Math.max(0, (quarters % 2 == 0 ? width : height) - 2 * padding);
+    }
+
+    /** How much of the glass a line may stand across, the cap on its height. */
+    public double usableAcross(int quarters) {
+        return usableAlong(quarters + 1);
     }
 
     public Component label() {

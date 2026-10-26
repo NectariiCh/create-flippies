@@ -154,24 +154,13 @@ class WireSweepTest {
     }
 
     @Test
-    void ductedLegsAreDashesAndADashAtTheJointContinuesTheHangingLeg() {
+    void ductedLegsAreNotDrawn() {
         Vec3 inDuct = new Vec3(5, 70, 0), out = new Vec3(5, 70, 2);
-        // Leg 0 hangs, leg 1 runs in a duct
+        // Leg 0 hangs, leg 1 runs in a duct: only the hanging leg is a tube, ending where the duct takes over
         List<WireSweep.Strip> strips = sweep(List.of(A, inDuct, out), 0b10);
-        assertTrue(strips.size() > 3, "dashes");
-        double period = WireSweep.STROKE + WireSweep.GAP;
-        for (WireSweep.Strip strip : strips.subList(1, strips.size())) {
-            double from = strip.first().offset(), to = strip.last().offset();
-            assertTrue(to - from <= WireSweep.STROKE + 1e-9, "a dash no longer than a stroke");
-            double phase = (from % period + period) % period;
-            assertTrue(phase < WireSweep.STROKE + 1e-9 || period - phase < 1e-6, "a dash starts in a stroke");
-        }
-        // The first tube is the hanging leg, carried on into a dash when the pattern starts one at the joint
-        WireSweep.Strip hanging = strips.get(0);
-        double joint = hanging.rings().stream().filter(r -> r.at().equals(inDuct)).findFirst().orElseThrow()
-                .offset();
-        boolean inStroke = joint % period < WireSweep.STROKE;
-        assertEquals(inStroke, !hanging.last().at().equals(inDuct));
+        assertEquals(1, strips.size());
+        assertEquals(A, strips.get(0).first().at());
+        assertEquals(inDuct, strips.get(0).last().at());
     }
 
     // Cords

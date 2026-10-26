@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Flippies Apps
+Comment=Install and remove programs from deb.flip
+Exec=flippies-apps
+Icon=flippies-apps
+Terminal=false
+Categories=System;PackageManager;

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Kernel postinst hook (run by run-parts with the version and the image path): installs the new
+# kernel into flipboot's inactive slot and makes it active, as flash-kernel does for boards with
+# no firmware bootloader. Skipped where there is no boot area, as in an image build's chroot.
+set -e
+version=$1
+image=${2:-/boot/vmlinuz-$version}
+FLIPBOOT_DEVICE=/dev/fhda1
+[ -r /etc/default/flipboot ] && . /etc/default/flipboot
+if [ ! -b "$FLIPBOOT_DEVICE" ]; then
+    echo "flipboot: no boot area at $FLIPBOOT_DEVICE, kernel $version not installed in it" >&2
+    exit 0
+fi
+exec /usr/sbin/flipboot-update "$image"

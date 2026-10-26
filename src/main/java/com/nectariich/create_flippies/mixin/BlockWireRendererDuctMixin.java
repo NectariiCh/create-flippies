@@ -14,8 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * WIRE DUCTS 2: draws a placeable wire that runs through ducts with its parts
- * inside them hidden and shown as strokes on the ducts' lids instead
- * ({@link DuctWireRenderer}). Any other wire is left to Power Grid exactly as it
+ * inside them hidden ({@link DuctWireRenderer}). Any other wire is left to Power Grid exactly as it
  * draws it.
  */
 @Mixin(value = BlockWireRenderer.class, remap = false)

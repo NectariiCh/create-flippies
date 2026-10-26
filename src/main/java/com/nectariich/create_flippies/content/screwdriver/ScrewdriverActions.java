@@ -8,9 +8,11 @@ import java.util.UUID;
 
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
+import com.nectariich.create_flippies.content.din_rail.DinRailBlockEntity;
 import com.nectariich.create_flippies.content.decal.PanelDecal;
 import com.nectariich.create_flippies.content.label.PanelLabelControl;
 import com.nectariich.create_flippies.content.label.PanelLabelStacking;
+import com.nectariich.create_flippies.content.wire_duct.WireDuctItem;
 import com.nectariich.create_flippies.content.panel.PanelAim;
 import com.nectariich.create_flippies.content.panel.PanelPoint;
 import com.nectariich.create_flippies.content.panel.LargePanelBlock;
@@ -309,7 +311,14 @@ public final class ScrewdriverActions {
     private static void mount(ServerPlayer player, ServerLevel level, InteractionHand hand, ItemStack tool,
             ScrewdriverSettings settings, BlockPos panel, Direction face, Vec3 point) {
         InteractionHand holding = ScrewdriverItem.otherHand(hand);
-        ControlType type = ControlTypes.forItem(player.getItemInHand(holding));
+        // A duct is laid point to point the same way in either placement mode: it
+        // goes on the face itself, not into a cell, so neither ruling has a say
+        ItemStack held = player.getItemInHand(holding);
+        if (held.getItem() instanceof WireDuctItem duct) {
+            duct.click(player, held, face, point);
+            return;
+        }
+        ControlType type = ControlTypes.forItem(held);
         if (type == null) {
             refuse(player, "no_control_held");
             return;
@@ -816,6 +825,14 @@ public final class ScrewdriverActions {
         }
         if (!(level.getBlockEntity(hostPos) instanceof ControlRackHolder host)) {
             CreateFlippies.LOGGER.error("Control host at {} has no block entity to mount into", hostPos);
+            return false;
+        }
+        // A DIN rail is a control host too, and a face aimed through the open part of
+        // its shape lands the host on the rail's own cell. It seats gear only by hand,
+        // through DinRailBlock.use, which keeps out kinds that are not DinRailMountable
+        // and snaps the rest to module positions; installing here would skip both
+        if (host instanceof DinRailBlockEntity) {
+            refuse(player, "rail_host");
             return false;
         }
 

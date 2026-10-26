@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.design_workbench.gauge;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.nectariich.create_flippies.content.design_workbench.PlacementDraft;
 import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseFaceDefinition;
 import com.nectariich.create_flippies.content.procedural_gauge.GaugeFaceDefinition;
 
@@ -17,7 +18,7 @@ import com.nectariich.create_flippies.content.procedural_gauge.GaugeFaceDefiniti
  * lengths and label sizes) is kept from the face the draft was made from, so a
  * gauge loaded and saved again loses none of it.
  */
-public final class GaugeDraft {
+public final class GaugeDraft implements PlacementDraft {
 
     /** One colour band, in scale values and 0xRRGGBB. */
     public static final class Band {
@@ -56,6 +57,10 @@ public final class GaugeDraft {
     /** The submesh the face is drawn on, as an element key, or "" for none; and the UV rectangle it fills. */
     public String face;
     public float[] uv;
+
+    /** Where the face sits within its UV rectangle: {offsetX, offsetY, scaleX, scaleY}. */
+    public float[] placement;
+    public boolean flipX, flipY;
 
     /** The needle: a rotary one's modelled angle and direction, an edgewise one's slide or swing. */
     public float needleZero;
@@ -96,6 +101,9 @@ public final class GaugeDraft {
             draft.bands.add(new Band(band.fromValue(), band.toValue(), band.argb() & 0xFFFFFF));
         draft.face = gauge.face;
         draft.uv = gauge.uv();
+        draft.placement = gauge.placement();
+        draft.flipX = gauge.flipX;
+        draft.flipY = gauge.flipY;
         draft.needleZero = gauge.needleZero;
         draft.reverse = gauge.reverse;
         draft.slide = gauge.slide;
@@ -147,7 +155,7 @@ public final class GaugeDraft {
                     .faceAspect(faceAspect)
                     .bands(built)
                     .build();
-            return new GaugeDial(quantity, null, face, face(), uv, needleZero, reverse, slide);
+            return new GaugeDial(quantity, null, face, face(), uv, placement, flipX, flipY, needleZero, reverse, slide);
         }
         GaugeFaceDefinition face = baseDial.toBuilder(min, max)
                 .displayName(name)
@@ -161,11 +169,59 @@ public final class GaugeDraft {
                 .sweep(clampAngle(startAngle), clampAngle(endAngle))
                 .bands(built)
                 .build();
-        return new GaugeDial(quantity, face, null, face(), uv, needleZero, reverse, slide);
+        return new GaugeDial(quantity, face, null, face(), uv, placement, flipX, flipY, needleZero, reverse, slide);
     }
 
-    private String face() {
+    // ------------------------------------------------- where the face is printed
+
+    @Override
+    public String face() {
         return face == null ? "" : face;
+    }
+
+    @Override
+    public void setFace(String face) {
+        this.face = face;
+    }
+
+    @Override
+    public float[] uv() {
+        return uv;
+    }
+
+    @Override
+    public void setUv(float[] uv) {
+        this.uv = uv;
+    }
+
+    @Override
+    public float[] placement() {
+        return placement;
+    }
+
+    @Override
+    public void setPlacement(float[] placement) {
+        this.placement = placement;
+    }
+
+    @Override
+    public boolean flipX() {
+        return flipX;
+    }
+
+    @Override
+    public void setFlipX(boolean flipX) {
+        this.flipX = flipX;
+    }
+
+    @Override
+    public boolean flipY() {
+        return flipY;
+    }
+
+    @Override
+    public void setFlipY(boolean flipY) {
+        this.flipY = flipY;
     }
 
     /** Held to the turn and a bit either way that a saved dial is read back with. */

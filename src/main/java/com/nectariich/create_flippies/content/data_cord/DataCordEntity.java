@@ -12,7 +12,6 @@ import com.nectariich.create_flippies.registry.ModItems;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -33,7 +32,7 @@ import org.patryk3211.powergrid.utility.IComplexRaycast;
 
 /**
  * A data cord hanging between two ports (spec 11.2.5): only for drawing and for
- * breaking. What it connects is held by the two endpoint block entities as
+ * breaking. What it connects is held by the two endpoint hosts as
  * {@link DataLink}s, so the per-tick exchange never needs this entity's chunk.
  *
  * Its UUID is the links' {@code cordId}. The ends are fixed when it is made, so
@@ -61,7 +60,7 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
     /** Ticks between checks that both ends still hold this cord. */
     private static final int CHECK_INTERVAL = 40;
 
-    private BlockPos posA = BlockPos.ZERO, posB = BlockPos.ZERO;
+    private PortAddress addressA = PortAddress.block(BlockPos.ZERO), addressB = PortAddress.block(BlockPos.ZERO);
     private int portA, portB;
     private PortType type = PortType.COM;
     private Vec3 originA = Vec3.ZERO, originB = Vec3.ZERO;
@@ -75,13 +74,13 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         noPhysics = true;
     }
 
-    static DataCordEntity create(ServerLevel level, UUID id, BlockPos posA, int portA, DataPortHost a, BlockPos posB,
-            int portB, DataPortHost b) {
+    static DataCordEntity create(ServerLevel level, UUID id, PortAddress addressA, int portA, DataPortHost a,
+            PortAddress addressB, int portB, DataPortHost b) {
         DataCordEntity cord = new DataCordEntity(ModEntityTypes.DATA_CORD.get(), level);
         cord.setUUID(id);
-        cord.posA = posA;
+        cord.addressA = addressA;
         cord.portA = portA;
-        cord.posB = posB;
+        cord.addressB = addressB;
         cord.portB = portB;
         cord.type = a.portType(portA);
         cord.originA = a.portOrigin(portA);
@@ -92,12 +91,12 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         return cord;
     }
 
-    public BlockPos posA() {
-        return posA;
+    public PortAddress addressA() {
+        return addressA;
     }
 
-    public BlockPos posB() {
-        return posB;
+    public PortAddress addressB() {
+        return addressB;
     }
 
     public int portA() {
@@ -175,8 +174,8 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         super.tick();
         if (level().isClientSide || tickCount % CHECK_INTERVAL != 0)
             return;
-        Boolean heldA = DataCords.holds(level(), posA, portA, getUUID());
-        Boolean heldB = DataCords.holds(level(), posB, portB, getUUID());
+        Boolean heldA = DataCords.holds(level(), addressA, portA, getUUID());
+        Boolean heldB = DataCords.holds(level(), addressB, portB, getUUID());
         // Either end let go while this was unloaded: the item was dropped by whoever did
         if (Boolean.FALSE.equals(heldA) || Boolean.FALSE.equals(heldB))
             discard();
@@ -311,8 +310,9 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
-        posA = NbtUtils.readBlockPos(tag.getCompound("PosA"));
-        posB = NbtUtils.readBlockPos(tag.getCompound("PosB"));
+        PortAddress a = PortAddress.read(tag, "PosA"), b = PortAddress.read(tag, "PosB");
+        addressA = a == null ? PortAddress.block(BlockPos.ZERO) : a;
+        addressB = b == null ? PortAddress.block(BlockPos.ZERO) : b;
         portA = tag.getInt("PortA");
         portB = tag.getInt("PortB");
         PortType read = PortType.byOrdinal(tag.getInt("Type"));
@@ -327,8 +327,8 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     protected void addAdditionalSaveData(CompoundTag tag) {
-        tag.put("PosA", NbtUtils.writeBlockPos(posA));
-        tag.put("PosB", NbtUtils.writeBlockPos(posB));
+        addressA.write(tag, "PosA");
+        addressB.write(tag, "PosB");
         tag.putInt("PortA", portA);
         tag.putInt("PortB", portB);
         tag.putInt("Type", type.ordinal());
@@ -354,8 +354,8 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     public void writeSpawnData(FriendlyByteBuf buffer) {
-        buffer.writeBlockPos(posA);
-        buffer.writeBlockPos(posB);
+        addressA.write(buffer);
+        addressB.write(buffer);
         buffer.writeVarInt(portA);
         buffer.writeVarInt(portB);
         buffer.writeVarInt(type.ordinal());
@@ -369,8 +369,8 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     public void readSpawnData(FriendlyByteBuf buffer) {
-        posA = buffer.readBlockPos();
-        posB = buffer.readBlockPos();
+        addressA = PortAddress.read(buffer);
+        addressB = PortAddress.read(buffer);
         portA = buffer.readVarInt();
         portB = buffer.readVarInt();
         PortType read = PortType.byOrdinal(buffer.readVarInt());

@@ -87,11 +87,12 @@ public record Blueprint(UUID id, String name, String folder, String author, long
         return new Blueprint(newId, name, folder, author, now, now, design);
     }
 
-    /** Every store file this blueprint needs: its model, then the font files its text uses. */
+    /** Every store file this blueprint needs: its model, the font files its text uses, and a screen's pictures. */
     public Set<String> blobHashes() {
         Set<String> hashes = new LinkedHashSet<>();
         hashes.add(design.model());
         hashes.addAll(design.fontHashes());
+        hashes.addAll(design.artHashes());
         return hashes;
     }
 
@@ -125,7 +126,7 @@ public record Blueprint(UUID id, String name, String folder, String author, long
         return new ControlDesign(d.kind(), d.model(), name, d.movingParts(), d.lights(), d.scale(),
                 d.offsetX(), d.offsetY(), d.offsetZ(), d.poses(), d.pivot(), d.front(), d.moving(), d.action(),
                 d.rating(), d.texts(), d.springs(), d.rack(), d.indicator(), d.occlusion(), d.materials(),
-                d.gauge());
+                d.gauge(), d.screen());
     }
 
     /** Whether a tag holds something a blueprint can be read from at all. */

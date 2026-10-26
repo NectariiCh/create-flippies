@@ -11,7 +11,9 @@ import net.minecraft.network.chat.Component;
  * model; or, for the annunciator rack, nothing at all, its model generated from the
  * rack it describes; or, for a gauge, the barrel and studs of the procedural gauges,
  * with an imported model in front whose needle follows the reading over a face
- * printed by one of the gauge face generators.
+ * printed by one of the gauge face generators; or, for a screen, the alphanumeric
+ * displays' barrel and pins, with an imported model in front, one submesh of which
+ * shows what the screen is told to.
  */
 public enum DesignKind {
 
@@ -33,7 +35,16 @@ public enum DesignKind {
      */
     GAUGE("gauge", null, 8),
     /** The same with an edgewise face, as the edgewise voltmeters print, and a needle that slides or swings along it. */
-    EDGEWISE_GAUGE("edgewise_gauge", null, 4);
+    EDGEWISE_GAUGE("edgewise_gauge", null, 4),
+    /**
+     * Made in the workbench's screen mode: an imported model with one submesh given
+     * over to a screen, which shows {@link com.nectariich.create_flippies.content.display.element.ScreenElements}
+     * as the alphanumeric displays do, wired and linked like them, on the displays'
+     * barrel and pins. Nothing of it moves. See
+     * {@link com.nectariich.create_flippies.content.design_workbench.screen.ScreenSurface}.
+     * Its front is 16 px wide, so a model of a 15 px screen fits at its own size.
+     */
+    SCREEN("screen", null, 16);
 
     private final String id;
     private final RotarySwitchKind rotary;
@@ -54,7 +65,7 @@ public enum DesignKind {
         return "designed_" + id;
     }
 
-    /** The switch this design turns like, or null for the button, the rack and the gauges. */
+    /** The switch this design turns like, or null for the button, the rack, the gauges and the screen. */
     public RotarySwitchKind rotary() {
         return rotary;
     }
@@ -93,6 +104,14 @@ public enum DesignKind {
     /** A designed gauge with an edgewise face; the other is rotary. */
     public boolean isEdgewise() {
         return this == EDGEWISE_GAUGE;
+    }
+
+    /**
+     * A designed screen: one position, nothing moving, and a surface of the model
+     * that shows elements (see {@link ControlDesign#screen}).
+     */
+    public boolean isScreen() {
+        return this == SCREEN;
     }
 
     /**

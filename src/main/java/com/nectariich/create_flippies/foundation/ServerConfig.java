@@ -32,7 +32,7 @@ public final class ServerConfig {
         HOST_BUDGET_PER_PC_MICROS = builder
                 .comment("Host time one PC may spend emulating per server tick, microseconds.",
                         "A PC that needs more runs slower than real time instead.")
-                .defineInRange("hostBudgetPerPcMicros", 2000, 100, 50000);
+                .defineInRange("hostBudgetPerPcMicros", 20000, 100, 50000);
         HOST_BUDGET_TOTAL_MICROS = builder
                 .comment("Host time all PCs together may spend per server tick, microseconds.")
                 .defineInRange("hostBudgetTotalMicros", 20000, 1000, 45000);

@@ -1,0 +1,3 @@
+# The modem's package host (spec 12.8): only what the in-game catalogue serves. The archive is a
+# copy of the debian-ports snapshot the image was built from, so it is never "valid until".
+deb [check-valid-until=no] http://deb.flip/ unstable main

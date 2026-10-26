@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.client.design;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.nectariich.create_flippies.client.AlphanumDisplayDrawing;
 import com.nectariich.create_flippies.client.ControlRenderer;
 import com.nectariich.create_flippies.client.ControlRenderers;
 import com.nectariich.create_flippies.client.ModPartialModels;
@@ -14,8 +15,11 @@ import com.nectariich.create_flippies.content.design_workbench.DesignedGaugeCont
 import com.nectariich.create_flippies.content.design_workbench.DesignedGaugeControlType;
 import com.nectariich.create_flippies.content.design_workbench.DesignedRackControl;
 import com.nectariich.create_flippies.content.design_workbench.DesignedRackControlType;
+import com.nectariich.create_flippies.content.design_workbench.DesignedScreenControl;
+import com.nectariich.create_flippies.content.design_workbench.DesignedScreenControlType;
 import com.nectariich.create_flippies.content.design_workbench.DesignedSwitchControl;
 import com.nectariich.create_flippies.content.design_workbench.DesignedSwitchControlType;
+import com.nectariich.create_flippies.content.display.DisplayForm;
 import com.nectariich.create_flippies.content.indicator.IndicatorColor;
 import com.nectariich.create_flippies.content.indicator.IndicatorKind;
 import com.nectariich.create_flippies.content.indicator.IndicatorSize;
@@ -52,7 +56,11 @@ import org.joml.Matrix4f;
  * gauge's rear is the Square gauge's barrel and studs, placed as a mounted Square
  * gauge's are; its needle is its moving parts, posed at the reading's eased progress
  * along the scale, and its printed face is a material of its model
- * ({@link DesignMaterials}).
+ * ({@link DesignMaterials}). A screen's rear is the alphanumeric displays' barrel and
+ * pins, placed exactly as a mounted display's are, so it is wired where a display is;
+ * its glass glows while its backlight is fed, and its elements are drawn on the glass
+ * through {@link DesignScreenRenderer}, after the model, whether or not the design
+ * prints any text.
  *
  * The rear goes in the cutout buffer exactly as the original controls' bodies do. The
  * reference state each partial is buffered against is the one the original's own
@@ -80,6 +88,7 @@ public class DesignedControlRenderer implements ControlRenderer {
         ControlRenderers.register(DesignedRackControlType.get(), INSTANCE);
         for (DesignedGaugeControlType type : DesignedGaugeControlType.all())
             ControlRenderers.register(type, INSTANCE);
+        ControlRenderers.register(DesignedScreenControlType.get(), INSTANCE);
     }
 
     @Override
@@ -110,6 +119,16 @@ public class DesignedControlRenderer implements ControlRenderer {
             position = Mth.lerp(partialTicks, gauge.prevDialState, gauge.dialState);
         } else if (control instanceof DesignedRackControl) {
             position = 0;
+        } else if (control instanceof DesignedScreenControl screen) {
+            // The 1.5 px display's body partial is the barrel and the pins alone (its
+            // glass is a partial of its own), which is what DisplayPins boxes
+            rear(ModPartialModels.displayBody(DisplayForm.BRDRL_1P5_SQ), AlphanumDisplayDrawing.referenceState(),
+                    mount, ms, vertices, light);
+            position = 0;
+            // The backlight is a lamp on its own feed, so the glass glows with it
+            // whether or not the logic supply is up, as a display's glass does
+            if (screen.isBacklit())
+                glow = 1;
         } else {
             return;
         }
@@ -124,6 +143,7 @@ public class DesignedControlRenderer implements ControlRenderer {
     /**
      * The design's text, posed like its model. Text on the moving parts follows them
      * to wherever {@link DesignedModels} drew them this frame, eased travel included.
+     * A screen's elements come first, since a screen shows them with or without print.
      */
     @Override
     public void renderLegend(HostedControl control, float partialTicks, PoseStack ms, MultiBufferSource buffer,
@@ -131,9 +151,13 @@ public class DesignedControlRenderer implements ControlRenderer {
         if (!(control instanceof DesignedControl designed))
             return;
         ControlDesign design = designed.design();
-        if (design == null || !design.hasPrint())
+        if (design == null)
             return;
         ControlMount mount = control.mount();
+        if (control instanceof DesignedScreenControl screen)
+            screen(screen, design, mount, ms, buffer, light);
+        if (!design.hasPrint())
+            return;
         float fallback;
         if (control instanceof DesignedSwitchControl rotary)
             fallback = switchPosition(rotary, partialTicks);
@@ -141,7 +165,7 @@ public class DesignedControlRenderer implements ControlRenderer {
             fallback = DesignMotion.buttonPosition(button.isPressed());
         else if (control instanceof DesignedGaugeControl gauge)
             fallback = Mth.lerp(partialTicks, gauge.prevDialState, gauge.dialState);
-        else if (control instanceof DesignedRackControl)
+        else if (control instanceof DesignedRackControl || control instanceof DesignedScreenControl)
             fallback = 0;
         else
             return;
@@ -152,6 +176,24 @@ public class DesignedControlRenderer implements ControlRenderer {
         // Recorded and printed after Hypergraphical has drawn the model, so the text
         // lands on it rather than on whatever was behind it
         DesignTextRenderer.drawPlaced(ms, buffer, design, DesignPose.rotation(mount, 0), motion, light);
+        ms.popPose();
+    }
+
+    /**
+     * A screen's elements on its glass, recorded to be drawn after the model like the
+     * text is. Nothing, and no buffer asked for, when it is dark or blank; nothing
+     * either until its design names the glass, since there is then nowhere to draw.
+     */
+    private static void screen(DesignedScreenControl screen, ControlDesign design, ControlMount mount, PoseStack ms,
+            MultiBufferSource buffer, int light) {
+        if (design.screen() == null || !design.screen().hasFace())
+            return;
+        Vec3 offset = mount.offset();
+        ms.pushPose();
+        ms.translate(offset.x, offset.y, offset.z);
+        DesignScreenRenderer.drawPlaced(ms, buffer, design.screen(), DesignPose.rotation(mount, 0),
+                screen.elements(), screen.elements().snapshot(), screen.viewport(), screen.isPowered(),
+                screen.isBacklit(), light);
         ms.popPose();
     }
 

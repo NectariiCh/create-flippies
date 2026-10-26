@@ -1,0 +1,11 @@
+Package: flippies-boot
+Version: 1.0
+Architecture: all
+Maintainer: Create Flippies <flippies@deb.flip>
+Section: admin
+Priority: optional
+Description: flipboot boot area tools for the Create Flippies PC
+ The Create Flippies PC boots Linux through flipboot (stage 1 in the MBR, stage 2 in
+ sectors 1 to 127), which loads the kernel from one of two slots in the boot area
+ partition. flipboot-update writes a new kernel into the inactive slot, checks it and
+ makes it the active slot. A kernel postinst.d hook runs it for every installed kernel.

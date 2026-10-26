@@ -1,0 +1,4 @@
+# Downloaded kernel tarballs and their checksum files, never committed. Unpack them in the build
+# container's /build volume, not here: on a Mac this folder is case-insensitive.
+*
+!.gitignore

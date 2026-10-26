@@ -6,19 +6,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSegment;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctWires;
 
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import org.patryk3211.powergrid.electricity.wire.BlockWireEntity;
+import org.patryk3211.powergrid.electricity.wire.HangingWireEntity;
 
 /**
- * {@link DuctWires} applied to a level: placeable wires and the ducts they run in,
- * looked up through {@link DuctIndex}. Used on both sides.
+ * {@link DuctWires} applied to a level: placeable wires, hanging wires routed
+ * through ducts by their bend points, and the ducts they run in, looked up through
+ * {@link DuctIndex}. Used on both sides.
  */
 public final class DuctedWires {
 
@@ -37,7 +42,7 @@ public final class DuctedWires {
     }
 
     public static DuctWires.Duct duct(WireDuctEntity duct) {
-        return new DuctWires.Duct(duct.segment(), duct.ductBox());
+        return new DuctWires.Duct(duct.segment(), duct.holdBox());
     }
 
     /** Every duct around a vertex of {@code path}, the candidates for holding it. */
@@ -58,11 +63,47 @@ public final class DuctedWires {
         return !holding(level, path(wire)).isEmpty();
     }
 
+    /** The hanging wires routed through {@code duct}: those with a bend point inside it. */
+    public static List<HangingWireEntity> hangingIn(Level level, WireDuctEntity duct) {
+        DuctWires.Duct d = duct(duct);
+        List<HangingWireEntity> in = new ArrayList<>();
+        for (HangingWireEntity wire : DuctIndex.hangingWires(level, duct.holdBox())) {
+            for (Vec3 v : ((BendableWire) wire).bendPoints()) {
+                if (DuctWires.holds(d, v)) {
+                    in.add(wire);
+                    break;
+                }
+            }
+        }
+        return in;
+    }
+
+    /**
+     * Which legs of a hanging wire's path run inside a duct, bit {@code i} for the leg
+     * from point {@code i} to {@code i + 1}: those whose middle a duct holds. They lie
+     * straight and are hidden by the duct ({@code BendGeometry}).
+     */
+    public static long ductLegs(Level level, List<Vec3> path) {
+        if (level == null || path == null)
+            return 0;
+        long legs = 0;
+        for (int leg = 0; leg + 1 < path.size() && leg < 64; leg++) {
+            Vec3 mid = path.get(leg).add(path.get(leg + 1)).scale(0.5);
+            for (WireDuctEntity duct : DuctIndex.ductsAt(level, mid)) {
+                if (DuctWires.holds(duct(duct), mid)) {
+                    legs |= 1L << leg;
+                    break;
+                }
+            }
+        }
+        return legs;
+    }
+
     /** The placeable wires that run in {@code duct}. */
     public static List<BlockWireEntity> wiresIn(Level level, WireDuctEntity duct) {
         DuctWires.Duct d = duct(duct);
         List<BlockWireEntity> in = new ArrayList<>();
-        for (BlockWireEntity wire : DuctIndex.wires(level, duct.ductBox())) {
+        for (BlockWireEntity wire : DuctIndex.wires(level, duct.holdBox())) {
             for (Vec3 v : path(wire)) {
                 if (DuctWires.holds(d, v)) {
                     in.add(wire);
@@ -94,19 +135,20 @@ public final class DuctedWires {
     }
 
     /** What names a wire among the others in a duct: the same on both sides, and for as long as it lives. */
-    public static long tie(BlockWireEntity wire) {
+    public static long tie(Entity wire) {
         return Long.hashCode(wire.getUUID().getMostSignificantBits() ^ wire.getUUID().getLeastSignificantBits());
     }
 
     /** How every wire around {@code ducts} occupies them, leaving out {@code except} (may be null). */
     public static List<DuctWires.Occupant> occupants(Level level, Collection<WireDuctEntity> ducts,
-            BlockWireEntity except) {
+            Entity except) {
         List<DuctWires.Occupant> out = new ArrayList<>();
         for (WireDuctEntity duct : ducts) {
             DuctSegment segment = duct.segment();
-            for (BlockWireEntity wire : DuctIndex.wires(level, duct.ductBox()))
+            for (BlockWireEntity wire : DuctIndex.wires(level, duct.holdBox()))
                 if (wire != except)
                     out.addAll(DuctWires.occupancy(segment, path(wire), awg(wire.getItem()), tie(wire)));
+            hangingOccupants(level, segment, duct.holdBox(), except, out);
         }
         return out;
     }
@@ -114,9 +156,19 @@ public final class DuctedWires {
     /** How every wire around a stretch of duct occupies it. */
     public static List<DuctWires.Occupant> occupants(Level level, DuctSegment segment) {
         List<DuctWires.Occupant> out = new ArrayList<>();
-        for (BlockWireEntity wire : DuctIndex.wires(level, segment.box()))
+        for (BlockWireEntity wire : DuctIndex.wires(level, segment.holdBox()))
             out.addAll(DuctWires.occupancy(segment, path(wire), awg(wire.getItem()), tie(wire)));
+        hangingOccupants(level, segment, segment.holdBox(), null, out);
         return out;
+    }
+
+    private static void hangingOccupants(Level level, DuctSegment segment, AABB box, Entity except,
+            List<DuctWires.Occupant> out) {
+        for (HangingWireEntity wire : DuctIndex.hangingWires(level, box)) {
+            List<Vec3> path = ((BendableWire) wire).bendPath();
+            if (wire != except && path != null)
+                out.addAll(DuctWires.occupancy(segment, path, awg(wire.getItem()), tie(wire)));
+        }
     }
 
     /**

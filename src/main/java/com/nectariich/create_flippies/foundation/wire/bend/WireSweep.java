@@ -22,14 +22,10 @@ import net.minecraft.world.phys.Vec3;
  *
  * A turn too sharp to mitre (folding back by more than {@link #SHARP_TURN_COS})
  * ends one tube and starts the next, each closed by a cap, which reads as a knot
- * the width of the wire. Legs inside a wire duct are drawn as dashes
- * ({@link #STROKE}, {@link #GAP}), each its own short tube; a dash that starts
- * right at a joint continues the hanging leg's tube without a seam.
+ * the width of the wire. Legs inside a wire duct are not drawn at all: the duct
+ * hides them.
  */
 public final class WireSweep {
-
-    /** Length of one dash of a wire drawn in a duct, and of the gap after it, blocks. */
-    public static final double STROKE = 0.1875, GAP = 0.0625;
 
     /** The least cosine between two pieces that are still mitred together; sharper turns get a knot. */
     public static final double SHARP_TURN_COS = -0.5;
@@ -61,6 +57,12 @@ public final class WireSweep {
      */
     public static List<Vec3> polyline(List<Vec3> path, long ductLegs, double horizontal, double vertical,
             double thickness, double step) {
+        return polyline(path, ductLegs, BendGeometry.LegCurves.uniform(horizontal, vertical), thickness, step);
+    }
+
+    /** As above, each leg hanging with its own coefficients (WIRE SAG). */
+    public static List<Vec3> polyline(List<Vec3> path, long ductLegs, BendGeometry.LegCurves curves,
+            double thickness, double step) {
         List<Vec3> points = new ArrayList<>();
         for (int leg = 0; leg + 1 < path.size(); leg++) {
             Vec3 from = path.get(leg), to = path.get(leg + 1);
@@ -73,7 +75,8 @@ public final class WireSweep {
                 for (int i = 0; i <= pieces; i++)
                     vertices.add(from.lerp(to, (double) i / pieces));
             } else {
-                vertices = BendGeometry.legVertices(from, to, horizontal, vertical, thickness, step);
+                vertices = BendGeometry.legVertices(from, to, curves.horizontal(leg), curves.vertical(leg), thickness,
+                        step);
             }
             // A leg starts where the last one ended
             points.addAll(points.isEmpty() ? vertices : vertices.subList(1, vertices.size()));
@@ -127,7 +130,14 @@ public final class WireSweep {
      */
     public static List<Strip> sweep(List<Vec3> path, long ductLegs, double horizontal, double vertical,
             double thickness, double step, Vec3 reference) {
-        List<Piece> pieces = pieces(path, ductLegs, horizontal, vertical, thickness, step);
+        return sweep(path, ductLegs, BendGeometry.LegCurves.uniform(horizontal, vertical), thickness, step,
+                reference);
+    }
+
+    /** As above, each leg hanging with its own coefficients (WIRE SAG). */
+    public static List<Strip> sweep(List<Vec3> path, long ductLegs, BendGeometry.LegCurves curves,
+            double thickness, double step, Vec3 reference) {
+        List<Piece> pieces = pieces(path, ductLegs, curves, thickness, step);
         List<Strip> strips = new ArrayList<>();
         if (pieces.isEmpty())
             return strips;
@@ -210,8 +220,8 @@ public final class WireSweep {
         }
     }
 
-    /** The path as straight pieces, a duct's legs cut into dashes and gaps. */
-    private static List<Piece> pieces(List<Vec3> path, long ductLegs, double horizontal, double vertical,
+    /** The path as straight pieces, a duct's legs left out. */
+    private static List<Piece> pieces(List<Vec3> path, long ductLegs, BendGeometry.LegCurves curves,
             double thickness, double step) {
         List<Piece> out = new ArrayList<>();
         double along = 0;
@@ -220,10 +230,13 @@ public final class WireSweep {
             if (from.distanceToSqr(to) < 1e-10)
                 continue;
             if (BendGeometry.isDucted(ductLegs, leg)) {
-                along = dashes(out, from, to, along);
+                double length = from.distanceTo(to);
+                out.add(new Piece(from, to, along, length, false));
+                along += length;
                 continue;
             }
-            List<Vec3> vertices = BendGeometry.legVertices(from, to, horizontal, vertical, thickness, step);
+            List<Vec3> vertices = BendGeometry.legVertices(from, to, curves.horizontal(leg), curves.vertical(leg),
+                    thickness, step);
             for (int i = 1; i < vertices.size(); i++) {
                 Vec3 a = vertices.get(i - 1), b = vertices.get(i);
                 double length = a.distanceTo(b);
@@ -234,26 +247,6 @@ public final class WireSweep {
             }
         }
         return out;
-    }
-
-    /** One straight duct leg as dashes and gaps, the pattern measured along the whole path. */
-    private static double dashes(List<Piece> out, Vec3 from, Vec3 to, double along) {
-        double length = from.distanceTo(to);
-        Vec3 dir = to.subtract(from).scale(1 / length);
-        double period = STROKE + GAP;
-        double s = 0;
-        while (s < length) {
-            double phase = (along + s) % period;
-            boolean dash = phase < STROKE;
-            double end = Math.min(length, s + (dash ? STROKE - phase : period - phase));
-            if (end - s > 1e-9) {
-                Vec3 a = s == 0 ? from : from.add(dir.scale(s));
-                Vec3 b = end >= length ? to : from.add(dir.scale(end));
-                out.add(new Piece(a, b, along + s, end - s, dash));
-            }
-            s = Math.max(end, s + 1e-4);
-        }
-        return along + length;
     }
 
     /** The unit part of {@code v} square to a unit {@code direction}, or null if there is none to speak of. */

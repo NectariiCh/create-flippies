@@ -300,6 +300,9 @@ public class ControlRack implements ControlHost {
      */
     public PlacementRefusal install(HostedControl control, ControlMount mount, Player placer) {
         PlacementRefusal refusal = check(control.footprint(), control.terminalCount(), mount);
+        // Asked of the control itself, since a designed screen arrives with its layout
+        if (refusal.ok() && !HostElementBudget.fits(controls, control))
+            refusal = PlacementRefusal.TOO_MANY_ELEMENTS;
         if (!refusal.ok()) {
             if (placer != null)
                 refusal.tell(placer);

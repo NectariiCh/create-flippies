@@ -40,7 +40,13 @@ import org.joml.Vector4f;
  * dial ({@link DesignDials}) as its albedo, stretched over the submesh's UV rectangle
  * by the material's UV transform. The element's own maps are dropped, since they
  * would be stretched with it; its finish is kept, or the edited one if it was
- * edited, and its colour multiplies the dial, white unless it was edited.
+ * edited, and its colour multiplies the dial, white unless it was edited. The dial
+ * is its emissive map too, so a glowing face lights its background and leaves its
+ * markings dark, as a backlit dial does, rather than washing over both alike.
+ *
+ * An edit's glow is how bright it looks rather than the light it gives off: up to 1
+ * it is decoded from sRGB ({@link #emission}), so a tenth of the slider reads as a
+ * tenth as bright instead of about a third, and past 1 it carries on linearly.
  */
 public final class DesignMaterials {
 
@@ -108,7 +114,7 @@ public final class DesignMaterials {
 
     private static DesignMaterial of(HgMaterial base) {
         return new DesignMaterial(rgb(base.tint.x, base.tint.y, base.tint.z), base.tint.w, base.metallic,
-                1 - base.smoothness, base.emissiveMap == null ? base.emissiveStrength : 0, base.occlusion,
+                1 - base.smoothness, base.emissiveMap == null ? glow(base.emissiveStrength) : 0, base.occlusion,
                 DesignMaterial.AUTO);
     }
 
@@ -156,10 +162,10 @@ public final class DesignMaterials {
         if (REGISTERED.get(id) != base) {
             int color = surface.color();
             float r = (color >> 16 & 0xFF) / 255f, g = (color >> 8 & 0xFF) / 255f, b = (color & 0xFF) / 255f;
-            HypergraphicalAPI.registerMaterial(new HgMaterial(id, texture, null, null, null, null, false,
+            HypergraphicalAPI.registerMaterial(new HgMaterial(id, texture, texture, null, null, null, false,
                     new Vector2f(uv[0], uv[1]), new Vector2f(uv[2], uv[3]), surface.metallic(),
                     1 - surface.roughness(), new Vector4f(r, g, b, surface.opacity()), new Vector3f(r, g, b),
-                    surface.glow(),
+                    emission(surface.glow()),
                     surface.opacity() < 1 ? HgMaterial.AlphaMode.BLEND : HgMaterial.AlphaMode.OPAQUE,
                     base.alphaCutoff, base.doubleSided, base.reflectivity, base.sunSpecular, surface.occlusion()));
             REGISTERED.put(id, base);
@@ -178,7 +184,17 @@ public final class DesignMaterials {
         else
             mode = base.alphaMode;
         return base.withSurface(id, new Vector4f(r, g, b, edit.opacity()), edit.metallic(), 1 - edit.roughness(),
-                new Vector3f(r, g, b), edit.glow(), mode, edit.occlusion());
+                new Vector3f(r, g, b), emission(edit.glow()), mode, edit.occlusion());
+    }
+
+    /** The emissive strength an edit's glow gives off: sRGB-decoded up to 1, linear past it. */
+    private static float emission(float glow) {
+        return glow < 1 ? (float) Math.pow(glow, 2.2) : glow;
+    }
+
+    /** The glow that gives off an emissive strength, the inverse of {@link #emission}. */
+    private static float glow(float emission) {
+        return emission < 1 ? (float) Math.pow(emission, 1 / 2.2) : emission;
     }
 
     private static int rgb(float r, float g, float b) {

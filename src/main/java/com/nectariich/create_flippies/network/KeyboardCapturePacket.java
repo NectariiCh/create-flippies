@@ -4,7 +4,6 @@ import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.content.pc.PcServer;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
@@ -16,21 +15,21 @@ import net.minecraftforge.network.NetworkEvent;
  */
 public class KeyboardCapturePacket {
 
-    private final BlockPos pos;
+    private final int id;
     private final boolean capture;
 
-    public KeyboardCapturePacket(BlockPos pos, boolean capture) {
-        this.pos = pos;
+    public KeyboardCapturePacket(int id, boolean capture) {
+        this.id = id;
         this.capture = capture;
     }
 
     public KeyboardCapturePacket(FriendlyByteBuf buffer) {
-        pos = buffer.readBlockPos();
+        id = buffer.readVarInt();
         capture = buffer.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buffer) {
-        buffer.writeBlockPos(pos);
+        buffer.writeVarInt(id);
         buffer.writeBoolean(capture);
     }
 
@@ -41,9 +40,9 @@ public class KeyboardCapturePacket {
             if (player == null || server == null)
                 return;
             if (capture)
-                server.captures().request(player, pos);
+                server.captures().request(player, id);
             else
-                server.captures().release(player, pos);
+                server.captures().release(player, id);
         });
         context.get().setPacketHandled(true);
     }

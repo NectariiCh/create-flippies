@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 /** The CRT's `vga in` pairs with the case's three VGA ports and nothing else. */
 class CrtPortsTest {
 
-    /** The CRT's one port, as {@code CrtBlockEntity} declares it. */
+    /** The CRT's one port, as {@code CrtEntity} declares it. */
     private static final End CRT = new End("crt", PortType.VGA, PortRole.SINK, false);
 
     private static End casePort(int port) {

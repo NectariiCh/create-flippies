@@ -9,6 +9,7 @@ import java.util.TreeMap;
 
 import com.nectariich.create_flippies.content.design_workbench.annunciator.AnnunciatorRack;
 import com.nectariich.create_flippies.content.design_workbench.gauge.GaugeDial;
+import com.nectariich.create_flippies.content.design_workbench.screen.ScreenSurface;
 import com.nectariich.create_flippies.content.indicator.IndicatorAction;
 import com.nectariich.create_flippies.content.indicator.IndicatorLamp;
 import com.nectariich.create_flippies.content.indicator.IndicatorRating;
@@ -77,13 +78,16 @@ import net.minecraft.world.item.ItemStack;
  *                    follows the reading; null for every other kind, never null for
  *                    a gauge, and always the face its kind prints. A rotary gauge's
  *                    poses are always the ones its dial implies
+ * @param screen      which submesh of a designed screen shows its elements and where,
+ *                    its rated supply, and the layout a placed one starts with; null
+ *                    for every other kind, never null for a screen
  */
 public record ControlDesign(DesignKind kind, String model, String name, List<String> movingParts,
         List<String> lights, float scale, float offsetX, float offsetY, float offsetZ,
         float[][] poses, float[] pivot, double[] front, double[] moving, IndicatorAction action,
         IndicatorRating rating, List<DesignText> texts, int springs, AnnunciatorRack rack,
         BreakerIndicator indicator, DesignOcclusion occlusion, Map<String, DesignMaterial> materials,
-        GaugeDial gauge) {
+        GaugeDial gauge, ScreenSurface screen) {
 
     public static final String TAG = "Design";
 
@@ -140,6 +144,22 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
         // A rotary needle turns across its dial's sweep, whatever poses were given
         if (gauge != null && !gauge.isEdgewise())
             poses = gauge.rotaryPoses();
+        // Only a screen has one, and a screen always does
+        if (kind == null || !kind.isScreen())
+            screen = null;
+        else if (screen == null)
+            screen = ScreenSurface.defaults();
+    }
+
+    /** A design of any kind but a screen, which is every design made before there were screens. */
+    public ControlDesign(DesignKind kind, String model, String name, List<String> movingParts,
+            List<String> lights, float scale, float offsetX, float offsetY, float offsetZ,
+            float[][] poses, float[] pivot, double[] front, double[] moving, IndicatorAction action,
+            IndicatorRating rating, List<DesignText> texts, int springs, AnnunciatorRack rack,
+            BreakerIndicator indicator, DesignOcclusion occlusion, Map<String, DesignMaterial> materials,
+            GaugeDial gauge) {
+        this(kind, model, name, movingParts, lights, scale, offsetX, offsetY, offsetZ, poses, pivot,
+                front, moving, action, rating, texts, springs, rack, indicator, occlusion, materials, gauge, null);
     }
 
     /** A design of any kind but a gauge, which is every design made before there were gauges. */
@@ -204,8 +224,8 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
      * sunk by {@link IndicatorLamp#PRESS_DEPTH} when pressed.
      */
     public static float[][] defaultPoses(DesignKind kind) {
-        // A rack does not move: one position, where the model puts it
-        if (kind.isGenerated())
+        // A rack or a screen does not move: one position, where the model puts it
+        if (kind.isGenerated() || kind.isScreen())
             return new float[][] { { 0, 0, 0 } };
         // A gauge's needle stands at the minimum, then at the maximum. A rotary one's
         // come from its dial (GaugeDial.rotaryPoses); an edgewise one's are set
@@ -222,7 +242,7 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
 
     /**
      * How many positions a kind has: its switch's, released and pressed for the
-     * button, the minimum and the maximum for a gauge, one for a rack.
+     * button, the minimum and the maximum for a gauge, one for a rack or a screen.
      */
     public static int positions(DesignKind kind) {
         return defaultPoses(kind).length;
@@ -251,7 +271,11 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
         return !texts.isEmpty() || !legends().isEmpty();
     }
 
-    /** The font files this design's text uses, each once, by design store hash. */
+    /**
+     * The font files this design's text uses, each once, by design store hash: its
+     * printed text's, and a screen's authored layout's, which a placed screen draws
+     * with, so they travel with the design like the model does.
+     */
     public Set<String> fontHashes() {
         Set<String> hashes = new LinkedHashSet<>();
         for (DesignText text : texts) {
@@ -259,7 +283,18 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
             if (hash != null)
                 hashes.add(hash);
         }
+        if (screen != null)
+            hashes.addAll(screen.fontHashes());
         return hashes;
+    }
+
+    /**
+     * The pictures a screen's authored layout shows, each once, by design store hash:
+     * like its fonts, they travel with the design so a screen placed in another world
+     * can draw them.
+     */
+    public Set<String> artHashes() {
+        return screen == null ? Set.of() : screen.artHashes();
     }
 
     public CompoundTag write() {
@@ -314,6 +349,10 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
         }
         if (gauge != null)
             tag.put(GaugeDial.TAG, gauge.write());
+        // Only a screen has one, so every other kind writes exactly the tag it did
+        // before there were screens
+        if (screen != null)
+            tag.put(ScreenSurface.TAG, screen.write());
         return tag;
     }
 
@@ -342,6 +381,9 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
      * while gauges had a generated case has a {@code Gauge} tag instead: its quantity
      * and face are kept ({@link GaugeDial#readLegacy}), the case it was given stays
      * its model, and it has no face submesh or needle until edited.
+     *
+     * A screen with no {@code ScreenSurface} is the default screen; the tag is read
+     * for no other kind.
      */
     public static ControlDesign read(CompoundTag tag) {
         DesignKind kind = DesignKind.of(tag.getString("Kind"));
@@ -382,7 +424,10 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
                 tag.contains(DesignOcclusion.TAG, Tag.TAG_COMPOUND)
                         ? DesignOcclusion.read(tag.getCompound(DesignOcclusion.TAG))
                         : null,
-                readMaterials(tag.getCompound("Materials")), gauge);
+                readMaterials(tag.getCompound("Materials")), gauge,
+                kind.isScreen() && tag.contains(ScreenSurface.TAG, Tag.TAG_COMPOUND)
+                        ? ScreenSurface.read(tag.getCompound(ScreenSurface.TAG))
+                        : null);
     }
 
     /** At most {@link #MAX_MATERIALS} edited elements, each under a key that names a part and a material. */

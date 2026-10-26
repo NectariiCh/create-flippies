@@ -6,6 +6,7 @@ import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowDraft;
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowSettings;
+import com.nectariich.create_flippies.content.wire_duct.WireDuctItem;
 import com.nectariich.create_flippies.foundation.control.ControlTypes;
 import com.nectariich.create_flippies.registry.ModItems;
 
@@ -103,7 +104,7 @@ public class ScrewdriverItem extends Item {
      * A sneaking click never counts: that is the menu, and the menu has to remain
      * reachable however the tool is configured. The ruling modes claim every other
      * click, because ruling is the only thing they do. A placement mode claims only
-     * when the other hand actually holds a control, so a screwdriver in the pocket
+     * when the other hand actually holds a control or a wire duct, so a screwdriver in the pocket
      * does not stop the player from opening a door — and the idle mode claims
      * nothing at all.
      */
@@ -114,7 +115,8 @@ public class ScrewdriverItem extends Item {
             return false;
         if (!settings.mode().places())
             return true;
-        return ControlTypes.forItem(player.getItemInHand(otherHand(hand))) != null;
+        ItemStack other = player.getItemInHand(otherHand(hand));
+        return ControlTypes.forItem(other) != null || other.getItem() instanceof WireDuctItem;
     }
 
     @Override
@@ -122,6 +124,9 @@ public class ScrewdriverItem extends Item {
         ItemStack stack = player.getItemInHand(hand);
         if (!player.isShiftKeyDown())
             return InteractionResultHolder.pass(stack);
+        // A duct half laid is let go of first; the menu waits for the next sneaking click
+        if (WireDuctItem.cancel(player))
+            return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
         if (level.isClientSide)
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                     () -> () -> com.nectariich.create_flippies.client.ScrewdriverScreen.open(hand));
@@ -134,6 +139,8 @@ public class ScrewdriverItem extends Item {
         Player player = context.getPlayer();
         if (player == null || !player.isShiftKeyDown())
             return super.useOn(context);
+        if (WireDuctItem.cancel(player))
+            return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
         if (context.getLevel().isClientSide)
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                     () -> () -> com.nectariich.create_flippies.client.ScrewdriverScreen.open(context.getHand()));

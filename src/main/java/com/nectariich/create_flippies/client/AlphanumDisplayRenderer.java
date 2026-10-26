@@ -12,7 +12,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Draws a standalone alphanumeric display. The geometry and the lettering are
+ * Draws a standalone alphanumeric display. The geometry and the elements are
  * {@link AlphanumDisplayDrawing}'s, shared with the mounted form; all this adds is
  * where a block's device sits — centred on its own cell, aimed by the block state —
  * so the glass lands on the plate the block's hitboxes and terminals were built from.
@@ -34,7 +34,7 @@ public class AlphanumDisplayRenderer implements BlockEntityRenderer<AlphanumDisp
         // one call. A standalone display is one device in one block, so it has nothing
         // to batch with and nothing to gain from the two passes a host draws in
         AlphanumDisplayDrawing.draw(be.getForm(), backlit, facing, 0, rotation, Vec3.ZERO, ms, buffer, light);
-        AlphanumDisplayDrawing.print(be.getForm(), be.print(), be.displayedText(), backlit, facing, 0, rotation,
-                Vec3.ZERO, ms, buffer, light);
+        AlphanumDisplayDrawing.elements(be.getForm(), be.elements(), be.elements().snapshot(), be.isPowered(), backlit,
+                facing, 0, rotation, Vec3.ZERO, ms, buffer, light);
     }
 }

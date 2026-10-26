@@ -1,0 +1,2 @@
+# The desktop user runs anything as root without a password (the menu's reboot and power off).
+flip ALL=(ALL:ALL) NOPASSWD: ALL

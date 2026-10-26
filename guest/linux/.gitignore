@@ -1,0 +1,2 @@
+# Build outputs of build.sh and mkinitramfs.sh (vmlinux, System.map, config, packages, cpio).
+/out/

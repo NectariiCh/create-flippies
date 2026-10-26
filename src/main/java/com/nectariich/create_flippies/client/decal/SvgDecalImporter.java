@@ -68,7 +68,8 @@ import com.nectariich.create_flippies.content.decal.DecalArt;
  *
  * What is not read is said so, once, in the warnings: text along a path, masks and
  * filters. Gradients are painted as the average of their stops, which keeps a
- * shaded button the right colour if not the right shading. Anything that moves or
+ * shaded button the right colour if not the right shading; a picture imported for a
+ * display keeps them instead ({@link #readShaded}). Anything that moves or
  * reacts (scripts, event handlers, SMIL and CSS animation, embedded frames, media
  * and form controls) is taken out before anything is read, so the drawing is
  * imported as it first appears; see {@link #stripDynamic}.
@@ -168,22 +169,46 @@ public final class SvgDecalImporter {
     /** What the import came to, and everything about the file that was not taken across. */
     public record Result(DecalArt art, List<String> warnings) {}
 
-    /** One fill or stroke, or with {@code picture} at or above nought the painted cells of that raster picture. */
-    private record Paint(Area area, int colour, double alpha, int picture) {}
+    /**
+     * One fill or stroke, or with {@code picture} at or above nought the painted cells
+     * of that raster picture. {@code gradient} at or above nought shades it with that
+     * one of {@link #gradients}, which only an import for a display asks for.
+     */
+    private record Paint(Area area, int colour, double alpha, int picture, int gradient) {
+
+        Paint(Area area, int colour, double alpha, int picture) {
+            this(area, colour, alpha, picture, -1);
+        }
+    }
+
+    /** Layer keys from here up are a shaded region's: this plus its gradient's index. Colours are 24 bits. */
+    private static final int SHADED = 1 << 24;
+
+    /** How finely a shaded layer's triangles are cut at most, as a fraction of the picture's larger side. */
+    private static final double FINEST_SHADING = 1 / 96.0;
+
+    /** The most pieces a shaded triangle is cut into along each side. */
+    private static final int MOST_SHADING_CUTS = 24;
 
     private static final class Region {
         Area area;
         final int colour;
         final double alpha;
         final int picture;
+        final int gradient;
         Rectangle2D bounds;
         int cuts;
 
         Region(Area area, int colour, double alpha, int picture) {
+            this(area, colour, alpha, picture, -1);
+        }
+
+        Region(Area area, int colour, double alpha, int picture, int gradient) {
             this.area = area;
             this.colour = colour;
             this.alpha = alpha;
             this.picture = picture;
+            this.gradient = gradient;
             this.bounds = area.getBounds2D();
         }
 
@@ -229,6 +254,9 @@ public final class SvgDecalImporter {
     private final Document document;
     private final String name;
     private final boolean transparent;
+    /** Whether gradients are kept, which a display's picture asks for; see {@link #readShaded}. */
+    private final boolean shading;
+    private final List<SvgGradient> gradients = new ArrayList<>();
     /** The folder of the file read, where pictures it links to are looked for; null for bytes from nowhere. */
     private final Path folder;
     private final List<Picture> pictures = new ArrayList<>();
@@ -249,11 +277,32 @@ public final class SvgDecalImporter {
     private int visited;
     private boolean tooComplex;
 
-    private SvgDecalImporter(Document document, String name, boolean transparent, Path folder) {
+    private SvgDecalImporter(Document document, String name, boolean transparent, Path folder, boolean shading) {
         this.document = document;
         this.name = name;
         this.transparent = transparent;
         this.folder = folder;
+        this.shading = shading;
+    }
+
+    /**
+     * Reads a file for a display: as {@link #read}, but with every linear and radial
+     * gradient kept as a colour at each vertex of finely cut triangles (see
+     * {@link DecalArt.Layer#shades}), and the whole held to
+     * {@link DecalArt#MAX_DISPLAY_TRIANGLES}.
+     */
+    public static Result readShaded(Path path) throws IOException {
+        if (Files.size(path) > MAX_FILE_BYTES)
+            throw new IOException(path.getFileName() + " is larger than 4 MB");
+        String file = path.getFileName().toString();
+        int dot = file.lastIndexOf('.');
+        return new SvgDecalImporter(document(inflated(Files.readAllBytes(path))),
+                dot > 0 ? file.substring(0, dot) : file, false, path.toAbsolutePath().getParent(), true).run();
+    }
+
+    /** {@link #readShaded} of bytes from nowhere, for tests. */
+    static Result parseShaded(byte[] bytes, String name) throws IOException {
+        return new SvgDecalImporter(document(inflated(bytes)), name, false, null, true).run();
     }
 
     /**
@@ -279,7 +328,7 @@ public final class SvgDecalImporter {
 
     /** As {@link #parse(byte[], String, boolean)}, with linked pictures read from {@code folder} if it is not null. */
     static Result parse(byte[] bytes, String name, boolean transparent, Path folder) throws IOException {
-        return new SvgDecalImporter(document(inflated(bytes)), name, transparent, folder).run();
+        return new SvgDecalImporter(document(inflated(bytes)), name, transparent, folder, false).run();
     }
 
     // The document
@@ -387,6 +436,7 @@ public final class SvgDecalImporter {
         normalise.scale(1 / box.getWidth(), 1 / box.getHeight());
         normalise.translate(-box.getX(), -box.getY());
         List<DecalArt.Layer> triangulated = new ArrayList<>();
+        Map<Integer, float[]> toShade = new TreeMap<>();
         int total = 0;
         for (Map.Entry<Integer, List<Area>> layer : layers.entrySet()) {
             List<float[]> pieces = new ArrayList<>();
@@ -406,10 +456,34 @@ public final class SvgDecalImporter {
                 System.arraycopy(piece, 0, joined, at, piece.length);
                 at += piece.length;
             }
-            if (joined.length > 0)
+            if (joined.length == 0)
+                continue;
+            if (layer.getKey() >= SHADED)
+                toShade.put(layer.getKey() - SHADED, joined);
+            else
                 triangulated.add(new DecalArt.Layer(0xFF000000 | layer.getKey(), joined));
         }
+        if (shading && total > DecalArt.MAX_DISPLAY_TRIANGLES)
+            throw new IOException("The drawing needs more than " + DecalArt.MAX_DISPLAY_TRIANGLES
+                    + " triangles; simplify it");
+        if (!toShade.isEmpty()) {
+            // What the shaded regions take uncut is theirs to cut finer
+            int uncut = 0;
+            for (float[] base : toShade.values())
+                uncut += base.length / 6;
+            triangulated.addAll(shaded(toShade, box, DecalArt.MAX_DISPLAY_TRIANGLES - (total - uncut)));
+        }
         List<DecalArt.Layer> pixels = pixels(normalise, total);
+        if (shading) {
+            int all = 0;
+            for (DecalArt.Layer layer : triangulated)
+                all += layer.triangleCount();
+            for (DecalArt.Layer layer : pixels)
+                all += layer.triangleCount();
+            if (all > DecalArt.MAX_DISPLAY_TRIANGLES)
+                throw new IOException("The drawing needs more than " + DecalArt.MAX_DISPLAY_TRIANGLES
+                        + " triangles; simplify it");
+        }
         if (triangulated.isEmpty() && pixels.isEmpty())
             throw new IOException("Nothing in the file is painted");
         if (triangulated.size() + pixels.size() > DecalArt.MAX_LAYERS)
@@ -418,6 +492,90 @@ public final class SvgDecalImporter {
             warn("Pictures are painted as small cells of flat colour, and stamped arrows leave them out");
         return new Result(new DecalArt(name, (float) box.getWidth(), (float) box.getHeight(), triangulated, pixels),
                 List.copyOf(warnings));
+    }
+
+    /**
+     * The shaded regions as layers with a colour at every vertex, by gradient.
+     *
+     * A triangle's colours are blended straight across it, which follows a gradient
+     * only where the triangle is small next to how fast the gradient changes. So each
+     * is cut into a lattice of smaller ones, as finely as {@code room} (the triangles
+     * the picture may still have) allows: the step is found by halving from the
+     * coarsest that would do down to {@link #FINEST_SHADING} of the picture, keeping
+     * the finest that fits.
+     */
+    private List<DecalArt.Layer> shaded(Map<Integer, float[]> regions, Rectangle2D box, int room) {
+        double aspect = box.getWidth() / box.getHeight();
+        // Uncut when even the coarsest lattice does not fit
+        double step = Double.POSITIVE_INFINITY;
+        for (double trying = 1; trying >= FINEST_SHADING && cuts(regions, trying, aspect) <= room; trying /= 2)
+            step = trying;
+        List<DecalArt.Layer> layers = new ArrayList<>();
+        for (Map.Entry<Integer, float[]> region : regions.entrySet()) {
+            SvgGradient gradient = gradients.get(region.getKey());
+            float[] base = region.getValue();
+            List<Float> points = new ArrayList<>();
+            List<Integer> shades = new ArrayList<>();
+            for (int t = 0; t < base.length; t += 6) {
+                int n = cutsFor(base, t, step, aspect);
+                for (int i = 0; i < n; i++)
+                    for (int j = 0; j < n - i; j++) {
+                        lattice(base, t, n, i, j, points, shades, gradient, box);
+                        lattice(base, t, n, i + 1, j, points, shades, gradient, box);
+                        lattice(base, t, n, i, j + 1, points, shades, gradient, box);
+                        if (i + j < n - 1) {
+                            lattice(base, t, n, i + 1, j, points, shades, gradient, box);
+                            lattice(base, t, n, i + 1, j + 1, points, shades, gradient, box);
+                            lattice(base, t, n, i, j + 1, points, shades, gradient, box);
+                        }
+                    }
+            }
+            float[] triangles = new float[points.size()];
+            for (int i = 0; i < triangles.length; i++)
+                triangles[i] = points.get(i);
+            int[] colours = new int[shades.size()];
+            for (int i = 0; i < colours.length; i++)
+                colours[i] = shades.get(i);
+            layers.add(new DecalArt.Layer(0xFF000000 | gradient.average(), triangles, colours));
+        }
+        return layers;
+    }
+
+    /** How many triangles shading at {@code step} makes. */
+    private static int cuts(Map<Integer, float[]> regions, double step, double aspect) {
+        int total = 0;
+        for (float[] base : regions.values())
+            for (int t = 0; t < base.length; t += 6) {
+                int n = cutsFor(base, t, step, aspect);
+                total += n * n;
+            }
+        return total;
+    }
+
+    /** How many pieces a triangle is cut into along each side at {@code step}, in the picture's larger side. */
+    private static int cutsFor(float[] base, int t, double step, double aspect) {
+        if (!Double.isFinite(step))
+            return 1;
+        double longest = 0;
+        for (int k = 0; k < 3; k++) {
+            int a = t + 2 * k, b = t + 2 * ((k + 1) % 3);
+            // In units of the larger side, so a wide picture is not cut finer across than down
+            double dx = (base[b] - base[a]) * Math.max(1, aspect), dy = (base[b + 1] - base[a + 1])
+                    * Math.max(1, 1 / aspect);
+            longest = Math.max(longest, Math.hypot(dx, dy));
+        }
+        return Math.max(1, Math.min(MOST_SHADING_CUTS, (int) Math.ceil(longest / step)));
+    }
+
+    /** Point (i, j) of a triangle's lattice of {@code n} a side, with its colour. */
+    private static void lattice(float[] base, int t, int n, int i, int j, List<Float> points, List<Integer> shades,
+            SvgGradient gradient, Rectangle2D box) {
+        float u = i / (float) n, v = j / (float) n;
+        float x = base[t] + (base[t + 2] - base[t]) * u + (base[t + 4] - base[t]) * v;
+        float y = base[t + 1] + (base[t + 3] - base[t + 1]) * u + (base[t + 5] - base[t + 1]) * v;
+        points.add(x);
+        points.add(y);
+        shades.add(gradient.colourAt(box.getX() + x * box.getWidth(), box.getY() + y * box.getHeight()));
     }
 
     /**
@@ -1293,15 +1451,19 @@ public final class SvgDecalImporter {
             return;
         long current = SvgColours.parse(style.getOrDefault("color", "black"), 0xFF000000L);
 
-        long fill = colour(style.getOrDefault("fill", "black"), current, style);
+        int fillShade = shade(style.getOrDefault("fill", "black"), current, style, shape, ctm, viewport);
+        long fill = fillShade >= 0 ? gradients.get(fillShade).average() & 0xFFFFFFFFL
+                : colour(style.getOrDefault("fill", "black"), current, style);
         if (fill != SvgColours.NONE) {
             Path2D.Double path = new Path2D.Double(shape);
             path.setWindingRule("evenodd".equals(style.get("fill-rule")) ? Path2D.WIND_EVEN_ODD
                     : Path2D.WIND_NON_ZERO);
-            add(path, ctm, fill, opacity * clamp(number(style.get("fill-opacity"), 1)), clip);
+            add(path, ctm, fill, opacity * clamp(number(style.get("fill-opacity"), 1)), clip, fillShade);
         }
 
-        long stroke = colour(style.getOrDefault("stroke", "none"), current, style);
+        int strokeShade = shade(style.getOrDefault("stroke", "none"), current, style, shape, ctm, viewport);
+        long stroke = strokeShade >= 0 ? gradients.get(strokeShade).average() & 0xFFFFFFFFL
+                : colour(style.getOrDefault("stroke", "none"), current, style);
         double diagonal = Math.hypot(viewport[0], viewport[1]) / Math.sqrt(2);
         double width = length(style.get("stroke-width"), 1, diagonal);
         if (stroke != SvgColours.NONE && width > 0) {
@@ -1311,13 +1473,23 @@ public final class SvgDecalImporter {
                     dashes(style.get("stroke-dasharray"), diagonal),
                     (float) length(style.get("stroke-dashoffset"), 0, diagonal));
             add(pen.createStrokedShape(shape), ctm, stroke,
-                    opacity * clamp(number(style.get("stroke-opacity"), 1)), clip);
+                    opacity * clamp(number(style.get("stroke-opacity"), 1)), clip, strokeShade);
         }
     }
 
     /** One fill or stroke, placed, cut into straight lines, clipped and queued for flattening. */
     private void add(Shape shape, AffineTransform ctm, long colour, double opacity, Area clip) {
-        double alpha = opacity * ((colour >>> 24) & 0xFF) / 255.0;
+        add(shape, ctm, colour, opacity, clip, -1);
+    }
+
+    /**
+     * {@link #add(Shape, AffineTransform, long, double, Area)} shaded by one of
+     * {@link #gradients} when {@code gradient} is not negative. A shaded paint's
+     * opacity is its own, the stops' opacity being in the shades; a see-through one
+     * is painted as its average, since it has to be mixed into what is under it.
+     */
+    private void add(Shape shape, AffineTransform ctm, long colour, double opacity, Area clip, int gradient) {
+        double alpha = gradient >= 0 ? opacity : opacity * ((colour >>> 24) & 0xFF) / 255.0;
         if (alpha <= 0.002)
             return;
         if (paints.size() >= MAX_PAINTS) {
@@ -1328,7 +1500,119 @@ public final class SvgDecalImporter {
         if (clip != null)
             area.intersect(clip);
         if (!area.isEmpty())
-            paints.add(new Paint(area, (int) (colour & 0xFFFFFF), alpha, -1));
+            paints.add(new Paint(area, (int) (colour & 0xFFFFFF), alpha, -1, alpha >= ALMOST_OPAQUE ? gradient : -1));
+    }
+
+    /**
+     * The index in {@link #gradients} of the gradient a fill or stroke value names, for
+     * a shape painted with it, or -1: when gradients are not kept, when the value is
+     * not a reference to one, or when the gradient has no stops.
+     *
+     * Every attribute is looked for on the gradient and then along its {@code href}
+     * chain, the stops from the first gradient in the chain that has any.
+     * {@code objectBoundingBox} (the default) measures against the shape's bounds, so
+     * the shape is passed; user-space percentages are of the viewport.
+     */
+    private int shade(String value, long current, Map<String, String> style, Shape shape, AffineTransform ctm,
+            double[] viewport) {
+        if (!shading)
+            return -1;
+        value = resolved(value, style);
+        Matcher url = URL.matcher(value == null ? "" : value.trim());
+        if (!url.matches())
+            return -1;
+        Element gradient = ids.get(url.group(1));
+        if (gradient == null || !tag(gradient).endsWith("Gradient"))
+            return -1;
+        boolean radial = "radialGradient".equals(tag(gradient));
+
+        List<Double> offsets = new ArrayList<>();
+        List<Integer> colours = new ArrayList<>();
+        Element at = gradient;
+        for (int hop = 0; hop < 8 && at != null && offsets.isEmpty(); hop++, at = reference(at))
+            for (Element stop : children(at)) {
+                if (!"stop".equals(tag(stop)))
+                    continue;
+                Map<String, String> declared = declared(stop);
+                long colour = SvgColours.parse(declared.getOrDefault("stop-color", "black"), current);
+                if (colour == SvgColours.NONE)
+                    colour = 0;
+                double opacity = clamp(number(declared.get("stop-opacity"), 1)) * ((colour >>> 24) & 0xFF) / 255.0;
+                // Offsets never go back, as SVG says
+                double offset = clamp(number(attribute(stop, "offset"), 0));
+                if (!offsets.isEmpty())
+                    offset = Math.max(offset, offsets.get(offsets.size() - 1));
+                offsets.add(offset);
+                colours.add((int) Math.round(opacity * 255) << 24 | (int) (colour & 0xFFFFFF));
+            }
+        if (offsets.isEmpty())
+            return -1;
+
+        boolean box = !"userSpaceOnUse".equals(inherited(gradient, "gradientUnits"));
+        double width = box ? 1 : viewport[0], height = box ? 1 : viewport[1];
+        double diagonal = box ? 1 : Math.hypot(viewport[0], viewport[1]) / Math.sqrt(2);
+        double x1, y1, x2, y2, r, fx, fy;
+        if (radial) {
+            x1 = coordinate(inherited(gradient, "cx"), 0.5, width, box);
+            y1 = coordinate(inherited(gradient, "cy"), 0.5, height, box);
+            r = coordinate(inherited(gradient, "r"), 0.5, diagonal, box);
+            String fxValue = inherited(gradient, "fx"), fyValue = inherited(gradient, "fy");
+            fx = fxValue == null ? x1 : coordinate(fxValue, 0.5, width, box);
+            fy = fyValue == null ? y1 : coordinate(fyValue, 0.5, height, box);
+            x2 = y2 = 0;
+        } else {
+            x1 = coordinate(inherited(gradient, "x1"), 0, width, box);
+            y1 = coordinate(inherited(gradient, "y1"), 0, height, box);
+            x2 = coordinate(inherited(gradient, "x2"), box ? 1 : width, width, box);
+            y2 = coordinate(inherited(gradient, "y2"), 0, height, box);
+            r = fx = fy = 0;
+        }
+        String spreadValue = inherited(gradient, "spreadMethod");
+        int spread = "reflect".equals(spreadValue) ? SvgGradient.REFLECT
+                : "repeat".equals(spreadValue) ? SvgGradient.REPEAT : SvgGradient.PAD;
+
+        // Gradient space to the flattened drawing: the shape's transform, then the
+        // shape's bounds for a gradient measured against them, then the gradient's own
+        AffineTransform toDrawing = new AffineTransform(ctm);
+        if (box) {
+            Rectangle2D bounds = shape.getBounds2D();
+            if (bounds.getWidth() <= 0 || bounds.getHeight() <= 0)
+                return -1;
+            toDrawing.translate(bounds.getX(), bounds.getY());
+            toDrawing.scale(bounds.getWidth(), bounds.getHeight());
+        }
+        String transform = inherited(gradient, "gradientTransform");
+        if (transform != null)
+            toDrawing.concatenate(transform(transform));
+        AffineTransform toGradient;
+        try {
+            toGradient = toDrawing.createInverse();
+        } catch (java.awt.geom.NoninvertibleTransformException e) {
+            return -1;
+        }
+        double[] offsetArray = offsets.stream().mapToDouble(Double::doubleValue).toArray();
+        int[] colourArray = colours.stream().mapToInt(Integer::intValue).toArray();
+        gradients.add(new SvgGradient(radial, x1, y1, x2, y2, r, fx, fy, spread, offsetArray, colourArray,
+                toGradient));
+        return gradients.size() - 1;
+    }
+
+    /** A gradient attribute from the gradient or the first along its {@code href} chain that has it. */
+    private String inherited(Element gradient, String name) {
+        Element at = gradient;
+        for (int hop = 0; hop < 8 && at != null; hop++, at = reference(at)) {
+            String value = attribute(at, name);
+            if (value != null)
+                return value;
+        }
+        return null;
+    }
+
+    /** A gradient coordinate: a fraction or percentage of the box, or a length in user space. */
+    private static double coordinate(String value, double fallback, double percentOf, boolean box) {
+        if (value == null)
+            return box ? fallback : fallback * percentOf;
+        return box ? number(value, fallback) : length(value, fallback * percentOf, percentOf);
     }
 
     /** A shape with its curves replaced by lines, keeping its fill rule. */
@@ -1646,14 +1930,14 @@ public final class SvgDecalImporter {
                 if (area.isEmpty())
                     continue;
             }
-            Paint paint = new Paint(area, whole.colour(), whole.alpha(), whole.picture());
+            Paint paint = new Paint(area, whole.colour(), whole.alpha(), whole.picture(), whole.gradient());
             Rectangle2D bounds = paint.area().getBounds2D();
             if (paint.alpha() >= ALMOST_OPAQUE) {
                 for (Region region : regions)
                     if (region.bounds.intersects(bounds))
                         region.cut(paint.area(), compaction);
                 regions.removeIf(region -> region.area.isEmpty());
-                regions.add(new Region(paint.area(), paint.colour(), 1, paint.picture()));
+                regions.add(new Region(paint.area(), paint.colour(), 1, paint.picture(), paint.gradient()));
                 continue;
             }
 
@@ -1698,7 +1982,8 @@ public final class SvgDecalImporter {
                 faint = true;
                 continue;
             }
-            here.computeIfAbsent(region.colour, colour -> new Area()).add(region.area);
+            int key = region.gradient >= 0 ? SHADED + region.gradient : region.colour;
+            here.computeIfAbsent(key, colour -> new Area()).add(region.area);
         }
         here.forEach((colour, area) -> layers.computeIfAbsent(colour, key -> new ArrayList<>()).add(area));
         return faint;

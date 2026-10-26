@@ -43,10 +43,13 @@ public class ModPartialModels {
     public static final PartialModel PANEL_LABEL_PLATE =
             PartialModel.of(CreateFlippies.asResource("block/panel_label_plate"));
 
-    // The DIN PLC likewise: it is only ever a control clipped to a rail, so there
-    // is no block state to bake it from. The panel one is a block and is not here.
+    // The PLC likewise, in both mountings: it is only ever a control, clipped to a
+    // rail or screwed to a panel, so there is no block state to bake either from.
+    // The panel one is the DIN body lowered onto the plate, with ears for clips.
     public static final PartialModel PLC_S32F103_D_DIN =
             PartialModel.of(CreateFlippies.asResource("block/plc_s32f103-d_din"));
+    public static final PartialModel PLC_S32F103_D_PANEL =
+            PartialModel.of(CreateFlippies.asResource("block/plc_s32f103-d_panel"));
 
     // The rotary switches have no baked block model at all: body and handle are
     // both drawn from partials, because a block state variant can neither reach
@@ -275,6 +278,9 @@ public class ModPartialModels {
     public static final PartialModel PC_POWER_LED = pcPartial("power_led");
     public static final PartialModel PC_ERROR_LED = pcPartial("error_led");
     public static final PartialModel PC_POWER_PLUG = pcPartial("power_plug");
+    // The network modem's two lights (docs/PC_SPEC.md 12.4.5), cut from its placeholder model
+    public static final PartialModel MODEM_POWER_LED = PartialModel.of(CreateFlippies.asResource("block/network_modem/power_led"));
+    public static final PartialModel MODEM_LINK_LED = PartialModel.of(CreateFlippies.asResource("block/network_modem/link_led"));
     private static final Map<com.nectariich.create_flippies.content.data_cord.PortType, PartialModel> DATA_PLUGS =
             dataPlugs();
 
@@ -311,6 +317,11 @@ public class ModPartialModels {
     // CRT
     // The plug drawn behind the CRT's socket while Power Grid's cord is in it, from tools/gen_crt.py
     public static final PartialModel CRT_POWER_PLUG = PartialModel.of(CreateFlippies.asResource("block/crt/power_plug"));
+    // The CRT and the keyboard are entities, drawn from their models
+    public static final PartialModel CRT = PartialModel.of(CreateFlippies.asResource("block/crt"));
+    public static final PartialModel KEYBOARD = PartialModel.of(CreateFlippies.asResource("block/keyboard"));
+    public static final PartialModel KEYBOARD_AND_MOUSE = PartialModel.of(
+            CreateFlippies.asResource("block/keyboard_and_mouse"));
     // CRT end
 
     public static void init() {}

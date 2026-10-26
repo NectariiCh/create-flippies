@@ -80,9 +80,11 @@ public final class BentWireRenderer {
         Detail detail = Detail.of(pos);
         RenderType type = detail.simple() ? RenderType.entityCutoutNoCull(entry.texture())
                 : RenderType.entityCutout(entry.texture());
-        double h = entry.horizontalCoefficient(), v = entry.verticalCoefficient(), t = entry.wireThickness();
-        List<WireSweep.Strip> strips = WireSweep.sweep(path, 0, h, v, t, detail.segmentSize(),
-                firstCross(path, h, v, t));
+        // WIRE SAG: every leg at its own sag (LegSag); at 1 they are the wire type's coefficients
+        BendGeometry.LegCurves curves = wire.bendCurves();
+        double t = entry.wireThickness();
+        List<WireSweep.Strip> strips = WireSweep.sweep(path, wire.bendDuctLegs(), curves, t, detail.segmentSize(),
+                firstCross(path, curves, t));
         draw(ms, buffers.getBuffer(type), strips, pos, levelLight(entity.level()), entity.getColor() | 0xFF000000,
                 (float) t, entity.getId() / 16f, detail.simple());
         return true;
@@ -90,9 +92,15 @@ public final class BentWireRenderer {
 
     /** The way Power Grid would turn the cross-section of the path's first leg, for the tube to start out the same. */
     public static Vec3 firstCross(List<Vec3> path, double horizontal, double vertical, double thickness) {
+        return firstCross(path, BendGeometry.LegCurves.uniform(horizontal, vertical), thickness);
+    }
+
+    /** As above, the first leg with its own coefficients. */
+    public static Vec3 firstCross(List<Vec3> path, BendGeometry.LegCurves curves, double thickness) {
         for (int leg = 0; leg + 1 < path.size(); leg++)
             if (path.get(leg).distanceToSqr(path.get(leg + 1)) >= 1e-10)
-                return BendGeometry.curve(path.get(leg), path.get(leg + 1), horizontal, vertical, thickness).cross1;
+                return BendGeometry.curve(path.get(leg), path.get(leg + 1), curves.horizontal(leg),
+                        curves.vertical(leg), thickness).cross1;
         return null;
     }
 

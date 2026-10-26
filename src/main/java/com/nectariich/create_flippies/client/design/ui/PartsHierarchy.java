@@ -39,6 +39,9 @@ import net.minecraft.network.chat.Component;
  * gauge's face (its dial) on it in place of its material; only one element has it
  * at a time, so giving it to another takes it off the first.
  *
+ * On a screen nothing moves, so there is no "M", and the element's toggle is "S":
+ * the submesh that is the screen's glass, again one at a time.
+ *
  * One widget per row, so the rows scroll with the rest of the panel like any other
  * widget.
  */
@@ -96,12 +99,13 @@ public final class PartsHierarchy {
             this.element = element;
             boolean button = host.state().kind.isButton();
             boolean gauge = host.state().kind.isGauge();
+            boolean screen = host.state().kind.isScreen();
             setTooltip(Tooltip.create(t(element != null
                     ? button ? "parts.element.button.tooltip" : gauge ? "parts.element.gauge.tooltip"
-                            : "parts.element.tooltip"
+                            : screen ? "parts.element.screen.tooltip" : "parts.element.tooltip"
                     : host.state().kind.isBreaker() ? "parts.row.breaker.tooltip"
                             : button ? "parts.row.button.tooltip" : gauge ? "parts.row.gauge.tooltip"
-                                    : "parts.row.tooltip")));
+                                    : screen ? "parts.row.screen.tooltip" : "parts.row.tooltip")));
         }
 
         private WorkbenchState state() {
@@ -144,7 +148,12 @@ public final class PartsHierarchy {
 
         /** A gauge's "D", on each element, which prints the face on it, in the place a button's "L" has. */
         private boolean showsDial() {
-            return element != null && state().kind.isGauge();
+            return element != null && (state().kind.isGauge() || state().kind.isScreen());
+        }
+
+        /** Nothing on a screen moves, so its parts have no "M". */
+        private boolean showsMoving() {
+            return element == null && !state().kind.isScreen();
         }
 
         /** Only a button lights up, by whole part or by element. */
@@ -199,14 +208,15 @@ public final class PartsHierarchy {
                 name = font.plainSubstrByWidth(name, right - nameX() - font.width("..")) + "..";
             graphics.drawString(font, name, nameX(), y + 2, nameColor, false);
 
-            if (element == null)
+            if (showsMoving())
                 drawToggle(graphics, movingX(), y, "M", moving, MOVING);
             if (showsLight())
                 drawToggle(graphics, lightX(), y, "L", lightOn, LIGHT);
             if (showsIndicator())
                 drawToggle(graphics, lightX(), y, "I", indicator, INDICATOR);
             if (showsDial())
-                drawToggle(graphics, lightX(), y, "D", state.isFace(part, element.material()), DIAL);
+                drawToggle(graphics, lightX(), y, state.kind.isScreen() ? "S" : "D",
+                        state.isFace(part, element.material()), DIAL);
         }
 
         /**
@@ -284,7 +294,7 @@ public final class PartsHierarchy {
                 }
                 return;
             }
-            if (mouseX >= movingX() && mouseX < movingX() + TOGGLE_W) {
+            if (showsMoving() && mouseX >= movingX() && mouseX < movingX() + TOGGLE_W) {
                 toggle(state.moving, part);
                 if (state.moving.contains(part))
                     state.indicatorParts.remove(part);

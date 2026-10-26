@@ -35,6 +35,15 @@ import org.joml.Matrix4f;
  * cursor and panned; both are held in a {@link TopView}, which also does every
  * conversion between the screen and the plate, exactly, from the same numbers the
  * projection is built from.
+ *
+ * <h2>Editor mode</h2>
+ * The display editor takes the top view over for a while ({@link #setEditor}): the
+ * camera goes to the top view over the middle of the bench, where the preview lays
+ * the model glass up, and the picture's sideways shift eases away so the display is
+ * centred on the whole screen. It is zoomed only, never panned, with a framing of its
+ * own; the workbench's own framing, top view or not, is kept aside and eased back to
+ * when the editor leaves. While the editor holds the camera the workbench may still
+ * ask for the top view or the bench view: that is remembered and done on leaving.
  */
 public final class DesignCamera {
 
@@ -87,6 +96,17 @@ public final class DesignCamera {
     private static float topStartProgress;
     private static TopView view = TopView.DEFAULT;
 
+    /**
+     * Editor mode: whether it is being moved to or held, how far along that move is
+     * (eased by {@link #editorProgress}), the editor's own framing, and whether the
+     * workbench last asked for the top view, which is what leaving goes back to.
+     */
+    private static boolean editor;
+    private static long editorStartMillis;
+    private static float editorStartProgress;
+    private static TopView editorView = TopView.DEFAULT;
+    private static boolean benchTop;
+
     private DesignCamera() {}
 
     /** Starts the flight in. {@code facing} is the way the player faces the bench. */
@@ -108,8 +128,9 @@ public final class DesignCamera {
         entering = true;
     }
 
-    /** Starts the flight back to the player's eyes, leaving the top view on the way. */
+    /** Starts the flight back to the player's eyes, leaving the top view (and the editor) on the way. */
     public static void exit() {
+        setEditor(false);
         setTop(false);
         if (!entering)
             return;
@@ -126,13 +147,24 @@ public final class DesignCamera {
         top = false;
         topStartProgress = 0;
         view = TopView.DEFAULT;
+        editor = false;
+        editorStartProgress = 0;
+        editorView = TopView.DEFAULT;
+        benchTop = false;
     }
 
     /**
      * Starts the move to the top view, or back to the bench view. Asking for the
      * view already being moved to does nothing, so the screen may call this freely.
+     * While the editor holds the camera this is only remembered, for when it leaves.
      */
     public static void setTop(boolean top) {
+        benchTop = top;
+        if (!editor)
+            moveTop(top);
+    }
+
+    private static void moveTop(boolean top) {
         if (top == DesignCamera.top)
             return;
         topStartProgress = topProgress();
@@ -150,7 +182,78 @@ public final class DesignCamera {
      * that {@link #screenToPlate} holds. Clicks on the plate are only taken then.
      */
     public static boolean topReady() {
-        return top && topProgress() >= 1 && progress() >= 1;
+        return top && topProgress() >= 1 && progress() >= 1 && (!editor || editorProgress() >= 1);
+    }
+
+    // ------------------------------------------------------------ editor mode
+
+    /**
+     * Starts the move into editor mode, or out of it. In: to the top view, centred
+     * over the middle of the bench at the zoom the camera had, with the shift easing
+     * to nothing. Out: back to the workbench's own framing and shift, and to the bench
+     * view if that is what the workbench last asked for. Asking for the mode already
+     * being moved to does nothing.
+     */
+    public static void setEditor(boolean on) {
+        if (on == editor)
+            return;
+        editorStartProgress = editorProgress();
+        editorStartMillis = Util.getMillis();
+        editor = on;
+        if (on) {
+            // From wherever the camera is now, so the move in is smooth however far
+            // back out a previous one had got
+            editorView = new TopView(0.5, 0.5, framing().halfHeight());
+            moveTop(true);
+        } else {
+            moveTop(benchTop);
+        }
+    }
+
+    /** Whether editor mode is being moved to, or held. */
+    public static boolean isEditor() {
+        return editor;
+    }
+
+    /** The editor's zoom: its view's half height in blocks. */
+    public static double editorZoom() {
+        return editorView.halfHeight();
+    }
+
+    /** Sets the editor's zoom, clamped as every top view's is; the view stays over the middle of the bench. */
+    public static void editorZoom(double halfHeight) {
+        editorView = new TopView(0.5, 0.5, halfHeight);
+    }
+
+    /** How far along the move into editor mode is, from 0 (the workbench's own) to 1. */
+    private static float editorProgress() {
+        float step = (Util.getMillis() - editorStartMillis) / TOP_DURATION_MILLIS;
+        return Mth.clamp(editor ? editorStartProgress + step : editorStartProgress - step, 0, 1);
+    }
+
+    /**
+     * How far into editor mode the camera is, eased, 0 to 1: how far the shift has
+     * gone and the framing has moved to the editor's. The preview lays the model flat
+     * by the same amount, so the two arrive together.
+     */
+    static float editorBlend() {
+        return smooth(editorProgress());
+    }
+
+    /**
+     * The top view the camera uses now: the workbench's, the editor's, or on the way
+     * between them. Eased this way rather than switched, so going in and out of the
+     * editor from a panned or zoomed top view never jumps.
+     */
+    private static TopView framing() {
+        float t = editorBlend();
+        if (t <= 0)
+            return view;
+        if (t >= 1)
+            return editorView;
+        return new TopView(Mth.lerp(t, view.centreX(), editorView.centreX()),
+                Mth.lerp(t, view.centreZ(), editorView.centreZ()),
+                Mth.lerp(t, view.halfHeight(), editorView.halfHeight()));
     }
 
     /** How far along the flight is, from the player's eyes at 0 to the bench view at 1. */
@@ -194,7 +297,8 @@ public final class DesignCamera {
 
     /** Where the top view's camera stands. */
     private static Vec3 topPosition() {
-        return plateOrigin.add(view.centreX(), TOP_HEIGHT, view.centreZ());
+        TopView framing = framing();
+        return plateOrigin.add(framing.centreX(), TOP_HEIGHT, framing.centreZ());
     }
 
     /**
@@ -233,13 +337,13 @@ public final class DesignCamera {
 
     /**
      * How far to shift the picture right, in normalised screen units (2 is the whole
-     * width), eased in and out with the flight.
+     * width), eased in and out with the flight, and eased away in editor mode.
      */
     public static float screenShift() {
         float progress = progress();
         if (target == null || progress <= 0)
             return 0;
-        return SCREEN_X * smooth(progress);
+        return SCREEN_X * smooth(progress) * (1 - editorBlend());
     }
 
     public static boolean active() {
@@ -248,7 +352,8 @@ public final class DesignCamera {
 
     // ------------------------------------------------------------ projection
 
-    private static double windowAspect() {
+    /** The window's width over its height: what the top view's projection is built for. */
+    public static double windowAspect() {
         var window = Minecraft.getInstance().getWindow();
         return window.getHeight() <= 0 ? 1 : (double) window.getWidth() / window.getHeight();
     }
@@ -261,7 +366,7 @@ public final class DesignCamera {
     public static Matrix4f projection(Matrix4f vanilla) {
         float ortho = orthoBlend();
         if (ortho > 0) {
-            Matrix4f flat = view.projection(windowAspect(), 0, TOP_NEAR, TOP_FAR);
+            Matrix4f flat = framing().projection(windowAspect(), 0, TOP_NEAR, TOP_FAR);
             vanilla.lerp(flat, ortho);
         }
         float shift = screenShift();
@@ -294,7 +399,11 @@ public final class DesignCamera {
     public static double[] screenToPlate(double mouseX, double mouseY, int width, int height) {
         if (!topReady())
             return null;
-        return view.toPlate(TopView.ndcX(mouseX, width), TopView.ndcY(mouseY, height), windowAspect(), SCREEN_X);
+        // The shift the picture is drawn with now: the whole of it at the bench, none in
+        // the editor (topReady waits for it to settle there), and on the way back out
+        // of the editor whatever it has got to
+        return framing().toPlate(TopView.ndcX(mouseX, width), TopView.ndcY(mouseY, height), windowAspect(),
+                screenShift());
     }
 
     /**
@@ -304,7 +413,7 @@ public final class DesignCamera {
     public static double[] plateToScreen(double x, double z, int width, int height) {
         if (!topReady())
             return null;
-        double[] ndc = view.toNdc(x, z, windowAspect(), SCREEN_X);
+        double[] ndc = framing().toNdc(x, z, windowAspect(), screenShift());
         return new double[] { TopView.guiX(ndc[0], width), TopView.guiY(ndc[1], height) };
     }
 
@@ -314,7 +423,7 @@ public final class DesignCamera {
      */
     public static void zoomAbout(double mouseX, double mouseY, int width, int height, double factor) {
         view = view.zoomAbout(TopView.ndcX(mouseX, width), TopView.ndcY(mouseY, height), factor, windowAspect(),
-                SCREEN_X);
+                screenShift());
     }
 
     /** Moves the top view so the plate follows a drag of the cursor by (dx, dy), GUI-scaled. */

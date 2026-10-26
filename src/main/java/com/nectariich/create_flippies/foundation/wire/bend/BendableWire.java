@@ -65,6 +65,37 @@ public interface BendableWire {
         return (Entity) this;
     }
 
+    /**
+     * Which legs of {@link #bendPath} run inside a wire duct, bit {@code i} for leg
+     * {@code i}: straight and hidden ({@link BendGeometry}). None, for a wire that
+     * cannot be routed through ducts.
+     */
+    default long bendDuctLegs() {
+        return 0;
+    }
+
+    /**
+     * WIRE SAG: how far each leg of {@link #bendPath} sags ({@link LegSag}), one value
+     * per leg, as a copy; null for a wire that has no sag of its own and always hangs
+     * as its type does. Only Power Grid's hanging wire has one: Power Plant Grid's
+     * sag, which this carries on past the first bend point, is for that alone.
+     */
+    default float[] bendLegSags() {
+        return null;
+    }
+
+    /**
+     * Replaces the legs' sag (made to fit the legs, {@link LegSag#normalise}) and
+     * reshapes the wire. Like {@link #setBendPoints}, on the server this alone tells
+     * no one; see {@code WireBendService}. Nothing, for a wire with no sag.
+     */
+    default void setBendLegSags(float[] sags) {}
+
+    /** Every leg's curve coefficients: the wire type's, each leg's sag folded in. */
+    default BendGeometry.LegCurves bendCurves() {
+        return BendGeometry.LegCurves.uniform(bendHorizontalCoefficient(), bendVerticalCoefficient());
+    }
+
     /** The whole path, ends included, or null while an end is not known. */
     default List<Vec3> bendPath() {
         Vec3 start = bendStart();

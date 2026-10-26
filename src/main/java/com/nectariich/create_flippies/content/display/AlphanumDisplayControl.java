@@ -2,7 +2,12 @@ package com.nectariich.create_flippies.content.display;
 
 import java.util.List;
 
+import com.nectariich.create_flippies.content.display.element.ElementDisplay;
+import com.nectariich.create_flippies.content.display.element.ScreenElement;
+import com.nectariich.create_flippies.content.display.element.ScreenElements;
+import com.nectariich.create_flippies.content.display.element.Viewport;
 import com.nectariich.create_flippies.content.procedural_gauge.SupplyVoltage;
+import com.nectariich.create_flippies.foundation.control.HostElementBudget;
 import com.nectariich.create_flippies.foundation.control.HostedCircuitBuilder;
 import com.nectariich.create_flippies.foundation.control.HostedControl;
 import com.nectariich.create_flippies.foundation.control.LinkDrivenControl;
@@ -22,8 +27,8 @@ import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
  * pins as {@link AlphanumDisplayBlockEntity}, on a panel rather than in a block of
  * its own.
  *
- * It is the same device in every respect that matters — two feeds sharing a return,
- * one line of text, and the same printing — so everything either form has to agree
+ * It is the same device in every respect that matters (two feeds sharing a return,
+ * the same elements on the glass), so everything either form has to agree
  * about is {@link AlphanumDisplay}'s and everything geometric is
  * {@link DisplayPins}'s. What this adds is the one thing a block form does not need:
  * a line to be written to. A link addresses a block position and a line, while a host
@@ -32,14 +37,17 @@ import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
  * carrying two labels and a display therefore offers a link three rows, and the
  * display is whichever of them it happens to be down the face.
  *
- * One row, not several. A display shows one line because the link model gives a
- * control one line, and a device that claimed several would renumber every control
- * below it on the panel by an amount that depended on its own settings.
+ * One row, not several. What the glass shows is {@link ScreenElements}, and a link
+ * aimed at this row also names which lettering element it writes (see
+ * {@link com.nectariich.create_flippies.content.display.link.LinkRouting}); an old
+ * link names element 0, which is the one line every display used to be. A device that
+ * claimed a row per element would renumber every control below it on the panel by an
+ * amount that depended on its own settings.
  */
-public class AlphanumDisplayControl extends HostedControl implements LinkDrivenControl {
+public class AlphanumDisplayControl extends HostedControl implements LinkDrivenControl, ElementDisplay {
 
-    private String text = "";
-    private DisplayPrint print;
+    /** Read in place on every sync rather than replaced; see {@link ScreenElements#read}. */
+    private final ScreenElements elements;
 
     private IElectricNode vcc;
     private IElectricNode gnd;
@@ -47,7 +55,10 @@ public class AlphanumDisplayControl extends HostedControl implements LinkDrivenC
 
     AlphanumDisplayControl(AlphanumDisplayControlType type) {
         super(type);
-        print = DisplayPrint.defaultFor(type.form());
+        // The shipped single line at DisplayPrint's per-form default height, as an
+        // empty single-line save migrates, not ScreenElements.defaults' fitted one
+        elements = new ScreenElements();
+        elements.read(new CompoundTag(), Viewport.of(type.form()), type.form());
     }
 
     public DisplayKind kind() {
@@ -62,19 +73,20 @@ public class AlphanumDisplayControl extends HostedControl implements LinkDrivenC
         return kind().supply();
     }
 
-    /** How the line is set; see {@link DisplayPrint}. */
-    public DisplayPrint print() {
-        return print;
+    @Override
+    public ScreenElements elements() {
+        return elements;
     }
 
-    /** The line the device is holding, whether or not it is powered to show it. */
-    public String text() {
-        return text;
+    /** The usable glass, in the frame its lettering prints in at no turn. */
+    @Override
+    public Viewport viewport() {
+        return Viewport.of(form());
     }
 
-    /** The line as it will be drawn, which is nothing at all without the supply. */
-    public String displayedText() {
-        return isPowered() ? text : "";
+    @Override
+    public void elementsChanged() {
+        changed();
     }
 
     @Override
@@ -87,44 +99,40 @@ public class AlphanumDisplayControl extends HostedControl implements LinkDrivenC
         builder.connect(AlphanumDisplay.backlightResistance(supply()), backlight, gnd);
     }
 
+    @Override
     public boolean isPowered() {
         return AlphanumDisplay.live(supply(), AlphanumDisplay.voltageBetween(vcc, gnd));
     }
 
+    @Override
     public boolean isBacklit() {
         return AlphanumDisplay.live(supply(), AlphanumDisplay.voltageBetween(backlight, gnd));
     }
 
     /**
-     * Takes one line from a link.
+     * Takes one line from a link, into element 0.
      *
      * A link refreshing passively delivers the same string over and over, so an
      * implementation that saved and synced unconditionally would cost a packet a tick
-     * for every panel in range of a redstone clock.
+     * for every panel in range of a redstone clock; {@link ScreenElements#acceptLinked}
+     * says whether anything changed.
      */
     @Override
     public void acceptLine(String incoming) {
-        String sanitised = AlphanumDisplay.sanitise(incoming);
-        if (sanitised.equals(text))
-            return;
-        text = sanitised;
-        changed();
+        if (elements.acceptLinked(0, 0, incoming, HostElementBudget.textCap(this)))
+            changed();
     }
 
+    /** The first lettering element's estimate, which is element 0's on every display so far. */
     @Override
     public int linkColumns() {
-        return print.columns(form());
+        List<ScreenElement> texts = elements.texts();
+        return texts.isEmpty() ? 1 : texts.get(0).columns();
     }
 
     @Override
     public Component linkRowName() {
         return Component.translatable("gui.create_flippies.control_host.row.display");
-    }
-
-    /** Called server-side when an editor packet arrives. */
-    public void configure(DisplayPrint print) {
-        this.print = print;
-        changed();
     }
 
     @Override
@@ -143,18 +151,16 @@ public class AlphanumDisplayControl extends HostedControl implements LinkDrivenC
 
     @Override
     public void write(CompoundTag tag) {
-        tag.putString("Text", text);
-        print.write(tag);
+        elements.write(tag);
     }
 
     @Override
     public void read(CompoundTag tag) {
-        text = AlphanumDisplay.sanitise(tag.getString("Text"));
-        print = DisplayPrint.read(tag, form());
+        elements.read(tag, viewport(), form());
     }
 
     @Override
     public boolean addToGoggleTooltip(List<Component> tooltip, boolean sneaking) {
-        return AlphanumDisplay.addTooltip(tooltip, supply(), isPowered(), isBacklit(), text);
+        return AlphanumDisplay.addTooltip(tooltip, supply(), isPowered(), isBacklit(), elements);
     }
 }

@@ -34,6 +34,11 @@ import static com.nectariich.create_flippies.content.computer.cpu.m68k.M68kOpTab
  * that unwinds the instruction to {@link #step}. Writes done before the fault stay done. A fault
  * while an exception frame is being built or a vector read (a double fault) halts the CPU.
  *
+ * MMU (68040, spec 12.2, {@link M68kMmu}): while paging or a TT register is on, every logical
+ * address becomes a physical one through the MMU's TLB (a code page for fetches) before the
+ * physical fast path above runs unchanged; with both off one boolean skips it. Access errors are
+ * precise: the instruction's registers are put back ({@link #undo}) and its RTE restarts it.
+ *
  * Deviations, all documented in the spec: no 68000 prefetch queue (a group 0 frame stacks the
  * instruction address + 2); the 68000's CLR, Scc and MOVE from SR do not read their destination
  * first; DIV overflow, divide by zero and CHK keep N, Z (and V) as they were; the 68040's timing
@@ -51,8 +56,8 @@ public final class M68kCpu implements Cpu {
 
     /** Instructions between host-deadline checks (spec 1.4). */
     private static final int DEADLINE_STRIDE = 4096;
-    /** Format version of {@link #saveState}. */
-    private static final int STATE_VERSION = 1;
+    /** Format version of {@link #saveState}: 2 since the MMU (spec 12.2.5), with its TLB; a version 1 state loads with paging and TT off. */
+    private static final int STATE_VERSION = 2;
 
     private static final int XF = M68kSr.X;
     private static final int NF = M68kSr.N;
@@ -71,10 +76,10 @@ public final class M68kCpu implements Cpu {
     static final int CR_SFC = 0x000, CR_DFC = 0x001, CR_CACR = 0x002, CR_TC = 0x003, CR_ITT0 = 0x004,
             CR_ITT1 = 0x005, CR_DTT0 = 0x006, CR_DTT1 = 0x007, CR_USP = 0x800, CR_VBR = 0x801,
             CR_MSP = 0x803, CR_ISP = 0x804, CR_MMUSR = 0x805, CR_URP = 0x806, CR_SRP = 0x807;
+    /** The MMU registers in saved state, in their version 1 order. */
+    private static final int[] MMU_STATE_ORDER = {CR_TC, CR_ITT0, CR_ITT1, CR_DTT0, CR_DTT1, CR_URP, CR_SRP, CR_MMUSR};
     /** CACR bits that exist on the 68040: DE (31) and IE (15). */
     private static final int CACR_MASK = 0x8000_8000;
-    /** TC bit 15 (E): paging can never be enabled (spec 10.5). */
-    private static final int TC_ENABLE = 0x8000;
 
     /** Unwinds an instruction whose exception has been taken (or that halted the CPU). */
     private static final class Abort extends RuntimeException {
@@ -118,14 +123,54 @@ public final class M68kCpu implements Cpu {
     private int cacr;
     private int sfc;
     private int dfc;
-    private int tc;
-    private int itt0;
-    private int itt1;
-    private int dtt0;
-    private int dtt1;
-    private int urp;
-    private int srp;
-    private int mmusr;
+
+    // ---- MMU (spec 12.2), 68040 only ----
+
+    /** TC, the TT registers, URP, SRP, MMUSR, the table search and the TLB; null on the 68000. */
+    private final M68kMmu mmu;
+    /** The MMU's TLB tags and physical pages, read here on every translated access; null on the 68000. */
+    private final int[] tlbTag;
+    private final int[] tlbPhys;
+    /** Paging or a TT register is on, so every access is translated; always false on the 68000. */
+    private boolean mmuOn;
+    private int pageShift = 12;
+    private int pageSize = 1 << 12;
+    private int pageMask = -1 << 12;
+    /** First TLB slot of data reads, data writes and instruction fetches at the current privileges. */
+    private int tlbRead;
+    private int tlbWrite;
+    private int tlbFetch;
+    /** Data accesses use the supervisor table (FC2): S, or MOVES's SFC or DFC for its one access. */
+    private boolean dataSuper;
+    /** TM and TT of a faulted data access in the access error frame: 1 or 5 and 0, or what MOVES sets. */
+    private int dataTm;
+    private int dataTt;
+    /** A locked read-modify-write (TAS, CAS, CAS2) is being translated: SSW LK and RW. */
+    private boolean locked;
+    /** MOVE16 is moving its line: SSW SIZE = line, TT = 1. */
+    private boolean lineAccess;
+    /** Logical page of the code being fetched ({@link M68kMmu#INVALID} after any MMU or privilege change) and its physical page. */
+    private int codeTag = M68kMmu.INVALID;
+    private int codePhys;
+
+    // ---- precise restart (spec 12.2.3), recorded only while the MMU is on ----
+
+    /** Set at the start of every instruction run with the MMU on. */
+    private boolean logUndo;
+    /** Address registers the instruction changed before a possible fault, with their old values. */
+    private int undoCount;
+    private final int[] undoReg = new int[8];
+    private final int[] undoVal = new int[8];
+    private int ccrAtStart;
+    /** RTE recorded SR and every stack pointer before popping its first frame. */
+    private boolean srSaved;
+    private int savedSys;
+    private int savedUsp;
+    private int savedIsp;
+    private int savedMsp;
+    private int savedSp;
+    /** MOVEM's loads, committed to the registers only after the last one. */
+    private final int[] movemBuf = new int[16];
 
     private long cycles;
     private long instret;
@@ -160,6 +205,13 @@ public final class M68kCpu implements Cpu {
     private int eaSaved;
     /** The last effective address was PC relative: its reads are program references (PRM 2.2). */
     private boolean eaProgram;
+    /**
+     * Immediate data the FPU asked {@link FpuHost#effectiveAddress} for in this instruction: its
+     * first byte and its length (0 for none). The FPU reads it through the host's data reads, but
+     * it is part of the instruction, so those reads go through the instruction stream instead.
+     */
+    private int fpuImm;
+    private int fpuImmLen;
 
     // ---- fast-path memory map, reloaded from the bus at the start of every run ----
 
@@ -197,6 +249,9 @@ public final class M68kCpu implements Cpu {
         this.eaTime = is040 ? M68kTiming.EA_68040 : M68kTiming.EA_68000;
         this.accessCost = is040 ? 1 : 0;
         this.fpu = fpu == null ? null : fpu.create(new FpuHost(), options.strictFpu());
+        this.mmu = is040 ? new M68kMmu(bus) : null;
+        this.tlbTag = is040 ? mmu.tag : null;
+        this.tlbPhys = is040 ? mmu.phys : null;
         reset();
     }
 
@@ -223,7 +278,13 @@ public final class M68kCpu implements Cpu {
         ccr = 0;
         sys = M68kSr.RESET & 0xFF00;
         usp = isp = msp = 0;
-        vbr = cacr = sfc = dfc = tc = itt0 = itt1 = dtt0 = dtt1 = urp = srp = mmusr = 0;
+        vbr = cacr = sfc = dfc = 0;
+        logUndo = false;
+        srSaved = false;
+        if (mmu != null) {
+            mmu.reset();
+            mmuChanged();
+        }
         instret = 0;
         cycles = clock.now();
         nmiPending = false;
@@ -331,7 +392,14 @@ public final class M68kCpu implements Cpu {
         decodeFault = false;
         traced = false;
         eaProgram = false;
+        fpuImmLen = 0;
         instrPc = pc;
+        logUndo = mmuOn;
+        if (mmuOn) {
+            undoCount = 0;
+            ccrAtStart = ccr;
+            srSaved = false;
+        }
         try {
             if ((pc & 1) != 0)
                 addressErrorFetch(pc);
@@ -458,7 +526,8 @@ public final class M68kCpu implements Cpu {
             case FBCC_L: fbcc(op, true); break;
             case FSAVE: if (privileged()) { charge(0, M68kTiming.C040_BASE); cycles += fpu.save(op); } break;
             case FRESTORE: if (privileged()) { charge(0, M68kTiming.C040_BASE); cycles += fpu.restore(op); } break;
-            case CINV_CPUSH: case PFLUSH: if (privileged()) charge(0, M68kTiming.C040_BASE); break;
+            case CINV_CPUSH: if (privileged()) charge(0, M68kTiming.C040_BASE); break;
+            case PFLUSH: pflush(op); break;
             case PTEST: ptest(op); break;
             case MOVE16: move16(op); break;
             default: illegal(); break;
@@ -497,7 +566,9 @@ public final class M68kCpu implements Cpu {
     /** The next instruction word, zero-extended; advances pc by 2. */
     private int fetch16() {
         final int p = pc;
-        final int a = p & addrMask;
+        int a = p & addrMask;
+        if (mmuOn)
+            a = (p & pageMask) == codeTag ? codePhys | (p & ~pageMask) : fetchMiss(p);
         int o;
         int v;
         if (Integer.compareUnsigned(o = a - romBase, romW2) < 0)
@@ -522,11 +593,33 @@ public final class M68kCpu implements Cpu {
         return sz == 0 ? fetch16() & 0xFF : sz == 1 ? fetch16() : fetch32();
     }
 
+    /**
+     * {@code width} bytes of the FPU's immediate data at {@code addr}, fetched like the rest of the
+     * instruction (spec 12.2.2): through the code page and the ITT registers, a fault reporting a
+     * program access (TM 2 or 6) at the word's address. A byte is the low byte of its word. It
+     * costs a data access, as the FPU's read did before the MMU.
+     */
+    private int fpuImmediate(int addr, int width) {
+        cycles += accessCost;
+        final int saved = pc;
+        pc = addr & ~1;
+        int v = width == 4 ? fetch32() : fetch16();
+        pc = saved;
+        return width == 1 ? v & 0xFF : v;
+    }
+
+    /** {@code addr} lies in the FPU immediate data of this instruction. */
+    private boolean inFpuImmediate(int addr) {
+        return Integer.compareUnsigned(addr - fpuImm, fpuImmLen) < 0;
+    }
+
     // ---- data memory (spec 10.3.5) ----
 
     private int read8(int addr) {
         cycles += accessCost;
-        final int a = addr & addrMask;
+        int a = addr & addrMask;
+        if (mmuOn)
+            a = xlate(addr, 1, false);
         int o;
         if (Integer.compareUnsigned(o = a - romBase, romSize) < 0)
             return rom[o] & 0xFF;
@@ -541,7 +634,9 @@ public final class M68kCpu implements Cpu {
         if ((addr & 1) != 0 && !is040)
             addressErrorData(addr, true);
         cycles += accessCost;
-        final int a = addr & addrMask;
+        int a = addr & addrMask;
+        if (mmuOn && (a = xlate(addr, 2, false)) == -1)
+            return splitRead(addr, 2);
         int o;
         if (Integer.compareUnsigned(o = a - romBase, romW2) < 0)
             return (short) BE16.get(rom, o) & 0xFFFF;
@@ -556,7 +651,9 @@ public final class M68kCpu implements Cpu {
         if ((addr & 1) != 0 && !is040)
             addressErrorData(addr, true);
         cycles += accessCost;
-        final int a = addr & addrMask;
+        int a = addr & addrMask;
+        if (mmuOn && (a = xlate(addr, 4, false)) == -1)
+            return splitRead(addr, 4);
         int o;
         if (Integer.compareUnsigned(o = a - romBase, romW4) < 0)
             return (int) BE32.get(rom, o);
@@ -569,7 +666,9 @@ public final class M68kCpu implements Cpu {
 
     private void write8(int addr, int v) {
         cycles += accessCost;
-        final int a = addr & addrMask;
+        int a = addr & addrMask;
+        if (mmuOn)
+            a = xlate(addr, 1, true);
         int o;
         if (Integer.compareUnsigned(a - romBase, romSize) >= 0) {
             if (Integer.compareUnsigned(o = a - ramBase, ramSize) < 0) {
@@ -589,7 +688,11 @@ public final class M68kCpu implements Cpu {
         if ((addr & 1) != 0 && !is040)
             addressErrorData(addr, false);
         cycles += accessCost;
-        final int a = addr & addrMask;
+        int a = addr & addrMask;
+        if (mmuOn && (a = xlate(addr, 2, true)) == -1) {
+            splitWrite(addr, 2, v);
+            return;
+        }
         int o;
         if (Integer.compareUnsigned(a - romBase, romSize) >= 0) {
             if (Integer.compareUnsigned(o = a - ramBase, ramW2) < 0) {
@@ -609,7 +712,11 @@ public final class M68kCpu implements Cpu {
         if ((addr & 1) != 0 && !is040)
             addressErrorData(addr, false);
         cycles += accessCost;
-        final int a = addr & addrMask;
+        int a = addr & addrMask;
+        if (mmuOn && (a = xlate(addr, 4, true)) == -1) {
+            splitWrite(addr, 4, v);
+            return;
+        }
         int o;
         if (Integer.compareUnsigned(a - romBase, romSize) >= 0) {
             if (Integer.compareUnsigned(o = a - ramBase, ramW4) < 0) {
@@ -629,6 +736,207 @@ public final class M68kCpu implements Cpu {
         int end = o + width - 1;
         vramDirty[o >>> 18] |= 1L << ((o >>> 12) & 63);
         vramDirty[end >>> 18] |= 1L << ((end >>> 12) & 63);
+    }
+
+    // ---- translation (spec 12.2.2) ----
+
+    /**
+     * The physical address of a data access of {@code width} bytes at logical {@code addr}: a TLB
+     * hit, or {@link #xlateMiss}. Returns -1 for an access whose two pages are not physically
+     * adjacent (only possible for widths above 1; such a physical address could not be a
+     * non-crossing result), which the caller then moves byte by byte.
+     */
+    private int xlate(int addr, int width, boolean write) {
+        final int off = addr & ~pageMask;
+        final int i = (write ? tlbWrite : tlbRead) + ((addr >>> pageShift) & M68kMmu.TLB_MASK);
+        if (tlbTag[i] == (addr & pageMask) && off <= pageSize - width)
+            return tlbPhys[i] | off;
+        return xlateMiss(addr, width, write);
+    }
+
+    /** Both pages of an access that crosses a page are translated before any byte moves (spec 12.2.3). */
+    private int xlateMiss(int addr, int width, boolean write) {
+        int off = addr & ~pageMask;
+        int first = dataPage(addr, addr, width, write, false);
+        if (off <= pageSize - width)
+            return first | off;
+        int second = dataPage((addr & pageMask) + pageSize, addr, width, write, true);
+        return second == first + pageSize ? first | off : -1;
+    }
+
+    /**
+     * Physical page of logical page {@code la} for a data access, from the TLB or the MMU. A
+     * failed translation is an access error at {@code fa} (the access's first byte, UM040
+     * 8.4.6.4), with MA set when it is the second page that failed.
+     */
+    private int dataPage(int la, int fa, int width, boolean write, boolean secondPage) {
+        int i = (write ? tlbWrite : tlbRead) + ((la >>> pageShift) & M68kMmu.TLB_MASK);
+        if (tlbTag[i] == (la & pageMask))
+            return tlbPhys[i];
+        long t = mmu.translate(la, write ? M68kMmu.WRITE : M68kMmu.READ, dataSuper);
+        if (t == M68kMmu.FAULT)
+            accessError(fa, !write, width, false, true, secondPage);
+        return (int) t;
+    }
+
+    /** A fetch outside the current code page: the TLB or the MMU, then it becomes the code page. */
+    private int fetchMiss(int p) {
+        int page = p & pageMask;
+        int i = tlbFetch + ((p >>> pageShift) & M68kMmu.TLB_MASK);
+        int frame;
+        if (tlbTag[i] == page) {
+            frame = tlbPhys[i];
+        } else {
+            long t = mmu.translate(p, M68kMmu.FETCH, (sys & SF) != 0);
+            if (t == M68kMmu.FAULT)
+                accessError(p, true, 2, true, true, false);
+            frame = (int) t;
+        }
+        codeTag = page;
+        codePhys = frame;
+        return frame | (p & ~pageMask);
+    }
+
+    /** A misaligned read across two pages that are not physically adjacent, a byte at a time (both pages already translated). */
+    private int splitRead(int addr, int width) {
+        int v = 0;
+        for (int k = 0; k < width; k++) {
+            int la = addr + k;
+            int a = xlate(la, 1, false);
+            int o;
+            int b;
+            if (Integer.compareUnsigned(o = a - romBase, romSize) < 0)
+                b = rom[o] & 0xFF;
+            else if (Integer.compareUnsigned(o = a - ramBase, ramSize) < 0)
+                b = ram[o] & 0xFF;
+            else if (Integer.compareUnsigned(o = a - vramBase, vramSize) < 0)
+                b = vram[o] & 0xFF;
+            else
+                b = slowRead(la, a, 1, false);
+            v = (v << 8) | b;
+        }
+        return v;
+    }
+
+    /** The write counterpart of {@link #splitRead}, most significant byte first. */
+    private void splitWrite(int addr, int width, int v) {
+        for (int k = 0; k < width; k++) {
+            int la = addr + k;
+            int a = xlate(la, 1, true);
+            int b = v >>> (8 * (width - 1 - k));
+            int o;
+            if (Integer.compareUnsigned(a - romBase, romSize) >= 0) {
+                if (Integer.compareUnsigned(o = a - ramBase, ramSize) < 0) {
+                    ram[o] = (byte) b;
+                    continue;
+                }
+                if (Integer.compareUnsigned(o = a - vramBase, vramSize) < 0) {
+                    vram[o] = (byte) b;
+                    vramDirty[o >>> 18] |= 1L << ((o >>> 12) & 63);
+                    continue;
+                }
+            }
+            slowWrite(la, a, 1, b);
+        }
+    }
+
+    /**
+     * Translates {@code width} bytes at {@code addr} as a write before an instruction reads them,
+     * so its later writes cannot fault after it changed memory (spec 12.2.3). With {@code lock}
+     * this is the read of a locked read-modify-write (TAS, CAS, CAS2), which the 68040's data
+     * memory unit treats as a write (UM040 8.4.6.2): a fault reports LK and RW.
+     */
+    private void probeWrite(int addr, int width, boolean lock) {
+        if (!mmuOn)
+            return;
+        locked = lock;
+        try {
+            xlate(addr, width, true);
+        } finally {
+            locked = false;
+        }
+    }
+
+    /** Re-reads the MMU's enable state and page size after a register write, a reset or a load. */
+    private void mmuChanged() {
+        mmuOn = mmu.active();
+        pageShift = mmu.pageShift();
+        pageSize = 1 << pageShift;
+        pageMask = -pageSize;
+        privilegeChanged();
+    }
+
+    /** S changed (or the MMU did): TLB slots of the new privilege, and a fresh code page. */
+    private void privilegeChanged() {
+        if (mmu == null)
+            return;
+        boolean s = (sys & SF) != 0;
+        tlbFetch = M68kMmu.slot(s, M68kMmu.FETCH);
+        codeTag = M68kMmu.INVALID;
+        dataPrivilege(s);
+    }
+
+    private void dataPrivilege(boolean s) {
+        dataSuper = s;
+        tlbRead = M68kMmu.slot(s, M68kMmu.READ);
+        tlbWrite = M68kMmu.slot(s, M68kMmu.WRITE);
+        dataTm = s ? 5 : 1;
+        dataTt = 0;
+    }
+
+    /**
+     * MOVES's access with function code {@code fc} (spec 12.2.4, UM040 3.2.5 and table 3-2):
+     * codes 1 and 2 are user data, 5 and 6 supervisor data, translated with that table; codes 0,
+     * 3, 4 and 7 are alternate spaces, used as physical addresses without translation (TT 2,
+     * TM = the code in a fault). {@link #endAlternateSpace} undoes it.
+     */
+    private void alternateSpace(int fc) {
+        int space = fc & 3;
+        if (space == 1 || space == 2) {
+            dataPrivilege((fc & 4) != 0);
+        } else {
+            mmuOn = false;
+            dataTm = fc;
+            dataTt = 2;
+        }
+    }
+
+    private void endAlternateSpace() {
+        mmuOn = mmu.active();
+        dataPrivilege((sys & SF) != 0);
+    }
+
+    /** Records An before (An)+ or -(An) changes it, for a restart. */
+    private void logReg(int n) {
+        if (undoCount < undoReg.length) {
+            undoReg[undoCount] = n;
+            undoVal[undoCount++] = r[n];
+        }
+    }
+
+    /**
+     * Puts the faulted instruction's registers back as they were at its start (spec 12.2.3): the
+     * address registers changed by (An)+ and -(An), the CCR and, after RTE began popping, SR and
+     * every stack pointer. Data registers and the other address register updates are written
+     * only once nothing can fault any more, so they need no record.
+     */
+    private void undo() {
+        if (!logUndo)
+            return;
+        if (srSaved) {
+            sys = savedSys;
+            usp = savedUsp;
+            isp = savedIsp;
+            msp = savedMsp;
+            r[15] = savedSp;
+            srSaved = false;
+            privilegeChanged();
+            recomputeIrq();
+        }
+        for (int k = undoCount - 1; k >= 0; k--)
+            r[undoReg[k]] = undoVal[k];
+        undoCount = 0;
+        ccr = ccrAtStart;
     }
 
     /** Device or unmapped access: publish the clock, go through the bus, charge the device surcharge. */
@@ -678,16 +986,17 @@ public final class M68kCpu implements Cpu {
             write32(addr, v);
     }
 
+    /** Writes first and then moves SP, so a faulting push leaves SP as it was (spec 12.2.3). */
     private void push16(int v) {
         int sp = r[15] - 2;
-        r[15] = sp;
         write16(sp, v);
+        r[15] = sp;
     }
 
     private void push32(int v) {
         int sp = r[15] - 4;
-        r[15] = sp;
         write32(sp, v);
+        r[15] = sp;
     }
 
     private int pop16() {
@@ -736,11 +1045,15 @@ public final class M68kCpu implements Cpu {
                 return r[an];
             case 3: {
                 int a = r[an];
+                if (logUndo)
+                    logReg(an);
                 r[an] = a + (bytes == 1 && reg == 7 ? 2 : bytes);
                 return a;
             }
             case 4: {
                 int a = r[an] - (bytes == 1 && reg == 7 ? 2 : bytes);
+                if (logUndo)
+                    logReg(an);
                 r[an] = a;
                 return a;
             }
@@ -1045,16 +1358,17 @@ public final class M68kCpu implements Cpu {
     private void link(int reg, int disp) {
         int sp = r[15] - 4;
         int v = reg == 7 ? sp : r[8 + reg];
-        r[15] = sp;
         write32(sp, v);
         r[8 + reg] = sp;
-        r[15] += disp;
+        r[15] = sp + disp;
         charge(16, M68kTiming.C040_BASE);
     }
 
     private void unlk(int reg) {
-        r[15] = r[8 + reg];
-        r[8 + reg] = pop32();
+        int fp = r[8 + reg];
+        int v = read32(fp);
+        r[15] = fp + 4;
+        r[8 + reg] = v;
         charge(12, M68kTiming.C040_BASE);
     }
 
@@ -1115,13 +1429,18 @@ public final class M68kCpu implements Cpu {
         int bytes = BYTES[sz];
         int count = Integer.bitCount(mask);
         int addr = mode == 3 ? r[8 + reg] : eaAddr(mode, reg, bytes);
+        // every load first, then the registers: a fault midway leaves them untouched (spec 12.2.3)
+        final int[] buf = movemBuf;
         for (int rn = 0; rn < 16; rn++) {
             if ((mask & (1 << rn)) == 0)
                 continue;
             int v = readSz(addr, sz);
-            r[rn] = sz == 1 ? (short) v : v;
+            buf[rn] = sz == 1 ? (short) v : v;
             addr += bytes;
         }
+        for (int rn = 0; rn < 16; rn++)
+            if ((mask & (1 << rn)) != 0)
+                r[rn] = buf[rn];
         if (mode == 3)
             r[8 + reg] = addr;
         charge(M68kTiming.MOVEM_TO_REG[kind(mode, reg)] + count * (sz == 2 ? 8 : 4), M68kTiming.C040_BASE);
@@ -1316,7 +1635,14 @@ public final class M68kCpu implements Cpu {
 
     private void tas(int op) {
         int mode = (op >> 3) & 7;
-        int v = rmwRead(mode, op & 7, 0);
+        int v;
+        if (mode == 0) {
+            v = r[op & 7] & 0xFF;
+        } else {
+            eaSaved = eaAddrT(mode, op & 7, 0);
+            probeWrite(eaSaved, 1, true);
+            v = read8(eaSaved);
+        }
         nz(v, 0);
         rmwWrite(mode, op & 7, 0, v | 0x80);
         charge(mode == 0 ? 4 : 14, M68kTiming.C040_BASE);
@@ -1456,6 +1782,8 @@ public final class M68kCpu implements Cpu {
             int addr = eaAddr(mode, reg, 1) + (offset >> 3);
             int bitOff = offset & 7;
             int nbytes = Bitfield.spanBytes(bitOff, width);
+            if (modifies)
+                probeWrite(addr, nbytes, false);
             long w = 0;
             for (int i = 0; i < nbytes; i++)
                 w = (w << 8) | read8(addr + i);
@@ -1685,14 +2013,19 @@ public final class M68kCpu implements Cpu {
     }
 
     private void rtr() {
-        ccr = pop16() & M68kSr.CCR_MASK;
-        jump(pop32());
+        int sp = r[15];
+        int c = read16(sp);
+        int target = read32(sp + 2);
+        r[15] = sp + 6;
+        ccr = c & M68kSr.CCR_MASK;
+        jump(target);
         charge(20, M68kTiming.C040_RETURN);
     }
 
     private void rtd() {
-        int target = pop32();
-        r[15] += (short) fetch16();
+        int disp = (short) fetch16();
+        int target = read32(r[15]);
+        r[15] += 4 + disp;
         jump(target);
         charge(0, M68kTiming.C040_RETURN);
     }
@@ -1700,6 +2033,15 @@ public final class M68kCpu implements Cpu {
     private void rte() {
         if (!privileged())
             return;
+        if (logUndo) {
+            // a format 1 frame switches stacks before the next frame is read
+            srSaved = true;
+            savedSys = sys;
+            savedUsp = usp;
+            savedIsp = isp;
+            savedMsp = msp;
+            savedSp = r[15];
+        }
         for (;;) {
             int sp = r[15];
             int sr = read16(sp);
@@ -1782,6 +2124,10 @@ public final class M68kCpu implements Cpu {
         clock.advanceTo(cycles);
         if (resetDevices != null)
             resetDevices.run();
+        if (mmu != null) {
+            mmu.flushAll(false);
+            codeTag = M68kMmu.INVALID;
+        }
         charge(M68kTiming.RESET_INSTRUCTION, M68kTiming.C040_RESET);
         limit = clock.horizon();
     }
@@ -1794,6 +2140,7 @@ public final class M68kCpu implements Cpu {
         int dc = ext & 7;
         int du = (ext >> 6) & 7;
         int addr = eaAddr((op >> 3) & 7, op & 7, BYTES[sz]);
+        probeWrite(addr, BYTES[sz], true);
         int v = readSz(addr, sz);
         cmpF(r[dc] & MASK[sz], v, sz);
         if ((ccr & ZF) != 0)
@@ -1809,6 +2156,9 @@ public final class M68kCpu implements Cpu {
         int ext2 = fetch16();
         int a1 = r[(ext1 >>> 12) & 15];
         int a2 = r[(ext2 >>> 12) & 15];
+        // both operands translated as written before anything moves: the second write cannot fault after the first
+        probeWrite(a1, BYTES[sz], true);
+        probeWrite(a2, BYTES[sz], true);
         int v1 = readSz(a1, sz);
         int v2 = readSz(a2, sz);
         int dc1 = ext1 & 7, dc2 = ext2 & 7;
@@ -1894,7 +2244,10 @@ public final class M68kCpu implements Cpu {
         charge(0, M68kTiming.C040_BASE);
     }
 
-    /** MOVES: no MMU, so SFC and DFC are ignored and the access is a plain supervisor access. */
+    /**
+     * MOVES (spec 12.2.4): the access uses SFC (to a register) or DFC (to memory) as its function
+     * code, so the kernel reaches user memory with user permissions; see {@link #alternateSpace}.
+     */
     private void moves(int op) {
         if (!privileged())
             return;
@@ -1902,28 +2255,36 @@ public final class M68kCpu implements Cpu {
         int ext = fetch16();
         int rn = (ext >>> 12) & 15;
         int addr = eaAddr((op >> 3) & 7, op & 7, BYTES[sz]);
-        if ((ext & 0x800) != 0) {
-            writeSz(addr, sz, r[rn]);
-        } else {
-            int v = readSz(addr, sz);
-            if (rn >= 8)
-                r[rn] = sext(v, sz);
-            else
-                setD(rn, sz, v);
+        boolean toMemory = (ext & 0x800) != 0;
+        alternateSpace(toMemory ? dfc : sfc);
+        try {
+            if (toMemory) {
+                writeSz(addr, sz, r[rn]);
+            } else {
+                int v = readSz(addr, sz);
+                if (rn >= 8)
+                    r[rn] = sext(v, sz);
+                else
+                    setD(rn, sz, v);
+            }
+        } finally {
+            endAlternateSpace();
         }
         charge(0, M68kTiming.C040_BASE);
     }
 
+    /** MOVE16: the whole line is read before it is written, and the address registers move last (spec 12.2.3). */
     private void move16(int op) {
         int src, dst;
+        int incX = -1, incY = -1;
         if ((op & 0x20) != 0) {
             int ext = fetch16();
-            int ax = 8 + (op & 7), ay = 8 + ((ext >> 12) & 7);
-            src = r[ax];
-            dst = r[ay];
-            r[ax] += 16;
-            if (ay != ax)
-                r[ay] += 16;
+            incX = 8 + (op & 7);
+            incY = 8 + ((ext >> 12) & 7);
+            src = r[incX];
+            dst = r[incY];
+            if (incY == incX)
+                incY = -1;
         } else {
             int ay = 8 + (op & 7);
             int abs = fetch32();
@@ -1932,12 +2293,24 @@ public final class M68kCpu implements Cpu {
             src = fromAy ? r[ay] : abs;
             dst = fromAy ? abs : r[ay];
             if (opm < 2)
-                r[ay] += 16;
+                incX = ay;
         }
         src &= ~15;
         dst &= ~15;
-        for (int i = 0; i < 16; i += 4)
-            write32(dst + i, read32(src + i));
+        lineAccess = true;
+        try {
+            int w0 = read32(src), w1 = read32(src + 4), w2 = read32(src + 8), w3 = read32(src + 12);
+            write32(dst, w0);
+            write32(dst + 4, w1);
+            write32(dst + 8, w2);
+            write32(dst + 12, w3);
+        } finally {
+            lineAccess = false;
+        }
+        if (incX >= 0)
+            r[incX] += 16;
+        if (incY >= 0)
+            r[incY] += 16;
         charge(0, M68kTiming.C040_BASE);
     }
 
@@ -1967,18 +2340,13 @@ public final class M68kCpu implements Cpu {
             case CR_SFC: return sfc;
             case CR_DFC: return dfc;
             case CR_CACR: return cacr;
-            case CR_TC: return tc;
-            case CR_ITT0: return itt0;
-            case CR_ITT1: return itt1;
-            case CR_DTT0: return dtt0;
-            case CR_DTT1: return dtt1;
+            case CR_TC: case CR_ITT0: case CR_ITT1: case CR_DTT0: case CR_DTT1:
+            case CR_MMUSR: case CR_URP: case CR_SRP:
+                return mmu.register(code);
             case CR_USP: return stackReg(0);
             case CR_VBR: return vbr;
             case CR_MSP: return stackReg(2);
             case CR_ISP: return stackReg(1);
-            case CR_MMUSR: return mmusr;
-            case CR_URP: return urp;
-            case CR_SRP: return srp;
             default: return Long.MIN_VALUE;
         }
     }
@@ -1988,27 +2356,41 @@ public final class M68kCpu implements Cpu {
             case CR_SFC: sfc = v & 7; return true;
             case CR_DFC: dfc = v & 7; return true;
             case CR_CACR: cacr = v & CACR_MASK; return true;
-            case CR_TC: tc = v & ~TC_ENABLE; return true;
-            case CR_ITT0: itt0 = v; return true;
-            case CR_ITT1: itt1 = v; return true;
-            case CR_DTT0: dtt0 = v; return true;
-            case CR_DTT1: dtt1 = v; return true;
+            case CR_TC: case CR_ITT0: case CR_ITT1: case CR_DTT0: case CR_DTT1:
+            case CR_MMUSR: case CR_URP: case CR_SRP:
+                mmu.setRegister(code, v);
+                mmuChanged();
+                return true;
             case CR_USP: setStackReg(0, v); return true;
             case CR_VBR: vbr = v; return true;
             case CR_MSP: setStackReg(2, v); return true;
             case CR_ISP: setStackReg(1, v); return true;
-            case CR_MMUSR: mmusr = v; return true;
-            case CR_URP: urp = v; return true;
-            case CR_SRP: srp = v; return true;
             default: return false;
         }
     }
 
-    /** PTESTR, PTESTW: every address maps to itself through transparent translation (spec 10.5). */
+    /** PTESTR (bit 5 set) and PTESTW of the address in An with the function code in DFC (spec 12.2.4). */
     private void ptest(int op) {
         if (!privileged())
             return;
-        mmusr = (r[8 + (op & 7)] & 0xFFFF_F000) | 0x3;
+        mmu.ptest(r[8 + (op & 7)], dfc, (op & 0x20) == 0);
+        codeTag = M68kMmu.INVALID;
+        charge(0, M68kTiming.C040_BASE);
+    }
+
+    /**
+     * PFLUSHN (An), PFLUSH (An), PFLUSHAN, PFLUSHA (opmode 0..3 in bits 4..3): the page of An in
+     * the table DFC's FC2 selects, or everything; the N forms keep global entries.
+     */
+    private void pflush(int op) {
+        if (!privileged())
+            return;
+        int opmode = (op >> 3) & 3;
+        if (opmode >= 2)
+            mmu.flushAll(opmode == 2);
+        else
+            mmu.flushPage(r[8 + (op & 7)], (dfc & 4) != 0, opmode == 0);
+        codeTag = M68kMmu.INVALID;
         charge(0, M68kTiming.C040_BASE);
     }
 
@@ -2108,6 +2490,8 @@ public final class M68kCpu implements Cpu {
         else
             msp = r[15];
         r[15] = to == 0 ? usp : to == 1 ? isp : msp;
+        if ((from == 0) != (to == 0))
+            privilegeChanged();
     }
 
     private int stackReg(int sel) {
@@ -2210,26 +2594,46 @@ public final class M68kCpu implements Cpu {
             group0(M68kVectors.BUS_ERROR, addr, read, fetch, fetch || (read && eaProgram));
             return;
         }
+        accessError(addr, read, width, fetch, false, false);
+    }
+
+    /**
+     * A 68040 access error (spec 12.2.3, UM040 8.4.6): a physical bus error ({@code atc} false)
+     * or a failed translation at logical {@code fa}. While the MMU is on, the instruction's
+     * registers are first put back as they were at its start ({@link #undo}), so the RTE of the
+     * frame restarts it from its first word. Format 7, 30 words: SR, PC = the instruction, EA and
+     * FA = {@code fa}, the SSW (MA, ATC, LK, RW, SIZE, TT, TM; CP, CU, CT, CM 0), no write-backs
+     * pending (WB1S..WB3S 0), the rest 0. Never returns.
+     */
+    private void accessError(int fa, boolean read, int width, boolean fetch, boolean atc, boolean ma) {
+        if (inException)
+            halt(String.format("double fault: access error at 0x%08x during exception processing (pc 0x%08x)", fa, instrPc));
+        int size = lineAccess ? 3 : width == 4 ? 0 : width == 1 ? 1 : 2;
+        int tm = fetch ? ((sys & SF) != 0 ? 6 : 2) : dataTm;
+        int tt = fetch ? 0 : lineAccess ? 1 : dataTt;
+        int ssw = (ma ? 0x800 : 0) | (atc ? 0x400 : 0) | (locked ? 0x200 : 0) | (read || locked ? 0x100 : 0)
+                | (size << 5) | (tt << 3) | tm;
+        locked = false;
+        lineAccess = false;
+        undo();
         int oldSr = getSr();
-        int super0 = sys & SF;
         inException = true;
         enterSupervisor();
+        if (mmu != null)
+            endAlternateSpace();
         int sp = r[15] - 60;
-        r[15] = sp;
-        int size = width == 4 ? 0 : width == 1 ? 1 : 2;
-        int tm = (super0 != 0 ? 4 : 0) | (fetch ? 2 : 1);
-        int ssw = (read ? 0x100 : 0) | (size << 5) | tm;
         write16(sp, oldSr);
         write32(sp + 2, instrPc);
         write16(sp + 6, (M68kVectors.FORMAT_7 << 12) | (M68kVectors.BUS_ERROR << 2));
-        write32(sp + 8, addr);
+        write32(sp + 8, fa);
         write16(sp + 0x0C, ssw);
         write16(sp + 0x0E, 0);
         write16(sp + 0x10, 0);
         write16(sp + 0x12, 0);
-        write32(sp + 0x14, addr);
+        write32(sp + 0x14, fa);
         for (int o = 0x18; o < 0x3C; o += 4)
             write32(sp + o, 0);
+        r[15] = sp;
         int handler = read32(vbr + (M68kVectors.BUS_ERROR << 2));
         inException = false;
         cycles += M68kTiming.C040_EXCEPTION;
@@ -2371,8 +2775,13 @@ public final class M68kCpu implements Cpu {
         out.writeInt(isp);
         if (is040) {
             out.writeInt(msp);
-            for (int v : new int[] {vbr, cacr, sfc, dfc, tc, itt0, itt1, dtt0, dtt1, urp, srp, mmusr})
+            for (int v : new int[] {vbr, cacr, sfc, dfc})
                 out.writeInt(v);
+            for (int code : MMU_STATE_ORDER)
+                out.writeInt(mmu.register(code));
+            mmu.saveTlb(out);
+            out.writeInt(codeTag);
+            out.writeInt(codePhys);
         }
         out.writeLong(cycles);
         out.writeLong(instret);
@@ -2388,7 +2797,7 @@ public final class M68kCpu implements Cpu {
 
     @Override
     public void loadState(DataInput in) throws IOException {
-        StateIo.readVersion(in, "68k CPU", STATE_VERSION);
+        int version = StateIo.readVersion(in, "68k CPU", STATE_VERSION);
         String model = in.readUTF();
         boolean strict = in.readBoolean();
         StateIo.check(model.equals(options.model().name()) && strict == options.strictFpu(),
@@ -2402,20 +2811,29 @@ public final class M68kCpu implements Cpu {
         sys = sr & 0xFF00;
         usp = in.readInt();
         isp = in.readInt();
+        int savedCodeTag = M68kMmu.INVALID;
+        int savedCodePhys = 0;
         if (is040) {
             msp = in.readInt();
             vbr = in.readInt();
             cacr = in.readInt() & CACR_MASK;
             sfc = in.readInt() & 7;
             dfc = in.readInt() & 7;
-            tc = in.readInt() & ~TC_ENABLE;
-            itt0 = in.readInt();
-            itt1 = in.readInt();
-            dtt0 = in.readInt();
-            dtt1 = in.readInt();
-            urp = in.readInt();
-            srp = in.readInt();
-            mmusr = in.readInt();
+            mmu.reset();
+            for (int code : MMU_STATE_ORDER) {
+                int v = in.readInt();
+                // version 1 had no MMU: paging and the TT registers stored their bits without effect
+                if (version < 2 && code != CR_MMUSR && code != CR_URP && code != CR_SRP)
+                    v &= ~M68kMmu.TT_E;
+                mmu.setRegister(code, v);
+            }
+            // the TLB and the code page are state since version 2: a guest may keep using an
+            // entry whose descriptor it changed without a PFLUSH (spec 12.2.5)
+            if (version >= 2) {
+                mmu.loadTlb(in);
+                savedCodeTag = in.readInt();
+                savedCodePhys = in.readInt();
+            }
         }
         cycles = in.readLong();
         instret = in.readLong();
@@ -2426,6 +2844,13 @@ public final class M68kCpu implements Cpu {
         halted = in.readBoolean();
         haltReason = StateIo.readNullableUtf(in);
         inException = false;
+        logUndo = false;
+        srSaved = false;
+        if (mmu != null) {
+            mmuChanged();
+            codeTag = savedCodeTag;
+            codePhys = savedCodePhys;
+        }
         if (fpu != null)
             fpu.loadState(in);
         recomputeIrq();
@@ -2532,22 +2957,26 @@ public final class M68kCpu implements Cpu {
                 decodeException(M68kVectors.LINE_F);
                 throw ABORT;
             }
+            if (mode == 7 && reg == 4) {
+                fpuImm = pc;
+                fpuImmLen = (bytes + 1) & ~1;
+            }
             return eaAddr(mode, reg, bytes);
         }
 
         @Override
         public int read8(int address) {
-            return M68kCpu.this.read8(address);
+            return inFpuImmediate(address) ? fpuImmediate(address, 1) : M68kCpu.this.read8(address);
         }
 
         @Override
         public int read16(int address) {
-            return M68kCpu.this.read16(address);
+            return inFpuImmediate(address) ? fpuImmediate(address, 2) : M68kCpu.this.read16(address);
         }
 
         @Override
         public int read32(int address) {
-            return M68kCpu.this.read32(address);
+            return inFpuImmediate(address) ? fpuImmediate(address, 4) : M68kCpu.this.read32(address);
         }
 
         @Override

@@ -72,7 +72,7 @@ class PlcCircuitTest {
 
     /** A PLC on a 24 V supply with a load to GND on some outputs. */
     private static final class Bench {
-        final PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.INSTANCE.create();
+        final PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.DIN.create();
         final FakeCore core = new FakeCore();
         final FloatingNode[] terminals = new FloatingNode[PlcSmallGeometry.TERMINALS];
         final List<AbstractElectricWire> wires = new ArrayList<>();

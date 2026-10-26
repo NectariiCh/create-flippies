@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.foundation.wire.duct;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
@@ -13,15 +14,18 @@ import net.minecraft.world.phys.Vec3;
  * Both clicks snap to a one-pixel grid on the face, and the centre line runs half
  * the duct's depth out from it. Two points in line give one straight run; two
  * points that differ along both of the face's axes give an L, turning once, the
- * longer leg first. A run may be any length. It is cut where it crosses a section
+ * longer leg first. Two points on faces at right angles give a duct that turns
+ * from one face onto the other over the edge between them, inside or outside
+ * ({@link #corner}). A run may be any length. It is cut where it crosses a section
  * border, so each piece lives and is saved wholly in one chunk and a duct never
  * half vanishes when only one of two chunks it spans is loaded; the cuts are
  * invisible, and the pieces join end to end, which is all a wire run through them
  * needs ({@link DuctNetwork}).
  *
- * A click near the end of a duct already there snaps onto that end, which is how
+ * A click on a duct already there, near its end, snaps onto that end (a click on
+ * the face beside it does not; see {@code WireDuctService.snapPoint}), which is how
  * a new run continues an old one, turns a corner from it in the face, or turns
- * from a wall onto the floor (the inside corner, where the two centre lines meet).
+ * from it onto another face.
  */
 public final class DuctPlacement {
 
@@ -35,6 +39,9 @@ public final class DuctPlacement {
     public static final double MIN_LENGTH = GRID;
 
     private static final double EPS = 1e-6;
+
+    /** How far past an edge to look for the block that tells an inside corner from an outside one, blocks. */
+    private static final double PROBE = 1e-3;
 
     /** Why a placement is refused; anything but {@link #OK}. */
     public enum Verdict {
@@ -110,6 +117,101 @@ public final class DuctPlacement {
         for (DuctSegment run : runs)
             pieces.addAll(splitAtChunks(run));
         return pieces;
+    }
+
+    /**
+     * The pieces a duct from {@code start} on {@code startFace} to {@code end} on
+     * {@code endFace} is made of. On faces at right angles it turns from one onto the
+     * other ({@link #corner}); otherwise both must lie in one face's plane
+     * ({@link #plan(Vec3, Vec3, Direction, DuctSize)}). {@code solid} says whether a
+     * point is inside a block, which tells an inside edge from an outside one when
+     * both clicks were on the edge itself.
+     */
+    public static List<DuctSegment> plan(Vec3 start, Direction startFace, Vec3 end, Direction endFace, DuctSize size,
+            Predicate<Vec3> solid) {
+        if (startFace.getAxis() != endFace.getAxis()) {
+            List<DuctSegment> turned = corner(start, startFace, end, endFace, size, solid);
+            if (!turned.isEmpty())
+                return turned;
+        }
+        List<DuctSegment> pieces = plan(start, end, endFace, size);
+        return pieces.isEmpty() && startFace != endFace ? plan(start, end, startFace, size) : pieces;
+    }
+
+    /**
+     * A duct turning from one face onto another at right angles to it, over the edge
+     * where they meet: an inside corner (from the floor up a wall) or an outside one
+     * (round the edge of a block). The centre lines turn where they cross, half a
+     * depth off both faces. A shift along the edge is made on the face whose point
+     * lies further from it, so the duct crosses the edge square.
+     *
+     * At an inside corner a point no further from the other face than that crossing
+     * is moved onto the other face, so the short stretch from it to the turn fills
+     * the corner right down to that face ({@link DuctNetwork#jointExtensions}). Empty
+     * if one point lies in front of the other face and the other behind it, which no
+     * edge joins.
+     */
+    static List<DuctSegment> corner(Vec3 start, Direction startFace, Vec3 end, Direction endFace, DuctSize size,
+            Predicate<Vec3> solid) {
+        Direction.Axis a = startFace.getAxis(), b = endFace.getAxis();
+        if (a == b)
+            return List.of();
+        Direction.Axis e = edgeAxis(a, b);
+        Vec3 nA = Vec3.atLowerCornerOf(startFace.getNormal()), nB = Vec3.atLowerCornerOf(endFace.getNormal());
+        double half = size.depth() / 2;
+        // How far each point lies in front of the other face: positive at an inside corner, negative outside
+        double startFront = start.subtract(end).dot(nB) + half;
+        double endFront = end.subtract(start).dot(nA) + half;
+        boolean startOn = Math.abs(startFront) < EPS, endOn = Math.abs(endFront) < EPS;
+        boolean inside;
+        if (startOn && endOn) {
+            // Both on the edge: inside if the block beside the first face is behind the second
+            Vec3 edge = start.subtract(nA.scale(half));
+            inside = solid.test(edge.add(nA.scale(PROBE)).subtract(nB.scale(PROBE)));
+        } else if (!startOn && !endOn && (startFront > 0) != (endFront > 0)) {
+            return List.of();
+        } else {
+            inside = (startOn ? endFront : startFront) > 0;
+        }
+        boolean shiftFirst = Math.abs(startFront) >= Math.abs(endFront);
+        if (inside) {
+            if (startFront < half + EPS)
+                start = start.subtract(nB.scale(startFront));
+            if (endFront < half + EPS)
+                end = end.subtract(nA.scale(endFront));
+        }
+        List<Vec3> points = new ArrayList<>();
+        List<Direction> faces = new ArrayList<>();
+        points.add(start);
+        if (shiftFirst) {
+            Vec3 along = with(start, e, coord(end, e));
+            Vec3 turn = with(along, b, coord(end, b));
+            points.add(along);
+            faces.add(startFace);
+            points.add(turn);
+            faces.add(startFace);
+        } else {
+            Vec3 turn = with(start, b, coord(end, b));
+            points.add(turn);
+            faces.add(startFace);
+            points.add(with(end, e, coord(start, e)));
+            faces.add(endFace);
+        }
+        points.add(end);
+        faces.add(endFace);
+        List<DuctSegment> pieces = new ArrayList<>();
+        for (int i = 0; i + 1 < points.size(); i++)
+            if (points.get(i).distanceToSqr(points.get(i + 1)) > EPS * EPS)
+                pieces.addAll(splitAtChunks(new DuctSegment(points.get(i), points.get(i + 1), faces.get(i), size)));
+        return pieces;
+    }
+
+    /** The axis along the edge between faces whose normals run along {@code a} and {@code b}. */
+    static Direction.Axis edgeAxis(Direction.Axis a, Direction.Axis b) {
+        for (Direction.Axis axis : Direction.Axis.values())
+            if (axis != a && axis != b)
+                return axis;
+        throw new IllegalArgumentException("No edge between faces along one axis");
     }
 
     /**

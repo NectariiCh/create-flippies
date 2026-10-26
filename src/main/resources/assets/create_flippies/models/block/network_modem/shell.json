@@ -1,0 +1,149 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "0": "minecraft:block/light_gray_concrete",
+    "1": "create_flippies:block/pc-case-1",
+    "particle": "minecraft:block/light_gray_concrete"
+  },
+  "elements": [
+    {
+      "name": "body",
+      "from": [
+        3,
+        0,
+        4
+      ],
+      "to": [
+        13,
+        3,
+        12
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            3,
+            13,
+            13,
+            16
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            3,
+            13,
+            13,
+            16
+          ],
+          "texture": "#0"
+        },
+        "east": {
+          "uv": [
+            4,
+            13,
+            12,
+            16
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            4,
+            13,
+            12,
+            16
+          ],
+          "texture": "#0"
+        },
+        "up": {
+          "uv": [
+            3,
+            4,
+            13,
+            12
+          ],
+          "texture": "#0"
+        },
+        "down": {
+          "uv": [
+            3,
+            4,
+            13,
+            12
+          ],
+          "texture": "#0",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "name": "ethernet",
+      "from": [
+        13,
+        1,
+        7.25
+      ],
+      "to": [
+        13.25,
+        2,
+        8.75
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            14.375,
+            0.0625,
+            14.5625
+          ],
+          "texture": "#1"
+        },
+        "south": {
+          "uv": [
+            0,
+            14.375,
+            0.0625,
+            14.5625
+          ],
+          "texture": "#1"
+        },
+        "east": {
+          "uv": [
+            2.625,
+            15.8125,
+            2.9375,
+            16
+          ],
+          "texture": "#1"
+        },
+        "west": {
+          "uv": [
+            0,
+            14.375,
+            0.0625,
+            14.5625
+          ],
+          "texture": "#1"
+        },
+        "up": {
+          "uv": [
+            0,
+            14.375,
+            0.0625,
+            14.5625
+          ],
+          "texture": "#1"
+        },
+        "down": {
+          "uv": [
+            0,
+            14.375,
+            0.0625,
+            14.5625
+          ],
+          "texture": "#1"
+        }
+      }
+    }
+  ]
+}

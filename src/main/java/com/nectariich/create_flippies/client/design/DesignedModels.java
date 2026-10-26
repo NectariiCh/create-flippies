@@ -3,7 +3,6 @@ package com.nectariich.create_flippies.client.design;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -60,9 +59,9 @@ public final class DesignedModels {
         /** The position drawn last frame, and when, for easing a button. */
         float position = Float.NaN;
         long millis;
-        /** The glow and lights last applied, or NaN for none yet. */
+        /** The glow and what it lit last ({@link #glowKey}), or NaN for none yet. */
         float glow = Float.NaN;
-        List<String> lights;
+        Object lights;
         /** What the element materials were last set from, or null until they could be (the mesh still loading). */
         Object materials;
 
@@ -143,13 +142,14 @@ public final class DesignedModels {
             tracked.indicator.setPackedLight(light).setOcclusionStrength(occlusion);
         }
 
-        if (glow != tracked.glow || !design.lights().equals(tracked.lights)) {
+        Object lights = glowKey(design);
+        if (glow != tracked.glow || !lights.equals(tracked.lights)) {
             glow(tracked.body, design, glow);
             glow(tracked.moving, design, glow);
             if (tracked.indicator != null)
                 glow(tracked.indicator, design, glow);
             tracked.glow = glow;
-            tracked.lights = design.lights();
+            tracked.lights = lights;
         }
         Object materials = materialsKey(design, glow > 0);
         if (!materials.equals(tracked.materials)) {
@@ -166,6 +166,11 @@ public final class DesignedModels {
         // A gauge's face is drawn as a material too, so a new face or a face moved
         // to another submesh sets them again
         return java.util.Arrays.asList(design.kind(), design.materials(), design.lights(), lit, design.gauge());
+    }
+
+    /** What a glow lights on a design: its lights, and a screen's glass. */
+    static Object glowKey(ControlDesign design) {
+        return java.util.Arrays.asList(design.lights(), design.screen() == null ? "" : design.screen().face);
     }
 
     /**
@@ -185,11 +190,22 @@ public final class DesignedModels {
      * wins, which is Hypergraphical's rule. Both instances of a pair are given the same
      * calls, because a light may be on the body or on the moving parts; on the
      * instance that hides it, it simply never draws.
+     *
+     * A screen's glass is a light of its own: its backlight is what {@code strength}
+     * says for a screen, and the "part#material" element the screen is drawn on glows
+     * with it, whether or not the design names it among its lights. The content on it
+     * is drawn at full bright by {@link DesignScreenRenderer} either way; this is the
+     * glass around and between it.
      */
     static void glow(ModelInstance instance, ControlDesign design, float strength) {
         instance.clearGlow();
         if (!(strength > 0))
             return;
+        if (design.screen() != null && design.screen().hasFace()) {
+            String face = design.screen().face;
+            int split = face.indexOf('#');
+            instance.setElementGlow(face.substring(0, split), face.substring(split + 1), strength);
+        }
         for (String light : design.lights()) {
             int split = light.indexOf('#');
             if (split > 0)

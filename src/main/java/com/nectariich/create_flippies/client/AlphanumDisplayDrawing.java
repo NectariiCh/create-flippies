@@ -1,12 +1,16 @@
 package com.nectariich.create_flippies.client;
 
+import java.util.List;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import com.nectariich.create_flippies.client.display.ScreenElementRenderer;
 import com.nectariich.create_flippies.content.display.DisplayForm;
 import com.nectariich.create_flippies.content.display.DisplayKind;
 import com.nectariich.create_flippies.content.display.DisplayPrint;
-import com.nectariich.create_flippies.content.label.PanelLabel;
+import com.nectariich.create_flippies.content.display.element.ScreenElement;
+import com.nectariich.create_flippies.content.display.element.Viewport;
 import com.nectariich.create_flippies.foundation.SurfaceMount;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid;
@@ -14,14 +18,10 @@ import com.nectariich.create_flippies.registry.ModBlocks;
 
 import net.createmod.catnip.render.CachedBuffers;
 import net.createmod.catnip.render.SuperByteBuffer;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.Direction;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -50,12 +50,13 @@ import net.minecraft.world.phys.Vec3;
  * drawn and the block's own light level stays zero, so a display in a dark room
  * glows without illuminating anything.
  *
- * The lettering is the other half, and it is the half the player actually reads. Lit,
- * it goes in at {@link LightTexture#FULL_BRIGHT} in the colour that was chosen, so it
- * stands off the dark glass at any hour. Unlit, it goes in at the panel's own light
- * and at a fraction of that colour, so in a well-lit room it can be made out with
- * some effort and in the dark it cannot be seen at all — which is what an unpowered
- * display does.
+ * The elements are the other half, and they are the half the player actually reads.
+ * Lit, they go in at {@link LightTexture#FULL_BRIGHT} in the colours that were chosen,
+ * so they stand off the dark glass at any hour. Unlit, they go in at the panel's own
+ * light and at a fraction of those colours, so in a well-lit room they can be made out
+ * with some effort and in the dark they cannot be seen at all, which is what an
+ * unpowered display does. That half is {@link ScreenElementRenderer}'s, shared with
+ * every other display that has elements.
  *
  * It has to be a split rather than emissive face data baked into one model, because a
  * SuperByteBuffer's {@code light} rewrites the lightmap of every vertex handed to it —
@@ -65,8 +66,9 @@ import net.minecraft.world.phys.Vec3;
  * <h2>The cut</h2>
  *
  * Whatever does not fit between the edges of the glass, less the form's padding, is
- * cut rather than wrapped or shrunk. {@link DisplayPrint} says why; here it is one
- * call to the font's splitter, made at the height the display is actually set to.
+ * cut rather than wrapped or shrunk. {@link DisplayPrint} says why. The usable glass
+ * is the elements' viewport, and the renderer cuts each line to its element's box,
+ * which for the one element a display starts with is that whole viewport.
  *
  * Cutout, because the device's texture has transparent pixels around the barrel.
  */
@@ -79,8 +81,8 @@ public final class AlphanumDisplayDrawing {
      */
     private static final float TEXT_PLANE_TURN = -90;
 
-    /** One step of {@link DisplayPrint#quarters}, in degrees. */
-    private static final float QUARTER = 90;
+    /** One pixel in block units, the unit the viewport frame is drawn in. */
+    private static final float PIXEL = 1f / PlacementGrid.PIXELS_PER_BLOCK;
 
     /**
      * The mounting axis in block units, which is where the glass is centred: every
@@ -97,24 +99,13 @@ public final class AlphanumDisplayDrawing {
      */
     private static final int BACKLIT_BLOCK_LIGHT = 9;
 
-    /**
-     * How much of the chosen colour survives on an unpowered backlight.
-     *
-     * Deeper than {@link PanelLabel#ink}'s quarter off, because this is not ink
-     * sitting down onto a panel: it is a dark screen being read by reflected light,
-     * and the point of it is that the display is visibly worse to read than a lit
-     * one. It is applied with the panel's own light rather than full bright, so the
-     * two together are what make an unpowered display vanish in the dark.
-     */
-    private static final float UNLIT_INK = 0.4f;
-
     private AlphanumDisplayDrawing() {}
 
     /**
      * The body and the glass. {@code offset} is in block units and is
      * {@link Vec3#ZERO} for a display centred on its cell.
      *
-     * The lettering is {@link #print}'s and not this method's, because a device
+     * The elements are {@link #elements}' and not this method's, because a device
      * mounted in a host is drawn in two passes — see {@link ControlRenderer} for why
      * lettering and geometry must not be interleaved. A standalone display calls both
      * in turn.
@@ -138,25 +129,38 @@ public final class AlphanumDisplayDrawing {
     }
 
     /**
-     * Whatever is on the screen, on the same pose {@link #draw} was given. A blank
-     * display draws nothing and, more to the point, asks the buffer source for
-     * nothing: a request for the text type is what ends the batch the geometry is in,
-     * so a dark display must not make one.
+     * Whatever is on the screen, on the same pose {@link #draw} was given: the
+     * display's elements, through {@link ScreenElementRenderer}, in the glass's own
+     * frame with the viewport's top left corner as the origin.
+     *
+     * A dark or blank display draws nothing and, more to the point, asks the buffer
+     * source for nothing: a request is what ends the batch the geometry is in, so a
+     * dark display must not make one. A lit one draws its elements in a batch of its
+     * own, ended on the spot so they land in drawing order over glass already on the
+     * screen; see {@link ScreenElementRenderer#drawNow}.
      */
-    public static void print(DisplayForm form, DisplayPrint set, String text, boolean backlit, Direction facing,
-            int yaw, int rotation, Vec3 offset, PoseStack ms, MultiBufferSource buffer, int light) {
-        if (text.isEmpty())
+    public static void elements(DisplayForm form, Object owner, List<ScreenElement> elements, boolean powered,
+            boolean backlit, Direction facing, int yaw, int rotation, Vec3 offset, PoseStack ms,
+            MultiBufferSource buffer, int light) {
+        if (!ScreenElementRenderer.hasVisible(owner, elements, powered))
             return;
-        Font font = Minecraft.getInstance().font;
-        Style style = style(set);
-        int size = fittedSize(font, style, set, form, text);
-        String drawn = font.getSplitter().plainHeadByWidth(text, DisplayPrint.textWidthUnits(form, size), style);
-        if (drawn.isEmpty())
-            return;
-        Component line = Component.literal(drawn).withStyle(style);
-        float scale = DisplayPrint.scale(size);
+        Viewport viewport = Viewport.of(form);
 
         ms.pushPose();
+        toViewport(ms, form, facing, yaw, rotation, offset);
+        ScreenElementRenderer.drawNow(ms, buffer, owner, elements, viewport, powered, backlit, light);
+        ms.popPose();
+    }
+
+    /**
+     * Poses {@code ms}, standing where {@link #draw} is given it, at the display's
+     * viewport: its top left corner the origin, +x right, +y down, a unit one pixel,
+     * on the glass. The frame the elements are drawn in, and the one the display
+     * editor's camera faces.
+     */
+    public static void toViewport(PoseStack ms, DisplayForm form, Direction facing, int yaw, int rotation,
+            Vec3 offset) {
+        Viewport viewport = Viewport.of(form);
         ms.translate(offset.x, offset.y, offset.z);
         ms.translate(0.5, 0.5, 0.5);
         ms.mulPose(Axis.YP.rotationDegrees(SurfaceMount.yawDegrees(facing, yaw)));
@@ -166,23 +170,12 @@ public final class AlphanumDisplayDrawing {
 
         ms.translate(AXIS, form.proud() / PlacementGrid.PIXELS_PER_BLOCK, AXIS);
         ms.mulPose(Axis.XP.rotationDegrees(TEXT_PLANE_TURN));
-        // A quarter turn about the axis the glass faces along, applied after that turn
-        // and so in the plane of the screen, and before the scale so that the negative
-        // y below cannot mirror it. The axis points at the reader, which is what makes
-        // a positive angle read anticlockwise
-        if (set.quarters() != 0)
-            ms.mulPose(Axis.ZP.rotationDegrees(QUARTER * set.quarters()));
-        // The font counts y downwards, so the negative y is what makes the turn above
-        // a rotation rather than a reflection. Vanilla's sign renderer does the same
-        ms.scale(scale, -scale, scale);
-
-        // A string's measured width includes the blank column after its last glyph, so
-        // centring on it alone would sit the whole line half a unit to the left
-        float left = -0.5f * (font.width(line) - 1);
-        float top = -0.5f * PanelLabel.GLYPH_HEIGHT;
-        font.drawInBatch(line, left, top, backlit ? set.colour() : dimmed(set.colour()), false, ms.last().pose(),
-                buffer, Font.DisplayMode.POLYGON_OFFSET, 0, backlit ? LightTexture.FULL_BRIGHT : light);
-        ms.popPose();
+        // Pixels, counted downwards the way the font and the viewport both count: the
+        // negative y is what keeps a quarter turn of lettering a rotation rather than
+        // a reflection, as on vanilla's signs. The glass is centred on the axis and
+        // its padding is the same all round, so the viewport is too
+        ms.scale(PIXEL, -PIXEL, PIXEL);
+        ms.translate(-0.5 * viewport.widthPixels(), -0.5 * viewport.heightPixels(), 0);
     }
 
     /**
@@ -205,44 +198,12 @@ public final class AlphanumDisplayDrawing {
     }
 
     /**
-     * How tall to print this line on this glass, in tenths of a pixel.
-     *
-     * The glass's own limit always applies, because lettering taller than the box the
-     * display reserved would hang over its neighbours. A display set to fit is then
-     * shrunk further until the whole line is between the edges — measured in the style
-     * it will actually be drawn in, since bold and a different font both change what a
-     * string is worth in font units. One set to a fixed height is not shrunk at all
-     * and is cut instead, which is what a display is for: a readout whose characters
-     * changed size as the value did would be unreadable.
-     */
-    private static int fittedSize(Font font, Style style, DisplayPrint set, DisplayForm form, String text) {
-        int size = set.sizeOn(form);
-        if (!set.fitted())
-            return size;
-        int limit = DisplayPrint.widthLimit(form, font.width(Component.literal(text).withStyle(style)));
-        return Math.max(1, Math.min(size, limit));
-    }
-
-    /** Font, weight and slant as vanilla addresses them everywhere else. */
-    private static Style style(DisplayPrint set) {
-        return Style.EMPTY.withFont(set.font().font()).withBold(set.bold()).withItalic(set.italic());
-    }
-
-    /**
      * The panel's light with a floor under the block component, so a backlit screen is
      * never darker than its own glow and is still brightened by a lamp hung beside it.
      */
     private static int glowing(int light) {
         return LightTexture.pack(Math.max(LightTexture.block(light), BACKLIT_BLOCK_LIGHT),
                 LightTexture.sky(light));
-    }
-
-    /** The lettering's colour on an unlit screen; see {@link #UNLIT_INK}. */
-    private static int dimmed(int argb) {
-        int red = (int) (((argb >> 16) & 0xFF) * UNLIT_INK);
-        int green = (int) (((argb >> 8) & 0xFF) * UNLIT_INK);
-        int blue = (int) ((argb & 0xFF) * UNLIT_INK);
-        return (argb & 0xFF000000) | (red << 16) | (green << 8) | blue;
     }
 
     /**
@@ -253,9 +214,10 @@ public final class AlphanumDisplayDrawing {
      * caller passes is the state every later caller silently gets — and a host block,
      * which is a different block with a different render layer, would otherwise be
      * baking the standalone device's geometry for it. Naming one block here settles
-     * that instead of racing it.
+     * that instead of racing it. Public because a designed screen draws the same body
+     * partial behind its own model, and must buffer it against the same state.
      */
-    private static BlockState referenceState() {
+    public static BlockState referenceState() {
         return ModBlocks.ALPHANUM_DISPLAYS.get(DisplayKind.BRDRL_1P5_SQ_12V).get().defaultBlockState();
     }
 }

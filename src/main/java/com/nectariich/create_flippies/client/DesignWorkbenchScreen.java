@@ -12,11 +12,13 @@ import com.nectariich.create_flippies.client.design.ClientDesigns;
 import com.nectariich.create_flippies.client.design.DesignCamera;
 import com.nectariich.create_flippies.client.design.DesignImporter;
 import com.nectariich.create_flippies.client.design.DesignPreview;
+import com.nectariich.create_flippies.client.design.screen.ScreenPattern;
 import com.nectariich.create_flippies.client.design.ui.DialTab;
 import com.nectariich.create_flippies.client.design.ui.ModelTab;
 import com.nectariich.create_flippies.client.design.ui.MotionTab;
 import com.nectariich.create_flippies.client.design.ui.Panel;
 import com.nectariich.create_flippies.client.design.ui.RackTab;
+import com.nectariich.create_flippies.client.design.ui.ScreenTab;
 import com.nectariich.create_flippies.client.design.ui.MaterialEditor;
 import com.nectariich.create_flippies.client.design.ui.SaveDialog;
 import com.nectariich.create_flippies.client.design.ui.TextBoxEditor;
@@ -24,6 +26,13 @@ import com.nectariich.create_flippies.client.design.ui.TextTab;
 import com.nectariich.create_flippies.client.design.ui.WindowsTab;
 import com.nectariich.create_flippies.client.design.ui.WorkbenchHost;
 import com.nectariich.create_flippies.client.design.ui.WorkbenchState;
+import com.nectariich.create_flippies.client.display.ElementEditTarget;
+import com.nectariich.create_flippies.client.display.LocalElementTarget;
+import com.nectariich.create_flippies.client.display.editor.BenchGlassView;
+import com.nectariich.create_flippies.client.display.editor.DisplayEditor;
+import com.nectariich.create_flippies.client.display.editor.EditorHost;
+import com.nectariich.create_flippies.client.display.editor.EditorScale;
+import com.nectariich.create_flippies.client.display.editor.GlassView;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignBundle;
 import com.nectariich.create_flippies.content.design_workbench.annunciator.AnnunciatorMesh;
@@ -83,6 +92,14 @@ import org.lwjgl.glfw.GLFW;
  * the face generator its kind uses, whose printed face becomes the material of the
  * submesh given it with "D" in the parts list or in the material editor.
  *
+ * The screen mode is a control on an imported model with nothing moving, a
+ * procedural screen: its Model and Text tabs are the control's, and its Screen tab
+ * ({@link ScreenTab}) says which submesh is the glass (given with "S" in the parts
+ * list or in the material editor), where the viewport sits on it, and authors the
+ * layout a placed screen starts with: its Edit layout button switches the whole
+ * workbench into the screwdriver menu's own visual editor ({@link DisplayEditor}),
+ * over the preview laid glass up on the bench, until Done or Esc.
+ *
  * Double-clicking a material element in the parts list opens the
  * {@link MaterialEditor} over the preview, which edits how that element is drawn
  * while the rest of the workbench stays in use.
@@ -93,9 +110,9 @@ import org.lwjgl.glfw.GLFW;
  */
 public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
-    /** What is being made: a control on an imported model, an annunciator rack, or a gauge. */
+    /** What is being made: a control on an imported model, an annunciator rack, a gauge, or a screen. */
     private enum Mode {
-        CONTROL("mode.control"), RACK("mode.rack"), GAUGE("mode.gauge");
+        CONTROL("mode.control"), RACK("mode.rack"), GAUGE("mode.gauge"), SCREEN("mode.screen");
 
         private final String key;
 
@@ -106,9 +123,9 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
     /** The tabs across the top of the panel, each in the modes it names or, naming none, in all of them. */
     private enum Tab {
-        MODEL("tab.model", Mode.CONTROL, Mode.GAUGE), MOTION("tab.motion", Mode.CONTROL, Mode.GAUGE),
+        MODEL("tab.model", Mode.CONTROL, Mode.GAUGE, Mode.SCREEN), MOTION("tab.motion", Mode.CONTROL, Mode.GAUGE),
         RACK("tab.rack", Mode.RACK), WINDOWS("tab.windows", Mode.RACK), DIAL("tab.dial", Mode.GAUGE),
-        TEXT("tab.text");
+        SCREEN("tab.screen", Mode.SCREEN), TEXT("tab.text");
 
         private final List<Mode> modes;
         private final String key;
@@ -136,6 +153,7 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
     private final WorkbenchState controlState = new WorkbenchState();
     private final WorkbenchState rackState = WorkbenchState.forRack();
     private final WorkbenchState gaugeState = WorkbenchState.forGauge();
+    private final WorkbenchState screenState = WorkbenchState.forScreen();
     private final TextBoxEditor textEditor = new TextBoxEditor(this);
 
     private Mode mode = Mode.CONTROL;
@@ -159,6 +177,13 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
      * the next Backspace meant for a typo would delete the whole box.
      */
     private boolean previewFocused;
+
+    /**
+     * The display editor over the screen's layout while the workbench is in editor
+     * mode, which replaces the whole panel; null otherwise. While it is open, the
+     * screen's drawing, input and ticking all go to it.
+     */
+    private DisplayEditor layoutEditor;
 
     /** A blueprint's model being fetched from the server, until it arrives. */
     private String downloading;
@@ -191,6 +216,9 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
             // A gauge is a model like a control's, fetched the same way, in its own mode
             screen.mode = Mode.GAUGE;
             screen.state = screen.gaugeState;
+        } else if (blueprint.design().kind().isScreen()) {
+            screen.mode = Mode.SCREEN;
+            screen.state = screen.screenState;
         }
         screen.state.load(blueprint, ClientBlueprints.LOCAL.equals(section));
         Minecraft.getInstance().setScreen(screen);
@@ -271,7 +299,16 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
     @Override
     protected void init() {
+        // The editor runs at its own GUI scale, and the workbench at the game's
+        if (layoutEditor != null)
+            EditorScale.apply(this);
+        else
+            EditorScale.restore(this);
         super.init();
+        if (layoutEditor != null) {
+            layoutEditor.init(width, height);
+            return;
+        }
         if (dialog != null) {
             dialog.init(font, width, height, this::addRenderableWidget);
             return;
@@ -307,6 +344,7 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
         case RACK -> RackTab.build(panel, this);
         case WINDOWS -> WindowsTab.build(panel, this);
         case DIAL -> DialTab.build(panel, this);
+        case SCREEN -> ScreenTab.build(panel, this, this::openLayoutEditor);
         case TEXT -> TextTab.build(panel, this);
         }
         int contentBottom = panel.y;
@@ -320,6 +358,7 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
         save.active = state.canSave();
         save.setTooltip(Tooltip.create(t(save.active ? "save.tooltip"
                 : state.kind.isRack() ? "save.needs_rack" : state.info == null ? "save.needs_model"
+                        : state.kind.isScreen() ? state.screenError()
                         : state.moving.isEmpty() ? state.kind.isGauge() ? "needle.none" : "save.needs_moving"
                                 : state.kind.isGauge() ? state.gaugeError() : "save.needs_moving")));
         addRenderableWidget(save);
@@ -365,6 +404,7 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
         state = switch (mode) {
         case RACK -> rackState;
         case GAUGE -> gaugeState;
+        case SCREEN -> screenState;
         default -> controlState;
         };
         // The element it was editing belongs to the other mode's model
@@ -408,9 +448,14 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (layoutEditor != null)
+            return layoutEditor.mouseScrolled(mouseX, mouseY, delta);
         if (dialog != null)
             return super.mouseScrolled(mouseX, mouseY, delta);
         if (overPanel(mouseX)) {
+            // The layout's element list scrolls itself before the panel does
+            if (tab == Tab.SCREEN && super.mouseScrolled(mouseX, mouseY, delta))
+                return true;
             if (maxScroll > 0) {
                 int next = Mth.clamp(scroll - (int) Math.signum(delta) * Panel.ROW, 0, maxScroll);
                 if (next != scroll) {
@@ -429,6 +474,8 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (layoutEditor != null)
+            return layoutEditor.mouseClicked(mouseX, mouseY, button);
         // Any click but one on the preview hands Delete back to the text fields
         previewFocused = false;
         // The window is on top, so a click on it is its own, whatever is under it
@@ -461,6 +508,8 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (layoutEditor != null)
+            return layoutEditor.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         if (materialEditor != null && materialEditor.dragging())
             return materialEditor.mouseDragged(mouseX, mouseY);
         if (textEditor.dragging())
@@ -470,6 +519,8 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (layoutEditor != null)
+            return layoutEditor.mouseReleased(mouseX, mouseY, button);
         if (materialEditor != null && materialEditor.mouseReleased())
             return true;
         if (textEditor.dragging())
@@ -479,6 +530,9 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
     @Override
     public boolean keyPressed(int key, int scanCode, int modifiers) {
+        // Every key, Esc included, which the editor takes as Done
+        if (layoutEditor != null)
+            return layoutEditor.keyPressed(key, scanCode, modifiers);
         if (dialog != null && key == GLFW.GLFW_KEY_ESCAPE) {
             closeSaveDialog();
             return true;
@@ -502,8 +556,16 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
     // ------------------------------------------------------------------ import
 
     @Override
+    public boolean charTyped(char character, int modifiers) {
+        if (layoutEditor != null)
+            return layoutEditor.charTyped(character, modifiers);
+        return super.charTyped(character, modifiers);
+    }
+
+    @Override
     public void onFilesDrop(List<Path> paths) {
-        if (dialog == null)
+        // A model dropped on the editor would swap the bench's model out from under it
+        if (dialog == null && layoutEditor == null)
             importFiles(paths);
     }
 
@@ -638,9 +700,87 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
             rebuildWidgets();
     }
 
+    /**
+     * The Screen tab's Edit layout: the whole workbench becomes the display editor over
+     * the screen's layout, with the preview showing the layout (never a test pattern)
+     * and the camera taking the editor's top view.
+     */
+    private void openLayoutEditor() {
+        if (layoutEditor != null || mode != Mode.SCREEN)
+            return;
+        previewFocused = false;
+        materialEditor = null;
+        layoutEditor = new DisplayEditor(new LayoutHost(), font);
+        refresh();
+        rebuildWidgets();
+    }
+
+    /** Done or Esc in the editor: back to the Screen tab, as it was. */
+    private void closeLayoutEditor() {
+        if (layoutEditor == null)
+            return;
+        DisplayEditor editor = layoutEditor;
+        layoutEditor = null;
+        editor.close();
+        refresh();
+        rebuildWidgets();
+    }
+
+    /**
+     * The workbench as the display editor's host: the screen state's layout, which this
+     * client owns outright (every edit re-poses the preview), seen from above on the
+     * bench. No power to lose, and no Rotate, since the layout turns with the design.
+     */
+    private final class LayoutHost implements EditorHost {
+
+        private final ElementEditTarget target = new LocalElementTarget(screenState.screen.layout,
+                screenState::screenViewport, DesignWorkbenchScreen.this::refresh);
+        private final GlassView view = new BenchGlassView();
+
+        @Override
+        public ElementEditTarget target() {
+            return target;
+        }
+
+        @Override
+        public GlassView view() {
+            return view;
+        }
+
+        @Override
+        public Object owner() {
+            return DesignPreview.SCREEN_OWNER;
+        }
+
+        @Override
+        public String sourceKey() {
+            return "workbench@" + bench.asLong();
+        }
+
+        @Override
+        public boolean canRotate() {
+            return false;
+        }
+
+        @Override
+        public void rotate() {}
+
+        @Override
+        public void close() {
+            closeLayoutEditor();
+        }
+
+        @Override
+        public Component title() {
+            return Component.translatable("gui.create_flippies.display_editor.title");
+        }
+    }
+
     @Override
     public void tick() {
         super.tick();
+        if (layoutEditor != null)
+            layoutEditor.tick();
         // A model the server already had in its design store may arrive through the
         // ordinary model download rather than the blueprint fetch
         if (downloading != null) {
@@ -682,6 +822,8 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
         DesignPreview.show(bench, design, state.mesh, state.hidden, position, tab == Tab.TEXT ? state.selected : -1,
                 tab != Tab.TEXT);
         DesignPreview.highlight(tab == Tab.WINDOWS ? windowBox(design.rack(), state.selectedWindow) : null);
+        // The editor works on the layout, so that is what the glass shows while it is open
+        DesignPreview.pattern(mode == Mode.SCREEN && layoutEditor == null ? state.pattern : ScreenPattern.LAYOUT);
     }
 
     /** The box of one rack window, from the panel up to the face, for the preview to pick out. */
@@ -698,6 +840,10 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        if (layoutEditor != null) {
+            layoutEditor.render(graphics, mouseX, mouseY, partialTicks);
+            return;
+        }
         if (dialog != null) {
             renderPanelBackground(graphics);
             dialog.renderBackground(graphics, font, width, height);
@@ -747,6 +893,11 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
         // A save still waiting for the world's answer must not rebuild a screen that is gone
         if (dialog != null)
             dialog.closed();
+        if (layoutEditor != null) {
+            layoutEditor.close();
+            layoutEditor = null;
+            EditorScale.restore(null);
+        }
         DesignPreview.hide();
         DesignCamera.exit();
         super.removed();

@@ -26,6 +26,10 @@ public class ModCreativeTabs {
                                 // A designed control is nothing without the design it carries
                                 .filter(item -> !(item instanceof DesignedControlItem))
                                 .forEach(output::accept);
+                        // The netinstall floppy (docs/PC_SPEC.md 12.5): a floppy carrying a bundled image
+                        output.accept(com.nectariich.create_flippies.content.pc.FloppyDiskItem.presetStack(
+                                ModItems.FLOPPY_DISK.get(),
+                                com.nectariich.create_flippies.content.pc.FloppyPresets.NETINSTALL));
                         // WIRE GAUGES: ours, or Power Plant Grid's when it is installed
                         WireGaugeCompat.addToTab(output);
                     })

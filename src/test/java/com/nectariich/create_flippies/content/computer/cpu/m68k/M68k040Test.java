@@ -101,8 +101,8 @@ class M68k040Test {
     void movecEveryRegisterAndAnInvalidNumber() {
         M68kRig rig = M68kRig.m68040();
         int[][] cases = {
-                {0x000, -1, 7}, {0x001, -1, 7}, {0x002, -1, 0x8000_8000}, {0x003, 0xFFFF, 0x7FFF},
-                {0x004, -1, -1}, {0x005, 0x1234, 0x1234}, {0x006, 5, 5}, {0x007, 6, 6},
+                {0x000, -1, 7}, {0x001, -1, 7}, {0x002, -1, 0x8000_8000}, {0x003, 0x7FFF, 0x4000},
+                {0x004, -1, 0xFFFF_E364}, {0x005, 0x1234, 0x0224}, {0x006, 5, 4}, {0x007, 6, 4},
                 {0x800, DATA, DATA}, {0x801, DATA + 0x400, DATA + 0x400}, {0x803, DATA + 0x800, DATA + 0x800},
                 {0x805, 0x77, 0x77}, {0x806, 0x88, 0x88}, {0x807, 0x99, 0x99},
                 {0x804, M68kRig.SSP - 0x100, M68kRig.SSP - 0x100},
@@ -356,8 +356,8 @@ class M68k040Test {
         run1(rig, 0, 0, 0xF4D8); // cinva bc
         assertEquals(PROG + 2, rig.cpu.pc());
         rig.cpu.setA(0, 0x1234_5678);
-        run1(rig, 0, 0, 0xF568); // ptestr (a0)
-        assertEquals(0x1234_5003, rig.cpu.controlRegister(0x805));
+        run1(rig, 0, 0, 0xF568); // ptestr (a0): paging off, no TT hit: the address itself, resident
+        assertEquals(0x1234_5001, rig.cpu.controlRegister(0x805));
         rig.program(0xF4D8);
         rig.userMode();
         rig.step();

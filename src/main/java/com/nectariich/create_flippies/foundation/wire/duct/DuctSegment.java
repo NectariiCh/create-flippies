@@ -103,6 +103,20 @@ public record DuctSegment(Vec3 from, Vec3 to, Direction face, DuctSize size) {
         return box(0, 0);
     }
 
+    /**
+     * {@link #box(double, double)} as far out of the face as the duct holds wires
+     * ({@link DuctSize#holdDepth}): the box itself, but for the shallowest ducts.
+     */
+    public AABB holdBox(double extendFrom, double extendTo) {
+        AABB box = box(extendFrom, extendTo);
+        double extra = size.holdDepth() - size.depth();
+        return extra <= 0 ? box : box.expandTowards(normal().scale(extra));
+    }
+
+    public AABB holdBox() {
+        return holdBox(0, 0);
+    }
+
     private static Vec3 abs(Vec3 v) {
         return new Vec3(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z));
     }

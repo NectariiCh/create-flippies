@@ -21,9 +21,11 @@ import net.minecraft.client.renderer.MultiBufferSource;
  * mount object the terminals and the footprint are derived from, so a display cannot
  * be drawn anywhere its hitboxes are not.
  *
- * The lettering goes in the second pass, for the reason {@link ControlRenderer}
- * gives: a panel of readouts is exactly the case where interleaving the font with the
- * block geometry costs a draw call per device.
+ * The elements go in the second pass, for the reason {@link ControlRenderer} gives: a
+ * panel of readouts is exactly the case where interleaving the font with the block
+ * geometry costs a draw call per device. A lit display then draws its elements in a
+ * batch of its own, which ends the host's geometry batch first so the glass is under
+ * them; see {@link com.nectariich.create_flippies.client.display.ScreenElementRenderer#drawNow}.
  */
 public class AlphanumDisplayControlRenderer implements ControlRenderer {
 
@@ -54,7 +56,8 @@ public class AlphanumDisplayControlRenderer implements ControlRenderer {
         if (!(control instanceof AlphanumDisplayControl display))
             return;
         ControlMount mount = display.mount();
-        AlphanumDisplayDrawing.print(display.form(), display.print(), display.displayedText(), display.isBacklit(),
-                mount.face(), mount.yaw(), mount.rotation(), mount.offset(), ms, buffer, light);
+        AlphanumDisplayDrawing.elements(display.form(), display.elements(), display.elements().snapshot(),
+                display.isPowered(),
+                display.isBacklit(), mount.face(), mount.yaw(), mount.rotation(), mount.offset(), ms, buffer, light);
     }
 }

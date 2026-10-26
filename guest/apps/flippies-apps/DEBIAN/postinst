@@ -1,0 +1,7 @@
+#!/bin/sh
+# Compiles the Python modules once, as root: the desktop user cannot write the cache files there,
+# and compiling them at every start costs seconds on a 25 MHz CPU.
+set -e
+if [ "$1" = configure ] && command -v python3 > /dev/null; then
+    python3 -m compileall -q /usr/lib/flippies-apps > /dev/null || true
+fi

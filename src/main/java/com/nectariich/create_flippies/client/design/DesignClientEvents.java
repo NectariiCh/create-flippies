@@ -32,10 +32,13 @@ public final class DesignClientEvents {
         if (stage == RenderLevelStageEvent.Stage.AFTER_SKY) {
             // Before the block entity pass: placed controls' text is recorded from here
             DesignTextRenderer.beginLevel();
+            DesignScreenRenderer.beginLevel();
         } else if (stage == RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
             // After Hypergraphical's opaque pass, which always comes before translucent
-            // blocks, so the text of placed controls and of the preview lands on the model
+            // blocks, so the text and screens of placed controls and of the preview land
+            // on the model
             DesignTextRenderer.flushPlaced(Minecraft.getInstance().renderBuffers().bufferSource());
+            DesignScreenRenderer.flushPlaced(Minecraft.getInstance().renderBuffers().bufferSource());
             DesignPreview.render(event.getPoseStack(), event.getCamera().getPosition());
         }
     }

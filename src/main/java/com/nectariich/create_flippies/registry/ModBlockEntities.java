@@ -17,7 +17,6 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
-import com.nectariich.create_flippies.content.keyboard.KeyboardBlockEntity;
 import com.nectariich.create_flippies.content.pc.PcCaseBlockEntity;
 
 public class ModBlockEntities {
@@ -104,18 +103,15 @@ public class ModBlockEntities {
                     .of(PcCaseBlockEntity::new, ModBlocks.PC_CASE.get())
                     .build(null));
 
-    public static final RegistryObject<BlockEntityType<KeyboardBlockEntity>> KEYBOARD =
-            BLOCK_ENTITIES.register("keyboard", () -> BlockEntityType.Builder
-                    .of(KeyboardBlockEntity::new, ModBlocks.KEYBOARD.get())
+    public static final RegistryObject<BlockEntityType<
+            com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity>> NETWORK_MODEM =
+            BLOCK_ENTITIES.register("network_modem", () -> BlockEntityType.Builder
+                    .of(com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity::new,
+                            ModBlocks.NETWORK_MODEM.get())
                     .build(null));
+
     // PC end
 
-    // CRT
-    public static final RegistryObject<BlockEntityType<com.nectariich.create_flippies.content.crt.CrtBlockEntity>> CRT =
-            BLOCK_ENTITIES.register("crt", () -> BlockEntityType.Builder
-                    .of(com.nectariich.create_flippies.content.crt.CrtBlockEntity::new, ModBlocks.CRT.get())
-                    .build(null));
-    // CRT end
 
     public static void register(IEventBus modBus) {
         BLOCK_ENTITIES.register(modBus);
