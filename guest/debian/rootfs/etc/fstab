@@ -1,0 +1,7 @@
+# The Create Flippies PC's hard disk (spec 12.7): fhda1 is the boot area (no file system),
+# fhda2 swap, fhda3 the root file system. The root is not checked at boot (pass 0): without an
+# initramfs the kernel lists it as /dev/root, so e2fsck does not see that it is mounted and
+# refuses to open the busy device; ext4's journal replays on mount instead.
+/dev/fhda3	/	ext4	defaults,noatime,errors=remount-ro	0	0
+/dev/fhda2	none	swap	sw	0	0
+tmpfs	/tmp	tmpfs	nosuid,nodev,size=16M	0	0

@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.content.pc;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -10,9 +11,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.computer.machine.Machine;
+import com.nectariich.create_flippies.content.computer.net.Catalogue;
+import com.nectariich.create_flippies.content.computer.net.ClasspathContent;
+import com.nectariich.create_flippies.content.computer.net.SharedFolder;
 import com.nectariich.create_flippies.content.data_cord.DataLink;
 import com.nectariich.create_flippies.content.keyboard.KeyboardCaptures;
+import com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity;
 import com.nectariich.create_flippies.foundation.ServerConfig;
 
 import net.minecraft.server.MinecraftServer;
@@ -33,8 +39,10 @@ public final class PcServer {
     private final DiskStore disks;
     private final PcScheduler scheduler = new PcScheduler();
     private final Set<PcCaseBlockEntity> loaded = new HashSet<>();
+    private final Set<NetworkModemBlockEntity> modems = new HashSet<>();
     private final Map<UUID, PcLinkExchange.ComCable> comCables = new HashMap<>();
     private final KeyboardCaptures captures = new KeyboardCaptures();
+    private final Catalogue catalogue;
     // CRT
     private final com.nectariich.create_flippies.content.crt.CrtSync crts =
             new com.nectariich.create_flippies.content.crt.CrtSync();
@@ -43,6 +51,18 @@ public final class PcServer {
     private PcServer(MinecraftServer server) {
         this.worldDir = server.getWorldPath(LevelResource.ROOT);
         this.disks = new DiskStore(worldDir, writer, ServerConfig.diskCacheChunksPerDisk());
+        this.catalogue = catalogue(worldDir);
+    }
+
+    /** The world's file share ({@code <world>/localfilesys/}, made here when missing) before the bundled internet. */
+    private static Catalogue catalogue(Path worldDir) {
+        try {
+            return new Catalogue(SharedFolder.ofWorld(worldDir), ClasspathContent.bundled());
+        } catch (IOException e) {
+            CreateFlippies.LOGGER.error("Could not make the file share folder in {}; {} is not served",
+                    worldDir, SharedFolder.HOST, e);
+            return new Catalogue(ClasspathContent.bundled());
+        }
     }
 
     public static PcServer get() {
@@ -83,6 +103,11 @@ public final class PcServer {
         return captures;
     }
 
+    /** What every network modem in this world serves (spec 12.4.3): the world's file share, then the bundled hosts. */
+    public Catalogue catalogue() {
+        return catalogue;
+    }
+
     // CRT
     /** The loaded CRTs and their picture streams (spec 11.2.14). */
     public com.nectariich.create_flippies.content.crt.CrtSync crts() {
@@ -96,6 +121,15 @@ public final class PcServer {
 
     void unloaded(PcCaseBlockEntity pc) {
         loaded.remove(pc);
+    }
+
+    /** A network modem loaded or placed; the exchange phase takes its link down when no PC drives it. */
+    public void modemLoaded(NetworkModemBlockEntity modem) {
+        modems.add(modem);
+    }
+
+    public void modemUnloaded(NetworkModemBlockEntity modem) {
+        modems.remove(modem);
     }
 
     /** The usable RAM of every machine held in memory, for the total RAM cap. */
@@ -119,7 +153,8 @@ public final class PcServer {
     /**
      * The exchange phase (spec 11.2.10): over the loaded cases in a fixed order (by
      * dimension, then position), so results do not depend on iteration order. Each
-     * cable is handled once, from its lower end.
+     * cable is handled once, from its lower end. A modem is driven by the running PC
+     * it is linked to; every other modem has no power, so its link goes down (spec 12.4.5).
      */
     private void exchange() {
         List<PcCaseBlockEntity> cases = new ArrayList<>(loaded);
@@ -127,21 +162,26 @@ public final class PcServer {
         cases.sort(Comparator.comparing((PcCaseBlockEntity pc) -> pc.getLevel().dimension().location().toString())
                 .thenComparing(PcCaseBlockEntity::getBlockPos));
         Set<UUID> liveCables = new HashSet<>();
+        Set<NetworkModemBlockEntity> driven = new HashSet<>();
         for (PcCaseBlockEntity pc : cases) {
             PcRuntime runtime = pc.runtime();
             if (runtime == null)
                 continue;
             try {
-                exchange(pc, runtime.machine(), liveCables);
+                exchange(pc, runtime.machine(), liveCables, driven);
             } catch (RuntimeException | StackOverflowError | OutOfMemoryError e) {
                 scheduler.remove(runtime);
                 runtime.crashed(e);
             }
         }
         comCables.keySet().retainAll(liveCables);
+        for (NetworkModemBlockEntity modem : List.copyOf(modems))
+            if (!driven.contains(modem) && !modem.isRemoved())
+                modem.exchange(null);
     }
 
-    private void exchange(PcCaseBlockEntity pc, Machine machine, Set<UUID> liveCables) {
+    private void exchange(PcCaseBlockEntity pc, Machine machine, Set<UUID> liveCables,
+            Set<NetworkModemBlockEntity> driven) {
         for (int port = 0; port < PcCaseGeometry.PORTS; port++) {
             boolean ethernet = port == PcCaseGeometry.ETHERNET;
             boolean com = port >= PcCaseGeometry.COM1 && port <= PcCaseGeometry.COM3;
@@ -151,7 +191,11 @@ public final class PcServer {
             PcCaseBlockEntity peer = link == null ? null : pc.peerCase(port);
             Machine peerMachine = peer == null ? null : peer.machine();
             if (ethernet) {
-                if (peerMachine == null) {
+                NetworkModemBlockEntity modem = link == null || peer != null ? null : pc.peerModem();
+                if (modem != null) {
+                    driven.add(modem);
+                    modem.exchange(machine.nic());
+                } else if (peerMachine == null) {
                     if (machine.nic().link())
                         PcLinkExchange.ethernetDown(machine.nic());
                 } else if (first(pc, port, peer, link.peerPort())) {

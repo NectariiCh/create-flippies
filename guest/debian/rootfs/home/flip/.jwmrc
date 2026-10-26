@@ -1,0 +1,139 @@
+<?xml version="1.0"?>
+<!--
+  The Create Flippies desktop (spec 12.8): JWM with one taskbar at the bottom (start menu, the
+  open windows, a clock), plain colours that hold up in 256 colours at 640x480, focus by click.
+  An xterm starts with the desktop.
+-->
+<JWM>
+
+    <StartupCommand>xterm -geometry 80x24+16+16</StartupCommand>
+
+    <!-- Icons of the Apps menu: the small bitmap sizes first (quick to load at 25 MHz), no SVG -->
+    <IconPath>/usr/share/icons/hicolor/16x16/apps</IconPath>
+    <IconPath>/usr/share/pixmaps</IconPath>
+    <IconPath>/usr/share/icons/hicolor/24x24/apps</IconPath>
+    <IconPath>/usr/share/icons/hicolor/32x32/apps</IconPath>
+    <IconPath>/usr/share/icons/hicolor/48x48/apps</IconPath>
+
+    <!-- The start menu, also on a left click on the desktop. "Apps" is made each time it opens
+         from the installed programs' .desktop files (flippies-apps-menu, package
+         flippies-desktop), so programs installed later appear in it. -->
+    <RootMenu onroot="1" label="Flippies">
+        <Program label="Terminal">xterm</Program>
+        <Program label="Root terminal">xterm -T "root terminal" -e sudo -i</Program>
+        <Separator/>
+        <Dynamic label="Apps" timeout="15000">exec:flippies-apps-menu</Dynamic>
+        <Program label="Install apps">flippies-apps</Program>
+        <Program label="Shared files">flippies-sharedfiles</Program>
+        <Separator/>
+        <Program label="Display info">xterm -T xdpyinfo -e sh -c "xdpyinfo | less"</Program>
+        <Program label="Show key and mouse events">xev</Program>
+        <Program label="Close a window by clicking it">xkill</Program>
+        <Separator/>
+        <Restart label="Restart the desktop"/>
+        <Exit label="Exit to the text console" confirm="true"/>
+        <Program label="Reboot">sudo /sbin/reboot</Program>
+        <Program label="Power off">sudo /sbin/poweroff</Program>
+    </RootMenu>
+
+    <!-- A window list on a right click on the desktop -->
+    <RootMenu onroot="3">
+        <Program label="Terminal">xterm</Program>
+    </RootMenu>
+
+    <!-- The taskbar -->
+    <Tray x="0" y="-1" height="24" autohide="off">
+        <TrayButton label="Start">root:1</TrayButton>
+        <Spacer width="4"/>
+        <TaskList maxwidth="160"/>
+        <Dock/>
+        <Clock format="%H:%M">exec:xterm -T calendar -e sh -c "busybox cal; read x"</Clock>
+    </Tray>
+
+    <!-- Plain theme: solid colours from the 16-colour set, no gradients, the bitmap font of
+         xfonts-base ("Misc Fixed"), sharp at 640x480 and cheap to draw at 25 MHz -->
+    <WindowStyle decorations="flat">
+        <Font>Misc Fixed:pixelsize=13</Font>
+        <Width>4</Width>
+        <Height>18</Height>
+        <Corner>0</Corner>
+        <Foreground>#000000</Foreground>
+        <Background>#C0C0C0</Background>
+        <Outline>#000000</Outline>
+        <Opacity>1.0</Opacity>
+        <Active>
+            <Foreground>#FFFFFF</Foreground>
+            <Background>#000080</Background>
+            <Outline>#000000</Outline>
+            <Opacity>1.0</Opacity>
+        </Active>
+    </WindowStyle>
+    <TrayStyle decorations="flat">
+        <Font>Misc Fixed:pixelsize=13</Font>
+        <Background>#C0C0C0</Background>
+        <Foreground>#000000</Foreground>
+        <Opacity>1.0</Opacity>
+    </TrayStyle>
+    <TaskListStyle list="all" group="false">
+        <Font>Misc Fixed:pixelsize=13</Font>
+        <Foreground>#000000</Foreground>
+        <Background>#C0C0C0</Background>
+        <Active>
+            <Foreground>#FFFFFF</Foreground>
+            <Background>#000080</Background>
+        </Active>
+    </TaskListStyle>
+    <MenuStyle decorations="flat">
+        <Font>Misc Fixed:pixelsize=13</Font>
+        <Foreground>#000000</Foreground>
+        <Background>#C0C0C0</Background>
+        <Outline>#000000</Outline>
+        <Active>
+            <Foreground>#FFFFFF</Foreground>
+            <Background>#000080</Background>
+        </Active>
+        <Opacity>1.0</Opacity>
+    </MenuStyle>
+    <PopupStyle>
+        <Font>Misc Fixed:pixelsize=13</Font>
+        <Outline>#000000</Outline>
+        <Foreground>#000000</Foreground>
+        <Background>#FFFFE0</Background>
+    </PopupStyle>
+    <ClockStyle>
+        <Font>Misc Fixed:pixelsize=13</Font>
+        <Foreground>#000000</Foreground>
+        <Background>#C0C0C0</Background>
+    </ClockStyle>
+    <TrayButtonStyle>
+        <Font>Misc Fixed:pixelsize=13</Font>
+        <Foreground>#000000</Foreground>
+        <Background>#C0C0C0</Background>
+    </TrayButtonStyle>
+
+    <!-- One desktop with a solid background -->
+    <Desktops width="1" height="1">
+        <Background type="solid">#008080</Background>
+    </Desktops>
+
+    <!-- Behaviour: click to focus, outline moves and resizes (cheap on a 25 MHz CPU) -->
+    <FocusModel>click</FocusModel>
+    <SnapMode distance="8">border</SnapMode>
+    <MoveMode>outline</MoveMode>
+    <ResizeMode>outline</ResizeMode>
+    <DoubleClickSpeed>400</DoubleClickSpeed>
+    <DoubleClickDelta>2</DoubleClickDelta>
+
+    <!-- Keys: Alt+F1 the start menu, Alt+Tab next window, Alt+F4 close, Alt+F2 a terminal -->
+    <Key mask="A" key="F1">root:1</Key>
+    <Key mask="A" key="Tab">nextstacked</Key>
+    <Key mask="A" key="F4">close</Key>
+    <Key mask="A" key="F2">exec:xterm</Key>
+    <Key key="Up">up</Key>
+    <Key key="Down">down</Key>
+    <Key key="Right">right</Key>
+    <Key key="Left">left</Key>
+    <Key key="Return">select</Key>
+    <Key key="Escape">escape</Key>
+
+</JWM>

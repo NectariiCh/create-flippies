@@ -13,8 +13,8 @@ import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
 /**
- * Tells one player's client to open the menu of one DIN-rail PLC, with the sketch it
- * holds and how it is doing right now.
+ * Tells one player's client to open the menu of one PLC, on a DIN rail or a panel,
+ * with the sketch it holds and how it is doing right now.
  *
  * The sketch travels here, in readable form, so the menu does not depend on what
  * the client last heard from the host's sync. That tag does also carry it, deflated,

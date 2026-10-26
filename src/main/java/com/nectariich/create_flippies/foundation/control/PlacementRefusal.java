@@ -31,7 +31,12 @@ public enum PlacementRefusal {
     /** The footprint reaches further out of the cell than the picker can follow. */
     REACHES_TOO_FAR,
     /** The block's terminals are all spoken for, tombstones included. */
-    NO_TERMINALS;
+    NO_TERMINALS,
+    /**
+     * The block's displays already hold all the screen elements or text one block
+     * entity can carry to clients; see {@link HostElementBudget}.
+     */
+    TOO_MANY_ELEMENTS;
 
     private static final String PREFIX = "message." + CreateFlippies.MOD_ID + ".control.";
 

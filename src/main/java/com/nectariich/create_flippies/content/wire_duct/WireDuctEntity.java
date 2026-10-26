@@ -39,7 +39,7 @@ import net.minecraftforge.network.NetworkHooks;
  *
  * The game never targets it (it is not pickable): it would otherwise steal clicks
  * from the block it lies on. This mod picks it itself, client side, for running
- * wires through it, dyeing it and breaking it ({@code WireDuctInput}).
+ * wires through it, dyeing it and taking it off with a screwdriver ({@code WireDuctInput}).
  */
 public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData {
 
@@ -54,7 +54,7 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
     private Vec3 from;
     private Vec3 to;
     private Direction face = Direction.UP;
-    private DuctSize size = DuctSize.SMALL;
+    private DuctSize size = DuctSize.PX_4;
     /** The duct items this stretch cost, and gives back. */
     private int items = 1;
     /** Shared by the stretches laid together by one placement. */
@@ -133,6 +133,11 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         return segment == null ? getBoundingBox() : segment.box(extendFrom(), extendTo());
     }
 
+    /** {@link #ductBox} as far out of the face as it holds wires ({@link DuctSegment#holdBox}). */
+    public AABB holdBox() {
+        return segment == null ? getBoundingBox() : segment.holdBox(extendFrom(), extendTo());
+    }
+
     private void placed() {
         segment = new DuctSegment(from, to, face, size);
         Vec3 mid = from.add(to).scale(0.5);
@@ -144,7 +149,7 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         if (segment == null)
             return super.makeBoundingBox();
         double reach = size.width() / 2;
-        return segment.box(reach, reach);
+        return segment.holdBox(reach, reach);
     }
 
     @Override
@@ -165,6 +170,17 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
     @Override
     public void tick() {
         // Nothing moves a duct, and nothing about it changes by itself
+    }
+
+    /**
+     * Lit by the air just in front of its lid. The game would look at eye height above
+     * the centre, which for a duct on a ceiling is inside the ceiling, and dark.
+     */
+    @Override
+    public Vec3 getLightProbePosition(float partialTicks) {
+        if (segment == null)
+            return super.getLightProbePosition(partialTicks);
+        return position().add(segment.normal().scale(size.depth() / 2 + 0.01));
     }
 
     @Override
@@ -206,7 +222,7 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         to = readVec(tag, "To");
         int f = tag.getInt("Face");
         face = f >= 0 && f < 6 ? Direction.from3DDataValue(f) : Direction.UP;
-        size = DuctSize.byOrdinal(tag.getInt("Size"));
+        size = tag.contains("SizeId") ? DuctSize.byId(tag.getString("SizeId")) : DuctSize.legacy(tag.getInt("Size"));
         items = Math.max(1, tag.getInt("Items"));
         entityData.set(EXTEND_FROM, tag.getFloat("ExtendFrom"));
         entityData.set(EXTEND_TO, tag.getFloat("ExtendTo"));
@@ -224,7 +240,7 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         writeVec(tag, "From", from);
         writeVec(tag, "To", to);
         tag.putInt("Face", face.get3DDataValue());
-        tag.putInt("Size", size.ordinal());
+        tag.putString("SizeId", size.id());
         tag.putInt("Items", items);
         tag.putFloat("ExtendFrom", extendFrom());
         tag.putFloat("ExtendTo", extendTo());
@@ -264,6 +280,9 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         face = f >= 0 && f < 6 ? Direction.from3DDataValue(f) : Direction.UP;
         size = DuctSize.byOrdinal(buffer.readByte());
         placed();
+        // Forge adds a spawned entity to the client's level before reading this, so
+        // it joined with no shape and was not filed then
+        DuctIndex.file(this);
     }
 
     @Override

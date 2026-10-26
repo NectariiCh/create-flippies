@@ -32,22 +32,22 @@ import org.junit.jupiter.api.Test;
  */
 class DuctRoutingTest {
 
-    private static final double H = DuctSize.SMALL.depth() / 2;
-    private static final double W = DuctSize.SMALL.width();
+    private static final double H = DuctSize.PX_4.depth() / 2;
+    private static final double W = DuctSize.PX_4.width();
     private static final double Y = 64 + H;
     /** Where a wire's centre runs over the floor. */
     private static final double FLOOR = 64 + DuctWires.WIRE_DEPTH;
     /** Where a stroke lies: just over the lid. */
-    private static final double LID = 64 + DuctSize.SMALL.depth() + DuctWires.STROKE_CLEARANCE;
+    private static final double LID = 64 + DuctSize.PX_4.depth() + DuctWires.STROKE_CLEARANCE;
     private static final double PX = 1 / 16.0;
     private static final double UNIT = DuctWires.UNIT;
 
     private static final DuctSegment A = new DuctSegment(new Vec3(2, Y, 2), new Vec3(6, Y, 2), Direction.UP,
-            DuctSize.SMALL);
+            DuctSize.PX_4);
     private static final DuctSegment B = new DuctSegment(new Vec3(6, Y, 2), new Vec3(6, Y, 6), Direction.UP,
-            DuctSize.SMALL);
+            DuctSize.PX_4);
     private static final DuctSegment C = new DuctSegment(new Vec3(10, Y, 2), new Vec3(12, Y, 2), Direction.UP,
-            DuctSize.SMALL);
+            DuctSize.PX_4);
 
     /** The ducts as placed: A cut back at the corner by half a width, B run on by as much. */
     private static final DuctWires.Duct DA = new DuctWires.Duct(A, A.box(0, -W / 2));
@@ -268,7 +268,7 @@ class DuctRoutingTest {
             // The block face the duct lies on passes through (8, 64, 8)
             Vec3 onFace = new Vec3(8, 64, 8);
             Vec3 from = onFace.add(n.scale(H));
-            DuctSegment s = new DuctSegment(from, from.add(along.scale(3)), face, DuctSize.SMALL);
+            DuctSegment s = new DuctSegment(from, from.add(along.scale(3)), face, DuctSize.PX_4);
             DuctWires.Duct d = DuctWires.Duct.of(s);
             Vec3 lat = s.lateral();
             for (int side : new int[] {1, -1}) {
@@ -307,7 +307,7 @@ class DuctRoutingTest {
         assertEquals(12, DuctWires.awgOf("somemod:mystery_wire"));
         // Thicker gauge, bigger wire: 4 AWG is about 5.19 mm across
         assertEquals(5.189, DuctWires.awgDiameter(4), 1e-3);
-        assertTrue(DuctWires.area(2) > DuctWires.area(4));
+        assertTrue(DuctWires.diameter(2) > DuctWires.diameter(4));
     }
 
     /** Wires of one gauge entered side by side into A at one point until one does not fit; how many fit. */
@@ -326,33 +326,82 @@ class DuctRoutingTest {
         return -1;
     }
 
+    private static DuctSegment floorDuct(DuctSize size) {
+        return new DuctSegment(new Vec3(2, 64 + size.depth() / 2, 2), new Vec3(6, 64 + size.depth() / 2, 2),
+                Direction.UP, size);
+    }
+
     @Test
-    void aRegularDuctHoldsOneFourGaugeWiresWorth() {
-        DuctSegment large = new DuctSegment(new Vec3(2, 64 + DuctSize.LARGE.depth() / 2, 2),
-                new Vec3(6, 64 + DuctSize.LARGE.depth() / 2, 2), Direction.UP, DuctSize.LARGE);
-        // One 4 AWG fits a regular duct; a second does not
-        assertEquals(1, fill(A, 4));
-        // Thinner wires fit more: sixteen of 16 AWG, six of Power Grid's own 12 AWG
-        assertEquals(16, fill(A, 16));
-        assertEquals(6, fill(A, 12));
-        // A 2 AWG wire is too thick for the regular duct alone, and fits the large one
-        Wire thick = wire(START, 2, 1);
+    void aOneAndAHalfPixelDuctHoldsTwoTwelveGaugeOrFourSixteenGauge() {
+        DuctSegment narrow = floorDuct(DuctSize.PX_1_5);
+        assertEquals(2, fill(narrow, 12));
+        assertEquals(4, fill(narrow, 16));
+        // 8 AWG is too thick for it at all
+        assertEquals(0, fill(narrow, 8));
+    }
+
+    @Test
+    void aFourPixelDuctHoldsWiresSideBySide() {
+        assertEquals(2, fill(A, 4));
+        assertEquals(12, fill(A, 16));
+        assertEquals(7, fill(A, 12));
+        // 1/0 AWG is too thick for the 4 px duct, and fits the 6 px one
+        Wire thick = wire(START, 0, 1);
         assertEquals(DuctWires.Fit.TOO_THICK, enter(thick, A, new Vec3(4, 64.1, 2), List.of()));
-        assertEquals(1, fill(large, 2));
-        assertEquals(10, fill(large, 12));
+        DuctSegment six = floorDuct(DuctSize.PX_6);
+        assertEquals(2, fill(six, 0));
+        assertEquals(11, fill(six, 12));
+    }
+
+    @Test
+    void eachSizeTakesWiresSideBySideUpToOneAndAHalfTimesItsWidth() {
+        // Thickest gauge in, then how many of each fit alone, thickest to thinnest
+        Object[][] table = {
+                {DuctSize.PX_0_5, 20, new int[] {2, 3}},
+                {DuctSize.PX_1, 16, new int[] {3, 4, 7}},
+                {DuctSize.PX_1_5, 12, new int[] {2, 4, 7, 11}},
+                {DuctSize.PX_2, 8, new int[] {2, 3, 6, 9, 15}},
+                {DuctSize.PX_3, 4, new int[] {2, 3, 5, 9, 14, 22}},
+                {DuctSize.PX_4, 1, new int[] {2, 2, 2, 4, 7, 12, 19, 30}},
+                {DuctSize.PX_6, 0, new int[] {2, 3, 3, 4, 7, 11, 18, 28, 45}},
+        };
+        List<Integer> thickToThin = List.of(0, 1, 2, 4, 8, 12, 16, 20, 24);
+        for (Object[] row : table) {
+            DuctSize size = (DuctSize) row[0];
+            int thickest = (int) row[1];
+            int[] counts = (int[]) row[2];
+            int first = thickToThin.indexOf(thickest);
+            for (int i = 0; i < first; i++)
+                assertEquals(0, DuctWires.howMany(size, thickToThin.get(i)), size + " " + thickToThin.get(i));
+            for (int i = 0; i < counts.length; i++)
+                assertEquals(counts[i], DuctWires.howMany(size, thickToThin.get(first + i)),
+                        size + " " + thickToThin.get(first + i));
+        }
+    }
+
+    @Test
+    void wiresGoIntoDuctsShallowerThanTheyRun() {
+        // The 0.5 px and 1 px ducts are less deep than a wire runs off a face; it still goes in
+        assertEquals(3, fill(floorDuct(DuctSize.PX_0_5), 24));
+        assertEquals(7, fill(floorDuct(DuctSize.PX_1), 24));
+        assertEquals(3, fill(floorDuct(DuctSize.PX_1), 16));
     }
 
     @Test
     void aFullStretchRefusesASlideThroughItButNotAWireThatStopsShort() {
-        Wire full = wire(new Vec3(5 + PX / 2, FLOOR, PX / 2), 4, 1);
+        // Two 1 AWG wires side by side fill the 4 px duct from x = 5 on
+        Wire full = wire(new Vec3(5 + PX / 2, FLOOR, PX / 2), 1, 1);
         enter(full, A, new Vec3(5, 64.1, 2), List.of());
         slide(full, List.of(A), new Vec3(5.9, 64.1, 2), List.of());
+        Wire beside = wire(new Vec3(5 + PX / 2, FLOOR, PX / 2), 1, 3);
+        assertEquals(DuctWires.Fit.OK, enter(beside, A, new Vec3(5, 64.1, 2), occupants(full)));
+        slide(beside, List.of(A), new Vec3(5.9, 64.1, 2), occupants(full));
         Wire other = wire(START, 16, 2);
-        // In behind it is fine: nothing there yet
-        assertEquals(DuctWires.Fit.OK, enter(other, A, new Vec3(3, 64.1, 2), occupants(full)));
-        assertEquals(DuctWires.Fit.OK, slide(other, List.of(A), new Vec3(4.5, 64.1, 2), occupants(full)));
-        // On past where the 4 AWG wire fills the duct is not
-        assertEquals(DuctWires.Fit.FULL, slide(other, List.of(A), new Vec3(5.5, 64.1, 2), occupants(full)));
+        // In behind them is fine: nothing there yet
+        assertEquals(DuctWires.Fit.OK, enter(other, A, new Vec3(3, 64.1, 2), occupants(full, beside)));
+        assertEquals(DuctWires.Fit.OK, slide(other, List.of(A), new Vec3(4.5, 64.1, 2), occupants(full, beside)));
+        // On past where they fill the duct is not
+        assertEquals(DuctWires.Fit.FULL, slide(other, List.of(A), new Vec3(5.5, 64.1, 2), occupants(full, beside)));
     }
 
     // Strokes on the lid
@@ -360,12 +409,12 @@ class DuctRoutingTest {
     @Test
     void strokesLieSideBySideAcrossTheLidEachAsWideAsItsGauge() {
         List<DuctWires.Occupant> present = List.of(
-                new DuctWires.Occupant(A, 0, 4, -UNIT, 1, 12, 1),
-                new DuctWires.Occupant(A, 0, 4, 0, 1, 8, 2),
-                new DuctWires.Occupant(A, 0, 4, UNIT, -1, 16, 3));
+                new DuctWires.Occupant(A, 0, 4, -UNIT, 1, 4, 1),
+                new DuctWires.Occupant(A, 0, 4, 0, 1, 2, 2),
+                new DuctWires.Occupant(A, 0, 4, UNIT, -1, 8, 3));
         List<DuctWires.Slot> slots = DuctWires.layout(A, present);
         assertEquals(3, slots.size());
-        double usable = W - 2 * DuctWires.STROKE_MARGIN;
+        double usable = W - 2 * DuctWires.strokeMargin(DuctSize.PX_4);
         double total = 0, last = Double.NEGATIVE_INFINITY;
         for (DuctWires.Slot slot : slots) {
             // In the order the wires run in, none past the lid's margin
@@ -377,18 +426,20 @@ class DuctRoutingTest {
             assertEquals(slots.get(0).width() / slots.get(0).occupant().diameter(),
                     slot.width() / slot.occupant().diameter(), 1e-9);
         }
-        // Centred on the lid, and filling what is usable of it, since together they are more than one 4 AWG wide
+        // Centred on the lid, and taking the share of it they take of what the duct holds
         double left = slots.get(0).offset() - slots.get(0).width() / DuctWires.STROKE_FILL / 2;
         double right = slots.get(2).offset() + slots.get(2).width() / DuctWires.STROKE_FILL / 2;
         assertEquals(-left, right, 1e-9);
-        assertEquals(usable, total, 1e-9);
+        double share = (DuctWires.diameter(4) + DuctWires.diameter(2) + DuctWires.diameter(8))
+                / DuctSize.PX_4.capacity();
+        assertEquals(usable * share, total, 1e-9);
 
-        // A 4 AWG wire alone fills the regular duct's lid; a 16 AWG alone takes its own share of it
+        // Each gauge alone takes its own share of the lid
+        double full = usable * DuctWires.STROKE_FILL / DuctSize.PX_4.capacity();
         DuctWires.Slot alone = DuctWires.layout(A, List.of(new DuctWires.Occupant(A, 0, 4, 0, 1, 4, 1))).get(0);
-        assertEquals(usable * DuctWires.STROKE_FILL, alone.width(), 1e-9);
+        assertEquals(full * DuctWires.diameter(4), alone.width(), 1e-9);
         DuctWires.Slot thin = DuctWires.layout(A, List.of(new DuctWires.Occupant(A, 0, 4, 0, 1, 16, 1))).get(0);
-        assertEquals(usable * DuctWires.STROKE_FILL * DuctWires.awgDiameter(16) / DuctWires.awgDiameter(4),
-                thin.width(), 1e-9);
+        assertEquals(Math.max(DuctWires.MIN_STROKE, full * DuctWires.diameter(16)), thin.width(), 1e-9);
 
         // Sixteen of 16 AWG shrink alike to fit
         List<DuctWires.Occupant> many = new ArrayList<>();
@@ -502,8 +553,8 @@ class DuctRoutingTest {
     @Test
     void fromWallToFloorTheWireHugsBothFacesAndItsStrokeTurnsAtTheLidsEdge() {
         DuctSegment wall = new DuctSegment(new Vec3(4 + H, 66, 2), new Vec3(4 + H, Y, 2), Direction.EAST,
-                DuctSize.SMALL);
-        DuctSegment floor = new DuctSegment(new Vec3(4 + H, Y, 2), new Vec3(7, Y, 2), Direction.UP, DuctSize.SMALL);
+                DuctSize.PX_4);
+        DuctSegment floor = new DuctSegment(new Vec3(4 + H, Y, 2), new Vec3(7, Y, 2), Direction.UP, DuctSize.PX_4);
         DuctPass pass = DuctNetwork.route(List.of(wall, floor), new Vec3(4 + H, 65.5, 2), new Vec3(6, Y, 2), UNIT * 2);
         List<Vec3> points = pass.wirePoints();
         assertEquals(4 + DuctWires.WIRE_DEPTH, points.get(0).x, 1e-9);
@@ -522,7 +573,7 @@ class DuctRoutingTest {
         List<DuctWires.Dash> lines = DuctWires.lines(path, DuctWires.hidden(path, List.of(dw, df)),
                 (s, at) -> DuctWires.slotIn(DuctWires.layout(s, all), 1, s, at), 0.05);
         DuctWires.Dash down = lines.get(0), out = lines.get(lines.size() - 1);
-        double lidX = 4 + DuctSize.SMALL.depth() + DuctWires.STROKE_CLEARANCE;
+        double lidX = 4 + DuctSize.PX_4.depth() + DuctWires.STROKE_CLEARANCE;
         // Down the wall's lid to the edge where it meets the floor duct's lid, and out along that from the same edge
         assertEquals(lidX, down.from().x, 1e-9);
         assertVec(new Vec3(lidX, LID, down.to().z), down.to());
@@ -545,22 +596,22 @@ class DuctRoutingTest {
         // The corner square is B's, and its outer edges are flush with A's sides
         assertTrue(b.contains(new Vec3(6, Y, 2)));
         assertEquals(a.minZ, b.minZ, 1e-9);
-        DuctSegment onward = new DuctSegment(new Vec3(6, Y, 2), new Vec3(8, Y, 2), Direction.UP, DuctSize.SMALL);
+        DuctSegment onward = new DuctSegment(new Vec3(6, Y, 2), new Vec3(8, Y, 2), Direction.UP, DuctSize.PX_4);
         assertEquals(0, DuctNetwork.jointExtensions(A, onward)[0], 0);
     }
 
     @Test
     void aTurnFromWallToFloorTilesTheInsideCornerWithNoGapAndNoOverlap() {
         DuctSegment wall = new DuctSegment(new Vec3(4 + H, 66, 2), new Vec3(4 + H, Y, 2), Direction.EAST,
-                DuctSize.SMALL);
-        DuctSegment floor = new DuctSegment(new Vec3(4 + H, Y, 2), new Vec3(7, Y, 2), Direction.UP, DuctSize.SMALL);
+                DuctSize.PX_4);
+        DuctSegment floor = new DuctSegment(new Vec3(4 + H, Y, 2), new Vec3(7, Y, 2), Direction.UP, DuctSize.PX_4);
         for (boolean wallFirst : new boolean[] {true, false}) {
             double[] ext = wallFirst ? DuctNetwork.jointExtensions(wall, floor) : DuctNetwork.jointExtensions(floor, wall);
             double wallExt = wallFirst ? ext[0] : ext[1], floorExt = wallFirst ? ext[1] : ext[0];
             AABB w = wall.box(0, wallExt), f = floor.box(floorExt, 0);
             assertEquals(0, volume(w, f), 1e-12, "no doubled faces");
             // The corner block of the L, wall face to floor face, lid to lid, is filled by one of them
-            double d = DuctSize.SMALL.depth();
+            double d = DuctSize.PX_4.depth();
             for (Vec3 p : new Vec3[] {new Vec3(4.01, 64.01, 2), new Vec3(4 + d - 0.01, 64 + d - 0.01, 2),
                     new Vec3(4.01, 64 + d - 0.01, 2), new Vec3(4 + d - 0.01, 64.01, 2)})
                 assertTrue(w.contains(p) || f.contains(p), "no gap at " + p);
@@ -578,7 +629,7 @@ class DuctRoutingTest {
     void ductsThatAreNotJoinedOrDifferInSizeGiveNoWay() {
         List<DuctSegment> room = List.of(A, B, C);
         assertNull(DuctNetwork.route(room, 0, new Vec3(3, Y, 2), 2, new Vec3(11, Y, 2), 0));
-        DuctSegment large = new DuctSegment(new Vec3(6, Y, 6), new Vec3(8, Y, 6), Direction.UP, DuctSize.LARGE);
+        DuctSegment large = new DuctSegment(new Vec3(6, Y, 6), new Vec3(8, Y, 6), Direction.UP, DuctSize.PX_6);
         assertNull(B.jointWith(large));
         assertNull(DuctNetwork.chain(List.of(A, B, large), 0, 2));
     }
@@ -586,7 +637,7 @@ class DuctRoutingTest {
     @Test
     void thereIsNoLimitOnHowManyDuctsAWireSlidesThrough() {
         List<DuctSegment> pieces = DuctPlacement.plan(new Vec3(0, Y, 2), new Vec3(3200, Y, 2), Direction.UP,
-                DuctSize.SMALL);
+                DuctSize.PX_4);
         assertEquals(200, pieces.size());
         List<Integer> chain = DuctNetwork.chain(pieces, 0, 199);
         assertNotNull(chain);

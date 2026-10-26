@@ -42,6 +42,13 @@ public class DesignedControlItem extends Item {
         tooltip.add(Component.literal(design.name()).withStyle(ChatFormatting.GRAY));
         if (kind.isButton())
             tooltip.add(design.rating().label().copy().withStyle(ChatFormatting.DARK_GRAY));
+        if (design.screen() != null) {
+            DecimalFormat number = GaugeScale.format("0.#");
+            tooltip.add(design.screen().supply.label().copy().withStyle(ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.translatable("item." + CreateFlippies.MOD_ID + ".designed_screen.viewport",
+                    number.format(design.screen().viewport().widthPixels()),
+                    number.format(design.screen().viewport().heightPixels())).withStyle(ChatFormatting.DARK_GRAY));
+        }
         if (design.rack() != null)
             tooltip.add(Component.translatable("item." + CreateFlippies.MOD_ID + ".designed_annunciator.windows",
                     design.rack().cellsX, design.rack().cellsY).withStyle(ChatFormatting.DARK_GRAY));

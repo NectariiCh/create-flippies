@@ -121,10 +121,11 @@ public record DisplayPrint(PanelLabelFont font, boolean bold, boolean italic, in
      *
      * A hard cap and not a preference: the glass is the display's footprint and
      * therefore its hitbox, and a character drawn taller than it would hang over
-     * whatever is mounted alongside while being pickable nowhere.
+     * whatever is mounted alongside while being pickable nowhere. Measured across the
+     * line, so a turn on a glass that is not square changes it.
      */
-    public static int heightLimit(DisplayForm form) {
-        return Math.max(MIN_SIZE, (int) (UNITS_PER_PIXEL * form.usable()));
+    public static int heightLimit(DisplayForm form, int quarters) {
+        return Math.max(MIN_SIZE, (int) (UNITS_PER_PIXEL * form.usableAcross(quarters)));
     }
 
     /**
@@ -133,7 +134,7 @@ public record DisplayPrint(PanelLabelFont font, boolean bold, boolean italic, in
      * of the glass when fitting.
      */
     public int sizeOn(DisplayForm form) {
-        int limit = heightLimit(form);
+        int limit = heightLimit(form, quarters);
         return fitted() ? limit : Mth.clamp(size, MIN_SIZE, limit);
     }
 
@@ -142,18 +143,18 @@ public record DisplayPrint(PanelLabelFont font, boolean bold, boolean italic, in
      * edges of the glass. Zero for a line with no width, which is the caller's cue
      * that there is nothing to fit.
      */
-    public static int widthLimit(DisplayForm form, double textUnits) {
+    public static int widthLimit(DisplayForm form, int quarters, double textUnits) {
         if (textUnits <= 0)
             return 0;
-        return (int) (form.usable() * PER_FONT_UNIT / textUnits);
+        return (int) (form.usableAlong(quarters) * PER_FONT_UNIT / textUnits);
     }
 
     /**
      * How wide the lettering may be in font space at a given size, which is what a
      * line too long for the glass is cut to.
      */
-    public static int textWidthUnits(DisplayForm form, int size) {
-        return (int) (form.usable() * PER_FONT_UNIT / Math.max(MIN_SIZE, size));
+    public static int textWidthUnits(DisplayForm form, int quarters, int size) {
+        return (int) (form.usableAlong(quarters) * PER_FONT_UNIT / Math.max(MIN_SIZE, size));
     }
 
     /** Blocks per unit of font space; the label's own scale, for the reason above. */
@@ -171,7 +172,21 @@ public record DisplayPrint(PanelLabelFont font, boolean bold, boolean italic, in
      * height, which is the fewest it will ever show.
      */
     public int columns(DisplayForm form) {
-        return Math.max(1, textWidthUnits(form, sizeOn(form)) / NOMINAL_ADVANCE);
+        return Math.max(1, textWidthUnits(form, quarters, sizeOn(form)) / NOMINAL_ADVANCE);
+    }
+
+    /**
+     * The same estimate for a box given in tenths of a pixel rather than a form's
+     * glass, already turned (along the line, then across it), which is how a screen
+     * element states its room. The arithmetic is {@link #columns(DisplayForm)}'s
+     * exactly: a form's usable glass in pixels times ten is a whole number of tenths
+     * on every form, so an element over the whole viewport promises a link exactly
+     * what the display did before it had elements.
+     */
+    public static int columns(int alongTenths, int acrossTenths, int size) {
+        int limit = Math.max(MIN_SIZE, acrossTenths);
+        int printed = size == FIT ? limit : Mth.clamp(size, MIN_SIZE, limit);
+        return Math.max(1, alongTenths * PanelLabel.GLYPH_HEIGHT / Math.max(MIN_SIZE, printed) / NOMINAL_ADVANCE);
     }
 
     /** A size in tenths from the height in pixels the editor speaks in. */
@@ -256,7 +271,7 @@ public record DisplayPrint(PanelLabelFont font, boolean bold, boolean italic, in
 
     /** The height that puts {@link #DEFAULT_COLUMNS} typical characters across the glass. */
     private static int defaultSize(DisplayForm form) {
-        int wanted = (int) (form.usable() * PER_FONT_UNIT / (DEFAULT_COLUMNS * (double) NOMINAL_ADVANCE));
-        return Mth.clamp(wanted, MIN_SIZE, heightLimit(form));
+        int wanted = (int) (form.usableAlong(0) * PER_FONT_UNIT / (DEFAULT_COLUMNS * (double) NOMINAL_ADVANCE));
+        return Mth.clamp(wanted, MIN_SIZE, heightLimit(form, 0));
     }
 }

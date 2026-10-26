@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 import com.nectariich.create_flippies.foundation.wire.duct.SectionIndex;
 
 import net.minecraft.world.entity.Entity;
@@ -20,10 +21,12 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import org.patryk3211.powergrid.electricity.wire.BlockWireEntity;
+import org.patryk3211.powergrid.electricity.wire.HangingWireEntity;
 
 /**
- * Every wire duct and every Power Grid placeable wire in a level, filed by the
- * chunk sections they reach into ({@link SectionIndex}), on both sides.
+ * Every wire duct, every Power Grid placeable wire and every bent hanging wire in a
+ * level, filed by the chunk sections they reach into ({@link SectionIndex}), on
+ * both sides.
  *
  * The game files an entity by its own position alone, so a box query only finds
  * entities whose position is near the box; a placeable wire can run for dozens of
@@ -33,7 +36,9 @@ import org.patryk3211.powergrid.electricity.wire.BlockWireEntity;
  *
  * Entities are filed as they join a level and dropped as they leave it (unloaded
  * or removed). A placeable wire changes shape when Power Grid extends, cuts or
- * splits it, and is filed again each time it does ({@code BlockWireEntityDuctMixin}).
+ * splits it, and is filed again each time it does ({@code BlockWireEntityDuctMixin});
+ * a hanging wire changes shape when its bend points do, which is the only way it
+ * runs through a duct ({@code HangingWireEntityBendMixin}).
  */
 @Mod.EventBusSubscriber(modid = CreateFlippies.MOD_ID)
 public final class DuctIndex {
@@ -41,6 +46,7 @@ public final class DuctIndex {
     private static final class Indices {
         final SectionIndex<WireDuctEntity> ducts = new SectionIndex<>();
         final SectionIndex<BlockWireEntity> wires = new SectionIndex<>();
+        final SectionIndex<HangingWireEntity> hanging = new SectionIndex<>();
     }
 
     private static final Map<Level, Indices> LEVELS = Collections.synchronizedMap(new WeakHashMap<>());
@@ -74,10 +80,19 @@ public final class DuctIndex {
         return out;
     }
 
+    /** Every live bent hanging wire with some part filed in a section {@code box} touches. */
+    public static List<HangingWireEntity> hangingWires(Level level, AABB box) {
+        List<HangingWireEntity> out = new ArrayList<>();
+        for (HangingWireEntity wire : of(level).hanging.query(box))
+            if (!wire.isRemoved())
+                out.add(wire);
+        return out;
+    }
+
     /** Counts every change to the level's ducts and wires, for a cache built on them. */
     public static int version(Level level) {
         Indices indices = of(level);
-        return indices.ducts.version() + indices.wires.version();
+        return indices.ducts.version() + indices.wires.version() + indices.hanging.version();
     }
 
     /** Marks something about a duct as changed without it moving (its colour, its ends). */
@@ -95,14 +110,43 @@ public final class DuctIndex {
             indices.wires.put(wire, boxes(wire));
     }
 
+    /**
+     * Files a hanging wire again after its bend points changed: by its path while it
+     * has any, not at all while it has none (an unbent wire runs in no duct). One not
+     * yet in the level is left for its join.
+     */
+    public static void update(HangingWireEntity wire) {
+        Level level = wire.level();
+        if (level == null)
+            return;
+        Indices indices = of(level);
+        if (!indices.hanging.contains(wire) && !wire.isAddedToWorld())
+            return;
+        List<Vec3> path = ((BendableWire) wire).bendPoints().isEmpty() ? null : ((BendableWire) wire).bendPath();
+        if (path == null)
+            indices.hanging.remove(wire);
+        else
+            indices.hanging.put(wire, boxes(path));
+    }
+
     private static List<AABB> boxes(BlockWireEntity wire) {
-        List<Vec3> path = DuctedWires.path(wire);
+        return boxes(DuctedWires.path(wire));
+    }
+
+    private static List<AABB> boxes(List<Vec3> path) {
         List<AABB> boxes = new ArrayList<>(path.size());
         if (path.size() == 1)
             boxes.add(new AABB(path.get(0), path.get(0)).inflate(0.1));
         for (int i = 0; i + 1 < path.size(); i++)
             boxes.add(new AABB(path.get(i), path.get(i + 1)).inflate(0.1));
         return boxes;
+    }
+
+    /** Files a duct that is in a level and has its shape; one not yet in a level is left for its join. */
+    public static void file(WireDuctEntity duct) {
+        Level level = duct.level();
+        if (level != null && duct.segment() != null && !duct.isRemoved())
+            of(level).ducts.put(duct, List.of(duct.getBoundingBox()));
     }
 
     @SubscribeEvent
@@ -112,6 +156,11 @@ public final class DuctIndex {
             of(event.getLevel()).ducts.put(duct, List.of(duct.getBoundingBox()));
         else if (entity instanceof BlockWireEntity wire)
             of(event.getLevel()).wires.put(wire, boxes(wire));
+        else if (entity instanceof HangingWireEntity wire && !((BendableWire) wire).bendPoints().isEmpty()) {
+            List<Vec3> path = ((BendableWire) wire).bendPath();
+            if (path != null)
+                of(event.getLevel()).hanging.put(wire, boxes(path));
+        }
     }
 
     @SubscribeEvent
@@ -121,6 +170,8 @@ public final class DuctIndex {
             of(event.getLevel()).ducts.remove(duct);
         else if (entity instanceof BlockWireEntity wire)
             of(event.getLevel()).wires.remove(wire);
+        else if (entity instanceof HangingWireEntity wire)
+            of(event.getLevel()).hanging.remove(wire);
     }
 
     @SubscribeEvent

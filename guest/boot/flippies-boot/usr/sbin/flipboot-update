@@ -1,0 +1,241 @@
+#!/bin/sh
+# flipboot-update: installs a kernel into flipboot's inactive slot, checks it, then makes that slot
+# active (spec 12.7). The boot area's layout is described in guest/boot/flipboot.c: two 4096-byte
+# header copies at the start of the partition, slot A's kernel at 1 MiB, slot B's at 16 MiB. Every
+# CRC is the POSIX cksum CRC, which cksum prints.
+#
+#   flipboot-update [--device DEV] [--cmdline TEXT] KERNEL   install KERNEL (an ELF vmlinux)
+#   flipboot-update [--device DEV] --show                    print the boot area's slots
+#
+# The device defaults to FLIPBOOT_DEVICE from /etc/default/flipboot (/dev/fhda1); it may also be a
+# file holding the partition's bytes. The command line is --cmdline, else FLIPBOOT_CMDLINE, else the
+# active slot's, else the default below; at most 239 bytes, so that stage 2's " flipboot.slot=A"
+# still fits the kernel's 255.
+#
+# The slot written is never the one running: stage 2 names the slot it loaded in the kernel's
+# command line (flipboot.slot=A or B, read from /proc/cmdline, or FLIPBOOT_PROC_CMDLINE). Without
+# that marker the running slot is taken to be the active one.
+#
+# Order of writes, each followed by sync:
+#   1. When the two header copies differ (an earlier run lost power between them, or one is
+#      damaged), the valid one (the first, when both are valid) over the other.
+#   2. When the running slot is not the active one (Esc at the prompt, or an earlier update since
+#      this boot), a header making the running slot active: the first copy, then the second.
+#   3. The kernel into the other slot, read back and checked.
+#   4. The new header: the first copy, then the second.
+# Before step 3 both copies name the same active slot, whole and not the one being written, so a
+# power loss at any point leaves at least one whole header naming a slot whose kernel is whole.
+# A kernel that is already in the active slot (the hook run again for the same kernel) changes
+# nothing.
+set -e
+
+DEFAULT_CMDLINE="root=/dev/fhda3 rw console=tty0 console=ttyS0,115200"
+HEADER=4096
+SLOT_RECORD=32
+SLOT_SIZE=544
+CMDLINE_FIELD=512
+SLOT_A=1048576
+SLOT_B=16777216
+BLOCK=65536
+
+FLIPBOOT_DEVICE=/dev/fhda1
+FLIPBOOT_CMDLINE=
+[ -r /etc/default/flipboot ] && . /etc/default/flipboot
+PROC_CMDLINE=${FLIPBOOT_PROC_CMDLINE:-/proc/cmdline}
+
+die() {
+    echo "flipboot-update: $*" >&2
+    exit 1
+}
+
+device=$FLIPBOOT_DEVICE
+cmdline=$FLIPBOOT_CMDLINE
+show=
+kernel=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --device) [ $# -ge 2 ] || die "--device needs a value"; device=$2; shift 2 ;;
+        --cmdline) [ $# -ge 2 ] || die "--cmdline needs a value"; cmdline=$2; shift 2 ;;
+        --show) show=1; shift ;;
+        -h|--help) sed -n '2,32s/^# \{0,1\}//p' "$0"; exit 0 ;;
+        -*) die "unknown option $1" ;;
+        *) [ -z "$kernel" ] || die "one kernel at a time"; kernel=$1; shift ;;
+    esac
+done
+[ -n "$show" ] || [ -n "$kernel" ] || die "usage: flipboot-update [--device DEV] [--cmdline TEXT] KERNEL | --show"
+[ -e "$device" ] || die "no boot area device $device"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# u32 FILE OFFSET: the big-endian 32-bit number there, in decimal
+u32() {
+    set -- $(od -An -tu1 -j "$2" -N 4 "$1")
+    [ $# -eq 4 ] || die "short read"
+    echo $(( ($1 << 24) | ($2 << 16) | ($3 << 8) | $4 ))
+}
+
+# put_u32 FILE OFFSET VALUE: writes VALUE there, big-endian
+put_u32() {
+    v=$3
+    printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((v >> 24 & 255)) $((v >> 16 & 255)) $((v >> 8 & 255)) $((v & 255)))" |
+        dd of="$1" bs=1 seek="$2" conv=notrunc 2>/dev/null
+}
+
+crc() {
+    cksum | cut -d ' ' -f 1
+}
+
+# header_ok FILE: magic, version 1, active slot 0 or 1, CRC
+header_ok() {
+    [ "$(dd if="$1" bs=1 count=4 2>/dev/null)" = FLBT ] || return 1
+    [ "$(u32 "$1" 4)" -eq 1 ] || return 1
+    [ "$(u32 "$1" 8)" -le 1 ] || return 1
+    cp "$1" "$tmp/check"
+    put_u32 "$tmp/check" 12 0
+    [ "$(crc < "$tmp/check")" = "$(u32 "$1" 12)" ]
+}
+
+slot_name() {
+    [ "$1" -eq 0 ] && echo A || echo B
+}
+
+# cmdline_of FILE SLOT: the slot's command line
+cmdline_of() {
+    dd if="$1" bs=1 skip=$((SLOT_RECORD + SLOT_SIZE * $2 + 32)) count=$CMDLINE_FIELD 2>/dev/null | tr -d '\000'
+}
+
+# write_headers FILE: FILE into the first header copy, then the second, each synced
+write_headers() {
+    for copy in 0 1; do
+        dd if="$1" of="$device" bs=$HEADER seek=$copy count=1 conv=notrunc 2>/dev/null
+        sync
+    done
+    dd if="$device" of="$tmp/check0" bs=$HEADER count=1 2>/dev/null
+    cmp -s "$1" "$tmp/check0" || die "the header reads back wrong"
+}
+
+# finish_header FILE: FILE's CRC field set, and checked
+finish_header() {
+    put_u32 "$1" 12 0
+    put_u32 "$1" 12 "$(crc < "$1")"
+    header_ok "$1" || die "internal error: the new header does not check"
+}
+
+dd if="$device" of="$tmp/h0" bs=$HEADER count=1 2>/dev/null
+dd if="$device" of="$tmp/h1" bs=$HEADER skip=1 count=1 2>/dev/null
+if header_ok "$tmp/h0"; then
+    current=$tmp/h0
+    stale=1
+elif header_ok "$tmp/h1"; then
+    current=$tmp/h1
+    stale=0
+    echo "flipboot-update: the first header copy is damaged, using the second" >&2
+else
+    die "no valid flipboot header on $device"
+fi
+active=$(u32 "$current" 8)
+generation=$(u32 "$current" 16)
+same=1
+cmp -s "$tmp/h0" "$tmp/h1" || same=
+running=
+if [ -r "$PROC_CMDLINE" ]; then
+    case " $(cat "$PROC_CMDLINE") " in
+        *" flipboot.slot=A "*) running=0 ;;
+        *" flipboot.slot=B "*) running=1 ;;
+    esac
+fi
+
+if [ -n "$show" ]; then
+    echo "boot area $device, generation $generation, active slot $(slot_name "$active")"
+    for s in 0 1; do
+        r=$((SLOT_RECORD + SLOT_SIZE * s))
+        echo "slot $(slot_name "$s"): offset $(u32 "$current" $r), $(u32 "$current" $((r + 4))) bytes," \
+            "crc $(u32 "$current" $((r + 8))), command line \"$(cmdline_of "$current" "$s")\""
+    done
+    [ -n "$running" ] && echo "running slot $(slot_name "$running")"
+    [ -n "$same" ] || echo "the header copies differ; the next install repairs them"
+    exit 0
+fi
+
+[ -r "$kernel" ] || die "cannot read $kernel"
+[ "$(od -An -tx1 -N 4 "$kernel" | tr -d ' \n')" = 7f454c46 ] || die "$kernel is not an ELF file"
+if [ -b "$device" ]; then
+    area=$(blockdev --getsize64 "$device")
+else
+    area=$(($(wc -c < "$device")))
+fi
+length=$(($(wc -c < "$kernel")))
+[ "$length" -gt 0 ] || die "$kernel is empty"
+[ ${#cmdline} -le 239 ] || die "the command line is longer than 239 bytes"
+want=$(crc < "$kernel")
+
+# readback SLOT LENGTH: the CRC of the slot's first LENGTH bytes as the device holds them
+readback() {
+    if [ "$1" -eq 0 ]; then o=$SLOT_A; else o=$SLOT_B; fi
+    dd if="$device" bs=$BLOCK skip=$((o / BLOCK)) count=$(( ($2 + BLOCK - 1) / BLOCK )) 2>/dev/null | head -c "$2" | crc
+}
+
+# the hook run again for the kernel the active slot already holds: nothing to do
+r=$((SLOT_RECORD + SLOT_SIZE * active))
+if [ "$(u32 "$current" $((r + 4)))" -eq "$length" ] && [ "$(u32 "$current" $((r + 8)))" = "$want" ] \
+        && { [ -z "$cmdline" ] || [ "$(cmdline_of "$current" "$active")" = "$cmdline" ]; } && [ "$(readback "$active" "$length")" = "$want" ]; then
+    [ -n "$same" ] || { dd if="$current" of="$device" bs=$HEADER seek=$stale count=1 conv=notrunc 2>/dev/null; sync; }
+    echo "flipboot-update: $kernel is already in slot $(slot_name "$active"), the active slot; nothing to do"
+    exit 0
+fi
+
+# 1. both header copies the same
+if [ -z "$same" ]; then
+    echo "flipboot-update: the header copies differ; writing copy $((1 - stale)) over copy $stale" >&2
+    dd if="$current" of="$device" bs=$HEADER seek=$stale count=1 conv=notrunc 2>/dev/null
+    sync
+fi
+
+# 2. the running slot active, so that the slot written next is not the one running
+if [ -n "$running" ] && [ "$running" -ne "$active" ]; then
+    r=$((SLOT_RECORD + SLOT_SIZE * running))
+    [ "$(u32 "$current" $((r + 4)))" -gt 0 ] || die "slot $(slot_name "$running") is running but empty in the header"
+    echo "flipboot-update: slot $(slot_name "$running") is running but slot $(slot_name "$active") is active;" \
+        "making slot $(slot_name "$running") active first" >&2
+    cp "$current" "$tmp/flip"
+    put_u32 "$tmp/flip" 8 "$running"
+    put_u32 "$tmp/flip" 16 $((generation + 1))
+    finish_header "$tmp/flip"
+    write_headers "$tmp/flip"
+    current=$tmp/flip
+    active=$running
+    generation=$((generation + 1))
+fi
+
+# 3. the kernel into the other slot, with the active slot's command line unless one was given
+[ -n "$cmdline" ] || cmdline=$(cmdline_of "$current" "$active")
+[ -n "$cmdline" ] || cmdline=$DEFAULT_CMDLINE
+[ ${#cmdline} -le 239 ] || die "the active slot's command line is longer than 239 bytes; give one with --cmdline"
+target=$((1 - active))
+if [ "$target" -eq 0 ]; then
+    offset=$SLOT_A
+    room=$((SLOT_B - SLOT_A))
+else
+    offset=$SLOT_B
+    room=$((area - SLOT_B))
+fi
+[ "$length" -le "$room" ] || die "$kernel ($length bytes) does not fit slot $(slot_name "$target") ($room bytes)"
+dd if="$kernel" of="$device" bs=$BLOCK seek=$((offset / BLOCK)) conv=notrunc 2>/dev/null
+sync
+got=$(readback "$target" "$length")
+[ "$got" = "$want" ] || die "slot $(slot_name "$target") reads back wrong (crc $got, not $want); slot $(slot_name "$active") stays active"
+
+# 4. the new header: the slot's record, the active slot, the generation, then its CRC
+cp "$current" "$tmp/new"
+r=$((SLOT_RECORD + SLOT_SIZE * target))
+put_u32 "$tmp/new" $r "$offset"
+put_u32 "$tmp/new" $((r + 4)) "$length"
+put_u32 "$tmp/new" $((r + 8)) "$want"
+dd if=/dev/zero of="$tmp/new" bs=1 seek=$((r + 32)) count=$CMDLINE_FIELD conv=notrunc 2>/dev/null
+printf '%s' "$cmdline" | dd of="$tmp/new" bs=1 seek=$((r + 32)) conv=notrunc 2>/dev/null
+put_u32 "$tmp/new" 8 "$target"
+put_u32 "$tmp/new" 16 $((generation + 1))
+finish_header "$tmp/new"
+write_headers "$tmp/new"
+echo "flipboot-update: $kernel ($length bytes) in slot $(slot_name "$target"), now active; command line \"$cmdline\""

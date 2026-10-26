@@ -59,8 +59,9 @@ import org.patryk3211.powergrid.utility.PlayerUtilities;
  * another wire, an unjoined duct) takes it out through the duct's side facing
  * that way first, then on as Power Grid would ({@link #exit}, {@link #leaveDuct}).</li>
  * </ul>
- * Whether a wire fits is a matter of cross-section: each duct holds one wire's worth
- * of its own gauge, shared by gauge among the wires in it ({@link DuctWires#fit}).
+ * Whether a wire fits is a matter of width: the wires in a duct lie side by side,
+ * each as wide as its gauge is thick, up to what the duct's size takes
+ * ({@link DuctWires#fit}).
  * Every step is more of the same wire's chain, priced exactly as Power Grid prices
  * an extension, so the finished wire is one wire, one connection, holding the items
  * its whole length costs and resisting accordingly.
@@ -290,12 +291,20 @@ public final class DuctRouting {
 
     // The server's side
 
-    /** A click on a duct with a placeable wire whose way is being laid: lays what {@link #plan} worked out. */
+    /**
+     * A click on a duct with a placeable wire whose way is being laid: lays what
+     * {@link #plan} worked out. A wire being laid as a hanging wire goes into the
+     * duct by its own way ({@link HangingDuctRoute}).
+     */
     static void route(ServerPlayer player, WireDuctEntity duct, Vec3 hit) {
         Level level = player.level();
         ItemStack stack = player.getMainHandItem();
         if (!isPlaceableWire(level, stack))
             return;
+        if (HangingDuctRoute.laying(level, player, stack)) {
+            HangingDuctRoute.route(player, duct, hit);
+            return;
+        }
         Plan plan = plan(level, player, stack, duct, hit);
         if (!plan.ok()) {
             WireDuctService.refuse(player, plan.refusal());

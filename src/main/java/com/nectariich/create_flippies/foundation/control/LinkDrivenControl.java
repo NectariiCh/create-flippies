@@ -1,5 +1,8 @@
 package com.nectariich.create_flippies.foundation.control;
 
+import com.nectariich.create_flippies.content.display.element.ElementDisplay;
+import com.nectariich.create_flippies.content.display.element.ScreenElement;
+
 import net.minecraft.network.chat.Component;
 
 /**
@@ -43,4 +46,44 @@ public interface LinkDrivenControl {
      * Kept short, because it goes in a single narrow label in Create's screen.
      */
     Component linkRowName();
+
+    /**
+     * Takes one line from a link aimed at one element of this control.
+     *
+     * A control that shows {@link ElementDisplay elements} writes the element the link
+     * names, and only when the slot's generation is the one the link was made against,
+     * so a link whose element was deleted (and whose slot may since hold something
+     * else) writes nothing rather than landing on a stranger. Anything else has one
+     * line and nothing finer to address: it takes the line only when the link names
+     * element 0 of generation 0, which is what every link made before elements
+     * existed decodes to.
+     */
+    default void acceptLine(int element, int generation, String text) {
+        if (this instanceof ElementDisplay display) {
+            if (display.elements().acceptLinked(element, generation, text, HostElementBudget.textCap(display)))
+                display.elementsChanged();
+        } else if (element == 0 && generation == 0) {
+            acceptLine(text);
+        }
+    }
+
+    /**
+     * How many characters that element can show; {@link #linkColumns()} for a control
+     * with no elements. -1 when the control shows elements but has no lettering
+     * element in that slot, which the caller turns into its own fallback.
+     */
+    default int linkColumns(int element) {
+        if (!(this instanceof ElementDisplay display))
+            return linkColumns();
+        ScreenElement chosen = display.elements().get(element);
+        return chosen != null && chosen.kind().linked() ? chosen.columns() : -1;
+    }
+
+    /**
+     * Whether a link aimed at this control picks one of its elements as well as the
+     * control: true exactly when it shows {@link ElementDisplay elements}.
+     */
+    default boolean isElementDisplay() {
+        return this instanceof ElementDisplay;
+    }
 }

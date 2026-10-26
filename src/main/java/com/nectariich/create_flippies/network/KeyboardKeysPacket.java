@@ -5,7 +5,6 @@ import java.util.function.Supplier;
 import com.nectariich.create_flippies.content.keyboard.KeyboardEvents;
 import com.nectariich.create_flippies.content.pc.PcServer;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
@@ -17,16 +16,16 @@ import net.minecraftforge.network.NetworkEvent;
  */
 public class KeyboardKeysPacket {
 
-    private final BlockPos pos;
+    private final int id;
     private final short[] events;
 
-    public KeyboardKeysPacket(BlockPos pos, short[] events) {
-        this.pos = pos;
+    public KeyboardKeysPacket(int id, short[] events) {
+        this.id = id;
         this.events = events;
     }
 
     public KeyboardKeysPacket(FriendlyByteBuf buffer) {
-        pos = buffer.readBlockPos();
+        id = buffer.readVarInt();
         int count = Math.min(buffer.readVarInt(), KeyboardEvents.MAX_PER_PACKET);
         events = new short[count];
         for (int i = 0; i < count; i++)
@@ -34,7 +33,7 @@ public class KeyboardKeysPacket {
     }
 
     public void encode(FriendlyByteBuf buffer) {
-        buffer.writeBlockPos(pos);
+        buffer.writeVarInt(id);
         int count = Math.min(events.length, KeyboardEvents.MAX_PER_PACKET);
         buffer.writeVarInt(count);
         for (int i = 0; i < count; i++)
@@ -46,7 +45,7 @@ public class KeyboardKeysPacket {
             ServerPlayer player = context.get().getSender();
             PcServer server = PcServer.get();
             if (player != null && server != null)
-                server.captures().keys(player, pos, events);
+                server.captures().keys(player, id, events);
         });
         context.get().setPacketHandled(true);
     }

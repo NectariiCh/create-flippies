@@ -28,6 +28,7 @@ public final class PcRuntime implements PcScheduler.Job {
     private PagedDiskImage floppy;
     private UUID floppyId;
     private final ArrayDeque<int[]> keys = new ArrayDeque<>();
+    private final ArrayDeque<int[]> mice = new ArrayDeque<>();
     private final Ps2DeviceKind[] plugged = {Ps2DeviceKind.NONE, Ps2DeviceKind.NONE};
     private double busy;
     private boolean hddActive;
@@ -54,6 +55,11 @@ public final class PcRuntime implements PcScheduler.Job {
     void queueKey(int port, Ps2Key key, boolean down) {
         if (keys.size() < MAX_QUEUED_KEYS)
             keys.add(new int[] {port, key.ordinal(), down ? 1 : 0});
+    }
+
+    void queueMouse(int port, int dx, int dy, int buttons) {
+        if (mice.size() < MAX_QUEUED_KEYS)
+            mice.add(new int[] {port, dx, dy, buttons});
     }
 
     /**
@@ -103,7 +109,7 @@ public final class PcRuntime implements PcScheduler.Job {
     @Override
     public void applyInput() {
         for (int port = 0; port < Machine.PS2_PORTS; port++) {
-            Ps2DeviceKind wanted = owner.keyboardOn(port) ? Ps2DeviceKind.KEYBOARD : Ps2DeviceKind.NONE;
+            Ps2DeviceKind wanted = owner.ps2DeviceOn(port);
             if (wanted != plugged[port]) {
                 machine.ps2().setDevice(port, wanted);
                 plugged[port] = wanted;
@@ -119,6 +125,14 @@ public final class PcRuntime implements PcScheduler.Job {
                 machine.keyboard(port).keyDown(key);
             else
                 machine.keyboard(port).keyUp(key);
+        }
+        while ((event = mice.poll()) != null) {
+            int port = event[0];
+            if (plugged[port] != Ps2DeviceKind.MOUSE)
+                continue;
+            if (event[1] != 0 || event[2] != 0)
+                machine.mouse(port).move(event[1], event[2]);
+            machine.mouse(port).buttons(event[3]);
         }
     }
 

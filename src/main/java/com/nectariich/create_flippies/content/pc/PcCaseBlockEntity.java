@@ -18,9 +18,10 @@ import com.nectariich.create_flippies.content.computer.machine.StandardCpus;
 import com.nectariich.create_flippies.content.data_cord.DataCords;
 import com.nectariich.create_flippies.content.data_cord.DataLink;
 import com.nectariich.create_flippies.content.data_cord.DataPortHost;
+import com.nectariich.create_flippies.content.data_cord.PortAddress;
 import com.nectariich.create_flippies.content.data_cord.PortRole;
 import com.nectariich.create_flippies.content.data_cord.PortType;
-import com.nectariich.create_flippies.content.keyboard.KeyboardBlockEntity;
+import com.nectariich.create_flippies.content.keyboard.KeyboardEntity;
 import com.nectariich.create_flippies.foundation.ServerConfig;
 import com.nectariich.create_flippies.registry.ModBlockEntities;
 import com.nectariich.create_flippies.registry.ModSounds;
@@ -40,6 +41,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Containers;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -213,6 +215,8 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         // Identities are given on first install, so they travel with the item from then on
         if (stack.getItem() instanceof PcMotherboardItem)
             PcMotherboardItem.macOf(stack, level.random);
+        if (stack.getItem() instanceof FloppyDiskItem && PcServer.get() != null)
+            FloppyDiskItem.fillFromPreset(stack, PcServer.get().disks());
         if (stack.getItem() instanceof PcHddItem || stack.getItem() instanceof FloppyDiskItem)
             PcDiskItems.assignId(stack);
         setPart(slot, stack);
@@ -411,7 +415,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             railWatts = 0;
         } else {
             haltReason = state == MachineState.HALTED ? machine.haltReason() : null;
-            railWatts = PcPower.railWatts(runtime.draw(this));
+            railWatts = PcPower.railWatts(runtime.draw(this), peerModem() != null);
         }
         updateLights();
     }
@@ -775,6 +779,16 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     // Data ports (spec 11.2.5)
 
     @Override
+    public PortAddress portAddress() {
+        return PortAddress.block(worldPosition);
+    }
+
+    @Override
+    public Level hostLevel() {
+        return level;
+    }
+
+    @Override
     public int dataPortCount() {
         return PcCaseGeometry.PORTS;
     }
@@ -821,21 +835,23 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
 
     /** The case on the other end of a port's cord, if it is loaded and its link pairs with ours. */
     public PcCaseBlockEntity peerCase(int port) {
-        DataLink link = links[port];
-        if (link == null || !level.isLoaded(link.peerPos()))
-            return null;
-        if (!(level.getBlockEntity(link.peerPos()) instanceof PcCaseBlockEntity peer))
-            return null;
-        return link.pairsWith(worldPosition, port, peer.link(link.peerPort())) ? peer : null;
+        return DataCords.peer(this, port, PcCaseBlockEntity.class);
     }
 
-    /** Whether a keyboard is linked to this PS/2 port and loaded (spec 11.2.10). */
-    boolean keyboardOn(int port) {
-        DataLink link = links[port];
-        if (link == null || level == null || !level.isLoaded(link.peerPos()))
-            return false;
-        return level.getBlockEntity(link.peerPos()) instanceof KeyboardBlockEntity keyboard
-                && link.pairsWith(worldPosition, port, keyboard.link(link.peerPort()));
+    /** The network modem on the other end of the ethernet cord, if it is loaded and its link pairs with ours. */
+    public com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity peerModem() {
+        return DataCords.peer(this, PcCaseGeometry.ETHERNET,
+                com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity.class);
+    }
+
+    /**
+     * What is linked to this PS/2 port and loaded (spec 11.2.10): a keyboard, or the
+     * keyboard or mouse half of a keyboard and mouse (11.2.15), by the port its cord is on.
+     */
+    com.nectariich.create_flippies.content.computer.device.Ps2DeviceKind ps2DeviceOn(int port) {
+        KeyboardEntity device = DataCords.peer(this, port, KeyboardEntity.class);
+        return device == null ? com.nectariich.create_flippies.content.computer.device.Ps2DeviceKind.NONE
+                : device.deviceKind(link(port).peerPort());
     }
 
     /** Queues a key for the machine, if it runs; a PC that is off drops it (spec 11.2.12). */
@@ -843,6 +859,12 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             boolean down) {
         if (runtime != null)
             runtime.queueKey(ps2Port, key, down);
+    }
+
+    /** Queues mouse movement (dy up) and the buttons held, if the machine runs (spec 11.2.15). */
+    public void queueMouse(int ps2Port, int dx, int dy, int buttons) {
+        if (runtime != null)
+            runtime.queueMouse(ps2Port, dx, dy, buttons);
     }
 
     /**
@@ -914,7 +936,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         for (int port = 0; port < PcCaseGeometry.PORTS; port++) {
             DataLink link = links[port];
             Component peer = link == null ? Component.literal("-")
-                    : Component.literal(link.peerPos().toShortString() + " #" + link.peerPort());
+                    : Component.literal(link.peer() + " #" + link.peerPort());
             lines.add(Component.translatable("gui.create_flippies.pc.screen.port",
                     Component.translatable("gui.create_flippies.pc.port." + port), peer));
         }

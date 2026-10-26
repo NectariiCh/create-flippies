@@ -24,6 +24,9 @@ a corner.
 - Later (section 11, planned): the in-game PC: a case block with installable parts, a floppy
   drive, COM3, three independent VGA outputs, an in-game-only network card, Power Grid power,
   data cords between ports, and the keyboard block.
+- Later (section 12, planned): Debian with a GUI on the 68040 PC. The 68040 gets its MMU, a
+  network modem block serves an in-mod "internet" over real IP, and a netinstall floppy writes
+  the Debian image onto the HDD.
 
 ## What is built now
 
@@ -38,6 +41,8 @@ a corner.
 - The 68000 and 68040 (section 10): the integer core for both models, the 68040's FPU with the
   in-game strict FPU option, the 68k assembler backend, both machines with their boot ROM, and
   their end-to-end tests.
+- Section 12, step 1: the 68040 MMU, faster ethernet, the modem's network stack and `.fdi`, the
+  headless PC runner, and the guest toolchain Docker image (12.14).
 
 ## House rules
 
@@ -2201,7 +2206,8 @@ User decisions that settle this section (also in "Review decisions"):
    decision).
 5. No MMU: MMU control registers exist as storage, TC.E always reads 0, PFLUSH variants are
    privileged no-ops, PTEST reports a transparent hit. CINV and CPUSH are privileged no-ops. CACR
-   keeps only its two defined bits.
+   keeps only its two defined bits. Superseded by 12.2, built in step 1 of section 12: the 68040
+   now has its MMU (12.14.1). CINV, CPUSH and CACR are unchanged.
 6. One memory map for both CPUs, written as 32-bit addresses whose low 24 bits are the 68000 map:
    devices at 0xFFF0_0000 (68000 sees 0xF0_0000), VRAM 0xFFE0_0000, ROM 0xFFFC_0000. One boot ROM
    source serves both CPUs.
@@ -2365,7 +2371,9 @@ User decisions that settle this section (also in "Review decisions"):
   indirect with null, word or long outer displacement). Reserved combinations are illegal.
 - RESET on the 68040 asserts the reset output for 512 clocks (verified: UM040, "drives the reset
   out (RSTO) signal for 512 BCLK cycles"); charge about 520.
-- MOVES with no MMU: SFC/DFC are ignored, the access is a plain supervisor access.
+- MOVES: superseded by 12.2.4. SFC and DFC now select the function code (UM040 3.2.5, table 3-2):
+  codes 1 and 2 are user data, 5 and 6 supervisor data, translated through URP or SRP; codes 0,
+  3, 4 and 7 are physical, untranslated accesses.
 - MOVE16: copies a 16-byte line, addresses with bits 3..0 cleared; forms (Ax)+,(Ay)+ and
   absolute long either way, postincrementing by 16.
 
@@ -2791,6 +2799,12 @@ X is unchanged unless stated. "NZ" means N = result sign at the operation size, 
 - Single and double rounding precision also narrow the exponent range (10.2.4).
 
 ### 10.5 MMU and cache instructions on the 68040
+
+Superseded by 12.2 for everything but the cache lines (CINV, CPUSH, CACR), which still hold. In
+particular the "store as written" rules no longer apply: TC keeps only E and P (mask 0xC000,
+UM040 3.1.2), the TT registers keep only their defined bits (mask 0xFFFF_E364, UM040 3.1.3),
+TC.E can be set, the TT registers translate, and PTEST and PFLUSH work (12.2.4, 12.14.1). The
+text below is the pre-MMU design, kept for the record.
 
 - TC, ITT0, ITT1, DTT0, DTT1, URP, SRP, MMUSR are plain 32-bit registers through MOVEC. TC bit 15
   (E, enable) is forced to 0 on write, so software that probes for paging sees it cannot be
@@ -4071,7 +4085,7 @@ The cord (`data_cord` item and `DataCordEntity`):
 New `foundation/ServerConfig.java` (`ForgeConfigSpec`, `ModConfig.Type.SERVER`, registered in
 `CreateFlippies` next to the client config):
 
-- `pc.hostBudgetPerPcMicros` (default 2000, range 100..50000).
+- `pc.hostBudgetPerPcMicros` (default 20000, range 100..50000; raised from 2000 for Linux).
 - `pc.hostBudgetTotalMicros` (default 20000, range 1000..45000).
 - `pc.maxRunningPcs` (default 64).
 - `pc.maxTotalRamMiB` (default 2048, range 64..65536).
@@ -4437,6 +4451,43 @@ cursor move, writes outside the picture), `CrtFrameCodecTest` (round
 trips, runs, deflate size, malformed payloads), `CrtRateLimitTest`, `CrtPowerTest`,
 `CrtPortsTest` (the CRT pairs with case ports 6..8 only), `CrtRasterTest`.
 
+#### 11.2.15 Keyboard and mouse
+
+User decisions: one device holding a keyboard and a mouse, its model a copy of the keyboard's to
+be edited later; two PS/2 ports; the player's mouse drives the PC's mouse, with a key in
+Minecraft's Controls that switches between that and looking around (right Ctrl, right Command
+on macOS).
+
+- `KeyboardMouseEntity` (entity and item `keyboard_and_mouse`, "Keyboard and Mouse") extends
+  `KeyboardEntity`: placed, supported, broken and dropped like the keyboard.
+- Model `block/keyboard_and_mouse.json` (and the item model): the keyboard's model with a second
+  port cube, `ps/2 2`, 1 px further along +z beside `ps/2`. Same texture. The cubes are in
+  `KeyboardGeometry`, checked against the model file by `KeyboardMousePortsTest`.
+- Ports, both PS2 and DEVICE: port 0 (`ps/2`) is the keyboard, port 1 (`ps/2 2`) the mouse.
+  Each is linked to a case's PS/2 port on its own. The case asks the device which kind sits
+  behind the port its cord is on (`KeyboardEntity.deviceKind`), and `PcRuntime` plugs that kind
+  into the controller port: a mouse cord on case `ps/2 2` gives the guest a mouse there, and on
+  `ps/2 1` a mouse there too. Port 1's link saves as "Link1"; port 0 keeps the keyboard's "Link".
+- Using it: right-click with an empty hand, as the keyboard. The capture is the keyboard's
+  (one typist, double Escape releases, the same end conditions); it is refused as "unlinked"
+  only when neither port leads to a case. Keys go to the case on port 0, and are dropped while
+  port 0 has no cord.
+- The mouse, while the capture screen gives it to the PC (the state it starts in):
+  - `MouseHandlerPcMouseMixin` takes the movement `MouseHandler.turnPlayer` would turn the camera
+    by, so the camera stays still, and hands it to `KeyboardCaptureScreen`.
+  - Left, right and middle buttons are held as PS/2 button bits; the wheel is ignored (the
+    emulated mouse has none).
+  - Once per client tick, if anything changed, a `KeyboardMousePacket` (entity id, dx, dy up,
+    buttons) goes to the server: one screen pixel is one PS/2 count. The server checks it as it
+    checks key packets, clamps each axis to 4096, and queues it on the case behind port 1.
+- The toggle key `key.create_flippies.pc_mouse_toggle` ("PC mouse / look around", category
+  "Create: Flippies") is a KeyMapping, so it can be rebound in Controls. It never reaches the
+  PC. Switching drops movement not yet sent and lets go of the buttons. A second hint line under
+  the capture screen's says which state it is in and names the key.
+- Any end of the capture also lets go of the mouse buttons, as held keys get their key-ups.
+- Not done: no recipe (the keyboard has none either); the model is the keyboard's until it is
+  remodelled.
+
 ### 11.3 Ownership split and the API between the owners
 
 Both owners work in the same tree at the same time. No file has two owners. The gauge and design
@@ -4685,6 +4736,1415 @@ None open. Answered by the user after the first draft and folded in above:
 - Defaults accepted: RV32I CPU items at 10, 25 and 50 MHz; HDD 16 MB, 64 MB, 256 MB and 1 GB; the
   PC stays off after a power cut; power figures in watts.
 
+## 12. Linux on the 68040 PC (planned)
+
+Graphical Debian on the in-game 68040 PC, installed onto its 1 GB HDD over the network from a
+floppy, with no real internet involved. This section is the plan. Step 1 of 12.10 (the MMU,
+faster ethernet, the modem stack, the headless runner and the Docker image) is built; 12.14
+records it as built, and the plan text below has been corrected where step 1 proved it wrong.
+It changes one earlier decision: the 68040 has its MMU (10.5 and decision 5 of 10.1 are
+superseded). House rules apply unchanged to everything under `computer/**`.
+
+How sure each fact is: "(verify)" marked facts not confirmed against a primary source while
+writing this section. Step 1 checked every one (UM040 sections 3 and 8 for the MMU, the pinned
+Linux 6.18.58 tree for kernel facts, the debian-ports snapshot for package facts); each result is
+now stated in place, with the source. Kernel facts with file paths and line numbers are in
+`guest/linux/NOTES.md`. Upstream kernel file paths such as `motorola_pgtable.h` and
+`arch/m68k/mm/motorola.c` keep their real names; that is the one accepted exception to the house
+rule on the chip maker's name.
+
+User decisions that settle this section:
+
+- The OS is Debian (its m68k port) with a GUI on top, running on the 68040. Arch has no m68k port.
+- Our own devices stay as they are. We keep a Linux fork with a platform port and drivers for
+  them, rather than reshaping the machine to look like another emulator's board.
+- A "network modem" block connects to the PC with an ethernet data cord and is powered by the PC
+  over that cord (PoE). It is the PC's only way to the "internet".
+- The "internet" is content hardcoded into the mod (12.4.3), not real web access.
+- Real IP from day one: the modem is an IPv4 router with DHCP, DNS and an HTTP server; the
+  install floppy carries a small IP stack and speaks HTTP over TCP. Debian later uses the same
+  modem with its normal network stack.
+- Floppy installs only: a netinstall floppy (12.5) downloads the Debian disk image onto the HDD.
+  Installing from many floppies is not an option.
+- Ethernet gets faster so the download does not take a quarter of an hour (12.3).
+
+### 12.1 Pieces and how they fit
+
+1. 68040 MMU (12.2, core): paging, access errors that can be restarted, PTEST, PFLUSH, MOVES.
+   Linux cannot run without it.
+2. Faster ethernet (12.3, core): bigger queues and checksum offload in `Nic`.
+3. The modem (12.4): a pure-Java IPv4 router and HTTP server under `computer/net`, a block in the
+   game, PoE, and the content catalogue in the mod's resources.
+4. The netinstall floppy (12.5, guest): a freestanding C program that gets an address by DHCP,
+   lists the catalogue, and writes a chosen disk image onto the HDD.
+5. The Linux fork (12.6, guest): a pinned upstream kernel plus our patch series: the `flippies`
+   m68k platform and drivers for every device of 3 and 11.1.
+6. The boot chain (12.7, guest): an MBR boot sector, a second-stage loader and a Debian hook that
+   installs new kernels for it.
+7. The Debian image (12.8, guest): debian-ports m68k, a light X desktop, built reproducibly in
+   Docker and turned into the modem's image format.
+8. Tooling (12.9): one Docker image for every cross build, and a headless PC runner so the whole
+   chain runs and is tested outside Minecraft.
+
+Guest code lives under `guest/` next to `guest/cogmaze`: `guest/netinstall`, `guest/linux`,
+`guest/boot`, `guest/debian`, `guest/docker`. Nothing under `guest/` is compiled by Gradle; build
+outputs that the mod ships are copied into `src/main/resources` by a script (12.4.3).
+
+### 12.2 68040 MMU (owner: core)
+
+#### 12.2.1 Chip facts
+
+Every fact below was checked in UM040 (MC68040UM/AD Rev. 1, 1993) and against the constants
+Linux uses (`traps.h`, `motorola_pgtable.h`, `head.S`); all matched except where noted.
+
+- TC (MOVEC 0x003): bit 15 E (enable), bit 14 P (page size: 0 = 4 KiB, 1 = 8 KiB). Bits 13..0
+  read 0 (UM040 3.1.2). Linux uses 4 KiB pages (`TC_ENABLE` + `TC_PAGE4K` = 0x8000).
+- URP (0x806) and SRP (0x807): root table addresses, 512-byte aligned (bits 8..0 ignored). User
+  accesses (function codes 1, 2) walk from URP, supervisor accesses (5, 6) from SRP (FC2 selects,
+  UM040 figure 3-9).
+- Three-level walk (UM040 3.2.1, figure 3-8). 4 KiB pages: root index = address bits 31..25 (128
+  entries of 4 bytes), pointer index = bits 24..18 (128 entries), page index = bits 17..12 (64
+  entries, a 256-byte table). 8 KiB pages: page index = bits 17..13 (32 entries, a 128-byte
+  table).
+- Root and pointer descriptors (UM040 figure 3-11): table address in the high bits (pointer
+  tables 512-byte aligned; page tables 256-byte aligned for 4 KiB, 128-byte for 8 KiB), bit 3 U
+  (used), bit 2 W (write protect), bits 1..0 UDT (0 and 1 invalid, 2 and 3 resident).
+- Page descriptors (UM040 figure 3-12): physical page address in bits 31..12, bit 11 UR (user
+  reserved), bit 10 G (global), bits 9..8 U1 and U0 (user attributes, no effect here), bit 7 S
+  (supervisor only), bits 6..5 CM (cache mode, no effect here), bit 4 M (modified), bit 3 U
+  (used), bit 2 W, bits 1..0 PDT (0 invalid, 1 and 3 resident, 2 indirect). An indirect
+  descriptor holds the address of the real page descriptor in bits 31..2; an indirect
+  descriptor that points at another indirect descriptor is invalid (UM040 3.2.4.1). Linux never
+  writes indirect descriptors.
+- The chip sets U in every table and page descriptor it walks through, and M in the page
+  descriptor on a write, writing them back to memory (locked read-modify-write). M is not set on
+  a write-protect or supervisor violation, and the read of a locked read-modify-write counts as
+  a write (UM040 3.2.2.3, table 3-1). Linux uses U and M as its accessed and dirty bits
+  (`motorola_pgtable.h`: ACCESSED 0x008, DIRTY 0x010). `PAGE_SHARED` has no DIRTY, so a writable
+  page starts clean and only the M write-back marks it dirty: without it Linux can drop modified
+  file pages as clean.
+- W anywhere on the path write-protects the page (W accumulates over the levels). S on a page
+  denies user accesses.
+- ITT0, ITT1 (instruction) and DTT0, DTT1 (data) transparent translation (UM040 3.1.3, 3.4):
+  bits 31..24 address base, bits 23..16 address mask (1 = ignore that bit), bit 15 E, bits
+  14..13 S field (0 user only, 1 supervisor only, 2 and 3 both), bits 9..8 U1 U0, bits 6..5 CM,
+  bit 2 W. Bits 12..10, 7, 4, 3, 1 and 0 read 0. A match maps the address to itself and skips
+  the tables; W makes a match write-protected; TT0 wins over TT1. TT registers work with TC.E
+  clear too.
+- MMUSR (0x805), written by PTEST (UM040 3.1.4): bits 31..12 physical address, bit 11 B (bus
+  error during the walk), bit 10 G, bits 9..8 U1 U0, bit 7 S, bits 6..5 CM, bit 4 M, bit 3 0,
+  bit 2 W, bit 1 T (a TT register matched), bit 0 R (resident). With B set every other bit is 0.
+  With T set, R is set and every other bit is 0.
+- Access error (vector 2), stack frame format 7, 30 words (UM040 8.4.6; Linux `traps.h` reads
+  the same fields at the same offsets, and `signal.c` sizes the frame at 60 bytes): SR, PC,
+  format and vector, EA, SSW, WB3S, WB2S, WB1S, FA (fault address), WB3A, WB3D, WB2A, WB2D,
+  WB1A, WB1D or PD0, PD1, PD2, PD3. SSW bits (UM040 figure 8-7): 15 CP, 14 CU, 13 CT, 12 CM, 11
+  MA (misaligned: the fault is on the second page of an access that spans two), 10 ATC (fault in
+  translation), 9 LK, 8 RW (1 = read), 7 X, 6..5 SIZE (byte 1, word 2, long 0, line 3), 4..3 TT,
+  2..0 TM (function code). EA is meaningful only when a continuation bit is set.
+
+#### 12.2.2 Translation in the emulator
+
+- The MMU is part of `M68kCpu` for the 68040 model only, in a new class `M68kMmu` the core calls.
+  The 68000 is untouched.
+- Every CPU access already goes through `a & addrMask` and then the physical fast path (ROM, RAM,
+  VRAM, then the bus). With the MMU on, a logical address first becomes a physical one, then the
+  existing physical path runs unchanged.
+- Order of a translation: (1) the TT registers of the access's kind (instruction fetch: ITT0,
+  ITT1; data: DTT0, DTT1) by function code; (2) if TC.E is clear, physical = logical; (3) else
+  the software TLB; (4) on a miss, the table walk, which fills the TLB.
+- Software TLB, not a model of the real ATC: direct-mapped, 1024 entries per kind (instruction,
+  data read, data write) and privilege (user, supervisor), keyed by the logical page number.
+  An entry holds the logical page tag and the physical page base. A data write entry is only
+  filled when the page is writable and its M bit is already set (the walk sets M on the first
+  write), so later writes never need to touch the descriptor. A read entry is filled when U is
+  set (the walk sets it). TT hits and the identity mapping while TC.E is clear are cached too.
+  Only successful translations are cached (the chip also caches failed searches; see 12.14.1).
+- Instruction fetch keeps one "current code page" (logical tag and physical base) and
+  re-translates only when the PC crosses a page or after a flush, so straight-line code costs
+  one compare per fetch.
+- MMU off (TC.E = 0 and no TT register enabled): a single boolean in the hot loop skips all of
+  the above, so today's speed is kept for every existing program.
+- TLB flushes: MOVEC to TC, URP, SRP, ITTx or DTTx; every PFLUSH form (by address and function
+  code, or all, with or without global entries; as built, all four forms are exact); RESET;
+  `reset()`. `loadState` restores the saved TLB instead (12.2.5). Writes to page tables in
+  memory do not flush, as on the real chip; Linux flushes after changing them.
+- Table walk reads and U/M write-backs are physical accesses through the existing path. A walk
+  that hits a bus error (descriptor address unmapped) is an access error with B set in PTEST's
+  result. A walk costs 0 cycles.
+- Physical addresses keep the 32-bit map of 10.8.1, so devices at 0xFFF0_0000 are reached
+  through page tables or a TT register, whichever the guest sets up.
+- Cost target: MMU on, at least 60% of the MMU-off instruction rate in
+  `M68kThroughputBenchmarkTest` (a new MMU-on variant). Met: 86% to 93% (12.14.1).
+
+#### 12.2.3 Access errors and restart
+
+- All faults are precise: when a translation fails (invalid descriptor, write to a protected
+  page, user access to a supervisor page), the instruction is abandoned and restarted from its
+  first word after the handler's RTE. Every register the instruction changed is put back as it
+  was at the start of the instruction (an undo record of the address registers changed by
+  (An)+ and -(An), of the CCR, and for RTE of SR and every stack pointer). Checked in the core:
+  data registers are only written at the end of an instruction, except MOVEM memory to
+  registers, which now buffers its loads.
+- Memory writes the instruction already made before the fault are repeated when it runs again.
+  That is harmless for every instruction that writes the same values the second time. Where it
+  is not, the instruction translates every page it touches before its first write, or reorders
+  its work; the list is in 12.14.1.
+- Every access of an instruction that crosses a page boundary is translated for both pages
+  before any byte moves.
+- The format 7 frame reports no pending writebacks (WB1S, WB2S, WB3S all 0), FA = the first byte
+  of the access (UM040 8.4.6.4), MA set when the second page of a page-crossing access faulted,
+  the SSW with ATC = 1, RW, SIZE, TT and TM of the access, and EA = FA. CT, CU, CP are 0 (no
+  continuation). A locked read-modify-write (TAS, CAS, CAS2) is translated as a write before its
+  read, and a fault on it reports LK and RW. Linux's 68040 access error handler
+  (`access_error040` in `arch/m68k/kernel/traps.c`) accepts this frame: it acts only on WB2S and
+  WB3S with the valid bit set, needs ATC, takes TM as the function code for its PTEST, and with
+  MA set probes at (FA + 7) & -8. Checked in 6.12.1 and 6.18.58.
+- Instruction fetch faults set the SSW for a program-space access (TM 2 or 6), SIZE word, RW 1,
+  FA = the fetch address. FPU immediate operands are fetched as part of the instruction stream
+  too.
+- A fault while stacking any exception frame halts the CPU (as today for double faults). This is
+  a deviation: the chip halts only for a fault while stacking an access error or reset frame.
+
+#### 12.2.4 PTEST, PFLUSH, MOVES, MOVEC
+
+- PTESTR and PTESTW: flush the page, walk the tables for the address in An with the function
+  code in DFC, fill MMUSR, and load the TLB after a successful search. A TT match gives MMUSR =
+  T | R and nothing else (UM040 3.1.4). With TC.E clear and no TT match the chip's result is
+  undefined; ours is (address & 0xFFFF_F000) | R. Linux uses PTESTR and PTESTW in its fault
+  handler. UM040 does not say whether PTEST writes U and M back; it is built to set U, and M for
+  PTESTW, as any search does (inferred, not confirmed).
+- PFLUSH, PFLUSHN (by address, non-global only for N), PFLUSHA, PFLUSHAN: flush the TLB (12.2.2).
+  All four are exact: the N forms keep global entries; the by-address forms act on the table
+  DFC's FC2 selects.
+- MOVES: now honours SFC and DFC: the access is translated with that function code, so the
+  kernel reaches user memory with user permissions. Codes 1 and 2 are user data, 5 and 6
+  supervisor data; codes 0, 3, 4 and 7 are physical, untranslated alternate-space accesses (UM040
+  3.2.5, table 3-2). MOVEC to SFC and DFC keeps only bits 2..0.
+- MOVEC TC: stores E and P only (mask 0xC000, no longer forced to 0). The TT registers store only
+  their defined bits (mask 0xFFFF_E364).
+- CINV and CPUSH stay no-ops (no caches modelled).
+
+#### 12.2.5 Saved state and tests
+
+- Saved state: the CPU payload already holds TC, ITT0..DTT1, URP, SRP, MMUSR (10.6). The CPU's
+  state version is 2. The TLB entries and the current code page are saved with the CPU (after
+  MMUSR: an entry count, then per entry its slot, logical tag, physical page and G; then the code
+  page's logical tag and physical base; at most 6144 entries of 11 bytes, about 67 KB), because a
+  guest may keep using an entry whose descriptor it changed without a PFLUSH, and a restored
+  machine must behave the same. A version 1 state loads with TC.E and the E bit of every TT
+  register cleared and an empty TLB.
+- Tests (in `cpu/m68k`, hand-checked like the rest of section 10):
+  - Walks with 4 KiB and 8 KiB pages, indirect descriptors, invalid at each level, U and M
+    written back to memory, W at each level, S against user accesses, TT matches by function
+    code and mask, TT with TC.E clear.
+  - Restart of every addressing mode after a fault ((An)+ and -(An) put back), MOVEM across a
+    page boundary, MOVE16, CAS, CAS2, a misaligned long across two pages where only the second
+    is missing.
+  - The format 7 frame word by word for a data read, a data write and an instruction fetch.
+  - PTEST results, every PFLUSH form invalidating exactly what it should (and no stale write
+    entry after a page is made read-only and flushed), MOVES with each SFC and DFC.
+  - End to end (`e2e`): a 68040 guest that turns on paging, runs a user-mode program, and
+    serves its page faults by mapping pages on demand, then reads results over COM1.
+  - Saved state with the MMU on, every tick in lockstep (like `M68kSaveStateE2eTest`).
+  - The MMU-on throughput benchmark.
+
+### 12.3 Faster ethernet (owner: core)
+
+Today each `Nic` queue holds 32 frames and the exchange runs once per tick, so a link carries at
+most about 970 KB/s. A 400 MB image would need about 7 minutes on the wire alone.
+
+- `QUEUE_FRAMES` goes from 32 to 256 each way: up to about 7.7 MB/s per link (256 frames of
+  1514 bytes, 20 ticks a second). A full NIC holds about 760 KiB. Saved states with up to 32
+  frames still load (the reader caps at the new size), so no state version change.
+- Checksum offload, so the guest does not sum every byte:
+  - New register 0x38 RX_INFO (R): flags for the oldest received frame, worked out from its bytes
+    on read: bit 0 IPv4 header checked and good, bit 1 TCP or UDP checksum checked and good
+    (IPv4 only, no fragments), bit 2 the frame is IPv4. A guest that ignores it works as before.
+  - New CTRL bit 5 TX_CSUM: on TX_CMD the card fills in the IPv4 header checksum and the TCP or
+    UDP checksum of an IPv4 frame before queueing it.
+  - `SIZE` becomes 0x3C. Checksums are pure functions of the frame, so no new state.
+- Linux uses both (`NETIF_F_IP_CSUM`, `CHECKSUM_UNNECESSARY`), and so does the netinstall
+  floppy.
+- What bounds the download then is the HDD (about 5 MB/s, 3.8) and the guest CPU, not the wire.
+  A 400 MB image at HDD speed takes about 80 seconds of emulated time. The downloader sleeps while
+  waiting (12.5), so an idle-waiting PC runs at real time even under the default host budget.
+- `NetworkE2eTest` and `NicTest` gain cases for 256 queued frames, RX_INFO on good and corrupt
+  frames, and TX_CSUM output checked against a reference sum.
+
+### 12.4 The modem
+
+#### 12.4.1 Network shape
+
+- One modem serves one PC: its single ethernet port links to one PC's port with the existing data
+  cord (`PortType.ETHERNET`, role PEER). Each modem is its own private network.
+- Addresses: the modem is 10.88.0.1/24; its DHCP server hands out 10.88.0.2 with gateway and DNS
+  10.88.0.1 and a lease of one day. The modem's MAC is fixed per block (locally administered,
+  assigned at placement like the motherboard's).
+- Names: the modem's DNS answers A records for the hosts of the catalogue (12.4.3), all
+  10.88.0.1, under the made-up top-level domain `.flip` (for example `get.flip`, `deb.flip`).
+  Every other name gets NXDOMAIN. No traffic leaves the modem; nothing touches the real network.
+
+#### 12.4.2 The modem's stack (`computer/net`, pure Java)
+
+A small, purpose-built IPv4 host, not a general router. Package `cf.content.computer.net`, house
+rules apply, testable on the plain JUnit platform.
+
+- `FrameEndpoint` interface: `byte[] takeOutgoing()`, `boolean deliver(byte[], int, int)`,
+  `default boolean canReceive()`, `void setLink(boolean)`. `canReceive` asks, without changing
+  any state, whether `deliver` has room now (default true; `Nic` answers RX_ENABLE on and its
+  queue under `QUEUE_FRAMES`). `Nic` implements the interface. `PcLinkExchange.ethernet` takes
+  two endpoints and serves PC to PC links; there a refused frame is lost, as before.
+- `Modem` (one per block): implements `FrameEndpoint` and has `exchange(FrameEndpoint pc)` and
+  `tick()`. The PC-to-modem exchange, once per server tick, is `modem.exchange(nic)` then
+  `modem.tick()`, and `PcLinkExchange.ethernetDown(modem)` while the link is down. `exchange`
+  raises both links, moves every frame the PC sent into the modem (the modem answers at once,
+  so a request and its reply take one tick), then moves the modem's frames to the PC until
+  `canReceive` is false or `deliver` refuses one; that frame and all after it wait for the next
+  tick. Asking first keeps the card from counting a held frame in RX_DROPPED or RX_OVERFLOW.
+  `tick()` then runs the timers and sends what TCP may.
+- ARP (request and reply), ICMP echo (so `ping 10.88.0.1` works), DHCP server (DISCOVER, OFFER,
+  REQUEST, ACK, RELEASE; options subnet, router, DNS, lease, server id), DNS server over UDP
+  (A queries; AAAA and others get an empty answer).
+- TCP server, port 80 only: passive open, MSS 1460, in-order receive, sliding-window send limited
+  by the peer's window, retransmission after 20 ticks without an ACK, FIN and RST handling. At
+  most 8 connections. The window scale option (RFC 7323) is honoured when the client offers it
+  (the modem answers with shift 0); without it a connection carries at most 64 KiB per tick.
+  Frames the PC's NIC has no room for stay queued in the modem and go next tick, so the link
+  loses nothing and TCP rarely retransmits; the TCP resend timers pause while frames wait. If the
+  card takes nothing for 20 exchanges in a row (its receiver is off), the waiting frames are
+  dropped and counted in the modem.
+- HTTP/1.1 server: GET and HEAD, keep-alive, `Content-Length`, single `Range` (for resumed
+  downloads), 404 for unknown paths. Bodies stream from the catalogue without loading a whole
+  file into memory. At most 32 unacknowledged responses per connection: input beyond that is
+  left unacknowledged, so the client sends it again (this bounds server memory against a guest
+  that pipelines requests behind a zero window).
+
+#### 12.4.3 The content catalogue (hardcoded in the mod)
+
+- Resources under `src/main/resources/data/create_flippies/internet/`: one folder per host
+  (`get.flip/`, `deb.flip/`, ...), files served at their path. Read through Forge's resource
+  manager on the server, so a datapack can add or replace content without code.
+- Forge resource paths allow only `[a-z0-9/._-]`, and Debian file names contain `+`, `~`, `%`
+  and upper case. The game's `ContentSource` and the image build script must share an escaping
+  rule that maps every served name into that set and back; the rule is not chosen yet (game
+  owner, with 12.8). The modem passes the decoded request path through unchanged, and a name the
+  store cannot hold (any unchecked exception from the source) is answered with 404.
+- `get.flip/index.txt`: the catalogue the floppy shows. One entry per line: kind, path, size in
+  bytes, title. Kind `image` is a disk image (12.4.4); kind `file` is plain.
+- Large files are stored deflated in 64 KiB chunks in the jar and inflated on the fly by the
+  modem, so the jar holds compressed data while the wire carries plain bytes (the guest CPU is
+  too slow to inflate at link speed). Layout: file `host/dir/name` becomes a folder
+  `host/dir/name.z/` holding `size.txt` (the plain size in decimal) and `0.z`, `1.z`, ... (zlib
+  streams, RFC 1950, each inflating to exactly 65,536 bytes except the last). A plain file wins
+  when both forms exist. Large files should be stored this way: the default size lookup of a
+  plain file reads it through.
+- Size: the Debian image is expected to be 120 to 200 MB compressed (measured at 12.8). That
+  goes straight into the jar's size; see open question 1.
+
+#### 12.4.4 Disk image format (`.fdi`)
+
+A sparse image, so zero chunks are never sent:
+
+- Header, all numbers big-endian 32-bit unsigned (the reader is a 68k), by byte offset: 0 magic
+  "FDI1"; 4 image size in sectors; 8 chunk size, always 65,536; 12 number of chunks present; 16
+  CRC32 of the chunk table (a field added at build time); 20 the title, 64 bytes of UTF-8 (at
+  most 63 bytes, zero padded); 84 CRC32 of bytes 0 to 83. CRC32 is zlib's (check value
+  0xCBF43926).
+- Chunk table at 88: per present chunk, its index then the CRC32 of its data, indexes strictly
+  rising. Chunks not in the table are zero.
+- Then the present chunks' data, in table order. Every chunk is 65,536 bytes except the image's
+  last, so entry k's data starts at 88 + 8 * count + k * 65,536, which is where a Range request
+  resumes. `guest/debian/mkfdi.py` and the netinstall reader must use exactly this layout.
+- The downloader fetches it with one GET (or a Range GET to resume from the first unverified
+  chunk), writes each chunk to its LBA, checks each CRC32, and zeroes the absent chunks only when
+  the user asks for a full wipe (writing zeros to 600 MB of empty disk costs minutes for no
+  gain; a fresh `PagedDiskImage` already reads as zeros).
+- `guest/debian/mkfdi.py` turns a raw image into `.fdi`; the same tool writes the deflated chunk
+  files for the jar.
+
+#### 12.4.5 The block (owner: game)
+
+As built: 12.17.1 and 12.17.2.
+
+- `network_modem` block with a block entity. Model: open question 4; a placeholder cube with one
+  ethernet port cube until then.
+- One ethernet port (`DataPortHost`, one port, ETHERNET, PEER), so the existing data cord and
+  `PortCompatibility` work unchanged.
+- PoE: the modem has no power input. It is up while its cord's other end is a PC that is loaded
+  and powered. That PC's draw (11.2.4) gains 2.5 W while a modem is linked. The link goes up and
+  down with that PC exactly like a PC-to-PC link.
+- Lights on the model: power (PoE present) and link/activity (blinks on frames, synced like the
+  case lights).
+- The scheduler's exchange phase (11.2.10) handles PC to modem links: `modem.exchange(nic)`,
+  then `modem.tick()`; `PcLinkExchange.ethernetDown(modem)` while the link is down (12.4.2).
+  Plain `PcLinkExchange.ethernet` would also work but loses refused frames.
+- Persistence: the modem keeps no state worth saving (DHCP leases are re-requested, TCP
+  connections drop on unload; the downloader resumes with Range).
+
+### 12.5 The netinstall floppy (`guest/netinstall`)
+
+As built: 12.17.3 onward.
+
+- Freestanding C17 plus a little 68k assembly, built with the cross GCC from the Docker image
+  (12.9): `-m68040 -O2 -ffreestanding -nostdlib -fno-pic`, own linker script, flat binary,
+  `mkfloppy.py` as Cog Maze does (with a 68k entry instead of RV32I). MMU off, supervisor mode.
+- Boot: the ROM loads sector 0 to 0x1000 and enters with D2 = 1 (floppy) (11.1.5). Sector 0 loads
+  the rest of the program (target under 96 KiB, about 2 s from the floppy) and jumps to it.
+- Hardware use: NIC with TX_CSUM and RX_INFO, HDD, VGA text mode, PS/2 keyboard (set 2 decoding of
+  the keys it needs), COM1 mirror of the screen for tests, interval timer for timeouts. It sleeps
+  with STOP between events (NIC, HDD and timer interrupts), so a waiting PC costs no host time.
+- IP: ARP, IPv4 (no fragments), UDP, DHCP client, DNS client, TCP client (one connection, with
+  window scaling, RFC 7323), HTTP/1.1 GET with Range. The receive window must be 256 KiB to
+  1 MiB (scale shift 2 or more). Measured against the modem with the card's 256-frame queue: a
+  64 KiB window gives only about 1.24 MiB/s (a 400 MB image in about 5.4 minutes), 256 KiB about
+  4.8 MiB/s, 1 MiB or more about 7 MiB/s, with no retransmissions.
+- Screens (80x25 text):
+  1. "Network: no link" until the modem's link is up, then DHCP, showing the address.
+  2. The catalogue from `http://get.flip/index.txt`: arrows and Enter to choose.
+  3. For an image: the HDD's capacity (from IDENTIFY) against the image's size; refuse if it
+     does not fit. Then "This erases the HDD. Type YES to continue."
+  4. Progress: MB written of total, speed, time left. Two 128 KiB buffers: the HDD writes one
+     while the network fills the other.
+  5. Verify every chunk's CRC32 again by reading back from the HDD, then "Done. Remove the floppy
+     and press Enter to restart." (SysCon POWER 0x7777).
+- Failure handling: a dropped connection resumes with Range from the first chunk not yet
+  verified; a CRC mismatch re-fetches that chunk; three failures in a row stop with a message.
+- In game: a creative-tab item "Netinstall floppy" (a `floppy_disk` with NBT `Preset:
+  "netinstall"`, write-protected). On its first insert the game copies the image bundled at
+  `data/create_flippies/floppies/netinstall.img` into a new disk id, then it behaves like any
+  floppy. Recipe later.
+
+### 12.6 The Linux fork (`guest/linux`)
+
+- Base: Linux 6.18.58, the newest upstream longterm on 2026-10-25 (6.12 was out of date). Tarball
+  `https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.58.tar.xz`, 154,851,680 bytes,
+  SHA-256 `069b19f9032c4dac8149ae4b6520c35debca0f42a9f6d52ee55ba6ca9b818013` (matches kernel.org's
+  signed `sha256sums.asc`). The kernel build script, not written yet, downloads it to
+  `guest/linux/.cache/` (ignored by git) and refuses it unless `sha256sum` matches. It unpacks
+  and builds in the toolchain container's `/build` volume, never in the repo: on the Mac the repo
+  is case-insensitive and the tarball has 13 paths that differ only in case (netfilter headers
+  and sources). Our changes are a numbered patch series in `guest/linux/patches/`, plus
+  `config-flippies` (a full `.config`). No kernel source is committed. Upgrading means rebasing
+  the series.
+- Built with `make ARCH=m68k CROSS_COMPILE=m68k-linux-gnu- bindeb-pkg` in Docker. The image sets
+  `DEB_BUILD_PROFILES=pkg.linux-upstream.nokernelheaders`, which drops the m68k `libssl-dev`
+  build dependency (not installable on Debian stable) and the `linux-headers` package we do not
+  need; a build that sets `KDEB_SOURCENAME` must set the matching profile name itself. The
+  package is named `linux-image-<release><LOCALVERSION>`, so `config-flippies` sets
+  `LOCALVERSION=-flippies` to get `linux-image-*-flippies`. Checked with `virt_defconfig`: the
+  build gives `linux-image-6.18.58-virt` and `linux-libc-dev` packages.
+- Platform `CONFIG_FLIPPIES` under arch/m68k (Kconfig.machine), CPU options M68040 and MMU only:
+  - Bootinfo machine type `MACH_FLIPPIES` = 15. Upstream's last is `MACH_VIRT` = 14; our fork
+    never upstreams it, so a clash only matters on a rebase and is checked then. The loader
+    passes `BI_MACHTYPE` (0x0001), `BI_CPUTYPE` (0x0002), `BI_FPUTYPE` (0x0003), `BI_MMUTYPE`
+    (0x0004), one `BI_MEMCHUNK` (0x0005: 0, RAM size), `BI_COMMAND_LINE` (0x0007), optionally
+    `BI_RAMDISK` (0x0006), then `BI_LAST` (tag 0, size 4). Each record is `__be16` tag, `__be16`
+    size of the whole record, then data. CPU, FPU and MMU values are bit masks: `CPU_68040`,
+    `FPU_68040` and `MMU_68040` are each 4. The first four tags are required (head.S stores
+    them without checking they were found). Checked in `uapi/asm/bootinfo.h` and `head.S`.
+  - `setup_arch` panics on an unknown machine, so the fork adds `case MACH_FLIPPIES` next to
+    `MACH_VIRT` in `arch/m68k/kernel/setup_mm.c`.
+  - `arch/m68k/flippies/config.c`: parse the machine's bootinfo, set `mach_sched_init`,
+    `mach_init_IRQ`, `mach_reset` (SysCon POWER 0x7777), `mach_power_off` (0x5555),
+    `mach_get_model` ("Create Flippies PC"), register the platform devices below.
+  - `head.S` early console: our machine branch prints through COM1 for `CONFIG_EARLY_PRINTK`.
+  - Interrupts: every controller line routed to output 0, which reaches IPL 4 (10.8.2). The IPL 4
+    autovector handler reads CLAIM and dispatches Linux irq `FLIPPIES_IRQ_BASE + line` until it
+    reads 0; mask and unmask write ENABLE. Line numbers as 3.2 and 11.1.1.
+  - Timer: the interval timer (3.3) as a clockevent (periodic and one-shot, line 7) and as the
+    clocksource and `sched_clock` (1 MHz, 64-bit COUNTER with its HI latch).
+  - Device windows: one transparent translation register, as the virt machine does. `head.S`'s
+    `mmu_init` gains a `MACH_FLIPPIES` branch with `mmu_map_tt #1,#0xFF000000,#0x01000000,
+    #_PAGE_NOCACHE_S` (sets ITT1 and DTT1), which covers VRAM, devices and ROM (0xFFD8_0000 to
+    0xFFFF_FFFF), and `arch/m68k/mm/kmap.c` gets virt's `ioremap` and `iounmap` shortcut (the
+    physical address unchanged at or above 0xFF000000) for `MACH_IS_FLIPPIES`.
+- Drivers (in the series, each a platform driver bound to devices that `config.c` registers):
+  - COM1..COM3: the stock 8250 driver with platform data (`UPIO_MEM`, regshift 0, uartclk
+    1,843,200, lines 1, 2, 8). Console `ttyS0`. No new driver.
+  - `rtc-flippies`: read and set (3.4).
+  - `flippies-hdd`: blk-mq, one request at a time, one HDD command per contiguous physical
+    segment (at most 256 sectors), completion by interrupt (line 5), `/dev/fhda` with partitions.
+  - The floppy through the same driver (line 9), removable, with media-change events
+    (`/dev/fhdb`).
+  - `flippies-nic`: NAPI, RX by interrupt (line 10), TX_CSUM and RX_INFO offload, link state
+    from STATUS (`eth0`).
+  - `flippiesfb`: fbdev for the three displays (`/dev/fb0` to `fb2`), 640x480 at 8 bits
+    pseudocolour (mode 3) by default, 320x200 (mode 1) selectable, palette through the 0x400
+    window, `mmap` of each display's VRAM slice, VBLANK interrupts (lines 6, 11, 12) for
+    `FBIO_WAITFORVSYNC`. fbcon on fb0.
+  - `flippies-ps2`: a serio port driver for each PS/2 port (lines 3 and 4). The stock `atkbd`
+    and `psmouse` drivers sit on top (the controller passes raw set 2 bytes, like other
+    non-PC PS/2 ports). No translation flag is needed: the port registers with type
+    `SERIO_8042` and a `write` callback, and atkbd then stays raw in set 2. The commands it sends
+    (FF, F2, F5, ED, F3, F4) are all handled by `Ps2Keyboard`.
+  - `flippies-syscon`: reboot and power-off handlers, and the guest error light as an LED class
+    device so a userspace error can light the case.
+- FPU: the strict FPU option must be off for Linux PCs (the default), so the CPU emulates what the
+  kernel's FPSP would otherwise trap for. `CONFIG_M68KFPU_EMU` off. Documented in the case
+  tooltip later if it matters.
+- Kernel size target under 6 MiB loaded (physical 0x1000 to `_end`); everything the boot needs
+  is built in (no initramfs needed). For scale, `virt_defconfig` loads to about 7 MiB (`_end` at
+  0x716000), so `config-flippies` must trim.
+
+### 12.7 Boot chain (`guest/boot`)
+
+- Disk layout (an MBR partition table, so Linux reads it with `CONFIG_MSDOS_PARTITION`). The boot
+  ROM's check of 0x55 0xAA at 510 is also the MBR signature, so one sector does both jobs:
+  - Sector 0: stage 1 (at most 440 bytes of 68k code), the partition table, 0x55 0xAA.
+  - Sectors 1..127: stage 2 (`flipboot`), up to 63.5 KiB.
+  - Partition 1 (type 0xDA, raw data), 32 MiB: the boot area, two kernel slots (A and B).
+  - Partition 2, 128 MiB: swap.
+  - Partition 3: the root file system, ext4, the rest of 1 GiB.
+- Stage 1: loads stage 2 with the HDD in polled mode and jumps, passing the boot device and RAM
+  size. Prints "flipboot" or a short error through the ROM's print routine (A1, 10.8.4). Stage 2
+  cannot live at 0x10000: the kernel loads at physical 0x1000 up to `_end` (about 7 MiB for
+  `virt_defconfig`), followed by the bootinfo and head.S's early page tables, so 0x10000 is
+  inside that range. Stage 2 either runs from high RAM, above everything the kernel uses, or
+  loads the kernel high and copies it down as its last step before the jump (boot chain owner's
+  choice, recorded).
+- Stage 2: reads the boot area's header ("FLBT", version, active slot, per slot: kernel offset and
+  length, command line up to 512 bytes, CRC32s), loads the active slot's kernel ELF segments to
+  their physical addresses, writes the bootinfo records, and enters the kernel at the ELF entry
+  (`_start`, 0x2000 in the measured build) with the MMU off. Holding Esc during the 2-second
+  prompt boots the other slot. Errors print on VGA and COM1 and stop. Rules checked in 6.18.58:
+  - The kernel links at 0x1000 with `PAGE_OFFSET` 0; with the memory chunk at 0 it is loaded at
+    physical 0x1000.
+  - Each segment is copied only from max(p_paddr, 0x1000), advancing the file offset by the same
+    amount. The first LOAD segment starts at address 0 and file offset 0, and its bytes below
+    0x1000 are the ELF header and padding; copied, they would overwrite the boot ROM's vector
+    table in page 0 (10.8.4 step 3) and send any later fault in stage 2 to address 0. Nothing
+    below `_stext` (0x1000) is needed.
+  - The loader zeroes each segment from `p_filesz` to `p_memsz`: the MMU `head.S` does not clear
+    BSS, and BSS is entirely outside the file.
+  - The bootinfo records start exactly at the physical address of `_end`, which is page
+    aligned, with no gap, and end with a full `BI_LAST` record. head.S puts its early page
+    tables on the next page after it, so the loader puts nothing there (a ramdisk goes well
+    above).
+- `flippies-boot` Debian package: `flipboot-update` writes a new kernel into the inactive slot,
+  verifies it, then flips the active slot; installed as an `/etc/kernel/postinst.d` hook, as
+  Debian's `flash-kernel` does for boards without a firmware bootloader. Default command line:
+  `root=/dev/fhda3 rw console=tty0 console=ttyS0,115200`.
+
+### 12.8 The Debian image (`guest/debian`)
+
+- Userland: debian-ports m68k (unstable only; m68k has no stable release), from a snapshot pinned
+  by date. snapshot.debian.org does archive debian-ports
+  (`https://snapshot.debian.org/archive/debian-ports/`, monthly from 2008-10 to 2026-10, with
+  gaps in 2023-01 and from 2023-08 to 2024-04, four timestamps a day lately; the latest when
+  checked was 20261025T063552Z). apt reads it with `[check-valid-until=no]`, signed by the keys
+  in `debian-ports-archive-keyring` (the 2026 and 2027 keys), so no mirror cache is needed.
+- Built with `mmdebstrap` in Docker, running m68k binaries through qemu user mode. Docker
+  Desktop's binfmt does not cover m68k; the image's entrypoint registers it when the container
+  runs privileged, and the registration holds for later containers until the Docker VM restarts
+  (12.14.5). `mmdebstrap` needs `arch-test` for any foreign-architecture bootstrap that runs
+  maintainer scripts; checked: an essential m68k bootstrap succeeds in about 40 seconds.
+- Contents: sysvinit-core (a lot lighter than systemd on a 25 MHz CPU), ifupdown with
+  `dhcpcd-base` as its DHCP client (`isc-dhcp-client` is no longer in the archive),
+  `systemd-standalone-sysusers` (xserver-xorg-core depends on udev, which needs `systemd |
+  systemd-standalone-sysusers`; without naming it apt installs the full systemd package beside
+  sysvinit-core), our kernel package and `flippies-boot`, Xorg with the fbdev driver and evdev
+  input, xinit, the desktop (open question 2), xterm, a small font set (xfonts-base). Auto-login
+  on tty1 starts X. `/etc/apt/sources.list` points at `http://deb.flip/` (only what the
+  catalogue serves).
+- Checked installable on m68k at snapshot 20261025T063552Z (`unstable` plus `unreleased`, an apt
+  simulation against an empty status file; maintainer scripts not run): xserver-xorg-core
+  2:21.1.25-2, xserver-xorg-video-fbdev, xserver-xorg-input-evdev, xserver-xorg-input-libinput,
+  xinit, xterm, xfonts-base, xdm, sysvinit-core, ifupdown, dhcpcd-base, busybox-static. Window
+  managers, all installable: jwm, icewm, fluxbox, openbox, twm, fvwm, wmaker,
+  matchbox-window-manager, dwm, i3-wm. sysvinit-core, ifupdown, dhcpcd-base, the X server with
+  fbdev and evdev, xinit, xterm, xfonts-base and jwm resolve to 170 packages together.
+- The script writes a raw 1 GiB image (12.7's layout, stage 1 and 2 installed, kernel in slot A),
+  then `mkfdi.py` makes the `.fdi` and the jar's chunk files. Target: under 450 MiB of used
+  blocks, so the download is a few minutes at most.
+- 128 MiB of RAM and 128 MiB of swap suit an X desktop of this weight.
+
+### 12.9 Toolchains and the headless runner
+
+- `guest/docker/Dockerfile`: one image (Debian 13 base, pinned by digest) with
+  `gcc-m68k-linux-gnu`, `binutils-m68k-linux-gnu`, the kernel build dependencies, `mmdebstrap`
+  with `arch-test`, `qemu-user` and `qemu-user-binfmt` (in Debian 13 `qemu-user-static` is only a
+  transitional package), `debian-ports-archive-keyring`, Python 3. Every guest build script runs
+  inside it through `guest/docker/build.sh`, with `/build` (a named volume) as the
+  case-sensitive scratch area; the repo holds only inputs and outputs. The Mac needs only Docker
+  (present: Docker Desktop 29 on arm64). As built: 12.14.5.
+- Headless runner (test sources, `computer/tools/HeadlessPc`, Gradle task `runHeadlessPc`): builds a
+  `Machine` from command-line options (CPU, RAM, HDD image file, floppy image), connects COM1 to
+  stdin and stdout, links the NIC to an in-process `Modem` serving a catalogue folder from disk,
+  runs unthrottled, and writes a PNG of a display on request (a text dump in text mode). This is
+  the development loop for the kernel, the boot chain, the image and the floppy, without
+  starting Minecraft. As built, with its usage: 12.14.4.
+
+### 12.10 Order of work and owners
+
+1. Done (12.14). In parallel, no dependencies between them:
+   - Core: the MMU (12.2).
+   - Core: faster ethernet (12.3) and `FrameEndpoint`.
+   - Core: the modem stack and `.fdi` reader (12.4.2 to 12.4.4), then the headless runner (12.9).
+   - Guest: the Docker image (12.9).
+2. Guest: the netinstall floppy (12.5), tested in JUnit against the modem stack with a small
+   test image. Needs 12.3, 12.4 and the Docker image.
+3. Guest: the kernel (12.6), in steps, each booted in the headless runner: serial console and
+   timer to a busybox initramfs shell first, then the HDD, then the NIC, then the framebuffer and
+   PS/2. Needs the MMU.
+4. Guest: the boot chain (12.7), then the Debian image (12.8). Needs the desktop decision.
+5. Game: the modem block, PoE, the exchange, the netinstall floppy item, the catalogue in
+   resources (12.4.5, 12.5). Can start after step 1's modem stack; needs the model.
+6. Spec update: as-built notes and Implementation status.
+
+### 12.11 Test plan
+
+- MMU: 12.2.5.
+- Ethernet: 12.3.
+- Modem (`computer/net` tests): ARP, ICMP echo, DHCP exchange, DNS hits and NXDOMAIN, TCP
+  handshake, a transfer with the NIC's queue full part of the time (no loss), retransmission
+  after a dropped frame, FIN and RST, HTTP GET, HEAD, Range and 404, the catalogue reader and
+  the `.fdi` writer and reader round trip.
+- Netinstall (`e2e`): a 68040 machine plus a `Modem` in one JUnit test: boot the floppy, script
+  the keys, download a 2 MiB test image, check the HDD's bytes and that absent chunks were not
+  written; a connection dropped midway resumes; a corrupt chunk is re-fetched.
+- Linux (tagged `linux`, not in the default suite because it needs the built image): boot in the
+  headless runner to "login:" on COM1 within a set emulated time; `ping 10.88.0.1`; fetch a file
+  over HTTP from the modem; a screenshot of X showing the desktop.
+
+### 12.12 Risks
+
+- MMU restart: Linux leans on precise, restartable faults everywhere (demand paging,
+  copy-on-write, user copies). Bugs show up as rare memory corruption. Mitigation: the restart
+  tests of 12.2.5 for every addressing mode, and running the Linux boot many times.
+- Speed: a busy 68040 at 25 MHz needs about 10 ms of host time per tick without the MMU, against
+  a 2 ms default budget (Implementation status), and the MMU adds 7% to 14% (12.14.1). Linux
+  booting is CPU-bound, so at the default budget it runs at a fifth of real time or less: several minutes to boot.
+  Raising `pc.hostBudgetPerPcMicros` to about 15000 for a server running one Linux PC makes it
+  close to real time. A faster interpreter (a decoded-instruction cache) is the next lever and
+  is not planned here.
+- debian-ports m68k is unstable-only: some packages may fail to build or install on the snapshot
+  date. Mitigation: pin a snapshot that installs cleanly; choose the desktop from what is there.
+- Kernel facts about bootinfo, `head.S` and the 68040 fault path were checked in 6.18.58 (step
+  1). A rebase onto a later longterm must check them again (`guest/linux/NOTES.md` lists them
+  with file paths and line numbers).
+- Licences: shipping a Linux kernel and Debian binaries inside the mod jar is redistribution
+  under the GPL and other licences, which requires offering the corresponding source. See open
+  question 5.
+
+### 12.13 Open questions
+
+1. Jar size: the Debian image adds roughly 120 to 200 MB compressed to the mod jar. Keep it in
+   the jar (as decided), or ship a small jar and have the server fetch the image once from a
+   pinned, hash-checked release asset into the world folder?
+2. Answered (12.16): a super minimal X desktop with a window manager and taskbar. Was: "a custom GUI based on Debian" could mean Xorg with a light window manager we theme
+   (JWM, IceWM or similar; 12.8 lists the ones that install on m68k), or our own desktop program
+   on top of X or straight on the framebuffer. Which?
+3. Answered (12.16): a combined keyboard and mouse block, not built yet. Was: an X desktop with only a keyboard is awkward. The PS/2 mouse is emulated already; the
+   mouse block is not designed. Build it alongside this, or keep the desktop keyboard-driven
+   for now?
+4. The modem's model: one you make, like the PC case and keyboard?
+5. Licences: is shipping GPL binaries in the jar acceptable for where the mod is published, with
+   the kernel patches and image build scripts in the public repo as the source offer?
+6. Should the HDD get faster for the bigger drives (5 MB/s today for every size), or stay as it
+   is?
+
+### 12.14 As built (step 1)
+
+Step 1 of 12.10: the MMU, faster ethernet, the modem stack with `.fdi`, the headless runner and
+the Docker toolchain. Each piece had an adversarial review; every finding was real and is fixed,
+with a regression test where the piece has a test harness. The plan text above is already
+corrected; this section records decisions, deviations and measurements a later owner needs.
+
+#### 12.14.1 MMU
+
+- Files: `cpu/m68k/M68kMmu.java` (new, package-private): TC, ITT0..DTT1, URP, SRP and MMUSR
+  (moved out of `M68kCpu`), the table walk, PTEST, the flushes and the TLB. `M68kCpu` reads the
+  TLB inline: each data accessor translates only when the `mmuOn` flag is set, and `fetch16`
+  compares against the current code page.
+- TLB: direct-mapped, 6 x 1024 entries (user and supervisor, times fetch, read and write), keyed
+  by logical page: an int tag, an int physical page and a global flag per entry. MOVEC to TC,
+  URP, SRP, ITTx or DTTx flushes all of it; MOVEC to MMUSR does not. RESET flushes it too (a
+  superset of the chip).
+- Register masks: TC keeps 0xC000, the TT registers 0xFFFF_E364, URP and SRP every bit (the walk
+  ignores bits 8..0). These replace 10.5's "store as written".
+- Restart, instruction by instruction:
+  - The undo record (kept only while the MMU is on, so MMU-off behaviour is unchanged) holds up
+    to 8 address registers changed by (An)+ and -(An), the CCR at the start of the instruction,
+    and for RTE a snapshot of SR, USP, ISP, MSP and A7 (a format 1 frame switches stacks before
+    the next frame is read).
+  - Reordered so registers change only after the last access that can fault: push16 and push32
+    write before moving SP; LINK, UNLK, RTR, RTD; MOVE16 reads the whole line, writes it, then
+    moves its address registers; MOVEM memory to registers buffers all its loads.
+  - Translated before the first write: CAS2 (both operands, for writing), CAS and TAS (locked
+    translation), bitfield instructions that modify memory, and any access that crosses a page
+    (both pages; adjacent physical pages run as one access, otherwise byte by byte).
+  - Harmless to re-run, so left as they were: MOVEM to memory (including -(An) with An in the
+    list), MOVEP, PACK and UNPK to memory, ADDX, SUBX, ABCD and SBCD on memory (CCR restored),
+    other read-modify-writes of one location, FMOVEM loads (FPSR accrued bits may be ORed twice,
+    which changes nothing).
+- Frame details beyond 12.2.3: MOVE16 reports SIZE line (3) and TT 1, even with the MMU off.
+  Instruction fetch faults report SIZE word (the chip fetches longs or lines; Linux ignores the
+  field).
+- Deviations from the chip, all deliberate:
+  - The TLB caches only successful translations. The chip's ATC also caches failed searches (R
+    clear, or S set), so on real hardware software must PFLUSH after repairing an invalid
+    descriptor; the emulator is more permissive. Linux flushes anyway.
+  - A fault while stacking any exception frame halts the CPU (the old double-fault rule). The
+    chip takes an access error unless it is already stacking an access error or reset frame.
+    Linux keeps its kernel stacks mapped.
+  - A table walk costs 0 cycles.
+  - A version 1 CPU state loads with every TT register's E bit cleared as well as TC.E (TT
+    registers had no effect in version 1).
+- Review findings fixed:
+  - FPU immediate operands (`#imm`) were read through data translation (DTT registers, the data
+    TLB, data function codes). They are now fetched through the instruction stream (code page,
+    ITT registers, TM 2 or 6 on a fault), at the same cycle cost.
+  - The TLB was not saved, so after a descriptor change without a PFLUSH a restored machine
+    left lockstep with an uninterrupted one (different page, extra U and M write-backs). The TLB
+    entries and the current code page are now saved state (12.2.5). Version 2 was never
+    released, so its layout changed without a version bump.
+- Tests: `M68kMmuTest` (32: walks with both page sizes, indirect descriptors, faults at every
+  level, U and M write-back, W and S, TT matching, restart of every addressing mode, the format
+  7 frame word by word, PTEST, every PFLUSH form, MOVES, FPU immediates, the saved TLB),
+  `M68kMmuDemandPagingE2eTest` (2: a 68040 guest that pages a user program in on demand, run
+  straight through and saved and loaded every tick in lockstep), and
+  `M68kMmuThroughputBenchmarkTest` (tagged `benchmark`).
+- Benchmark, 68040 machine at 40 MHz, single runs on a host shared with other Gradle runs, so
+  rough: MMU off 82.0 and 81.5 M instructions per second in one run, 82.1 and 83.6 in another;
+  MMU on 76.7 (93% of off) and 71.5 (86%). The target was at least 60%. The MMU-off benchmarks
+  did not slow down: 68040 interpreter 102.0 M/s, 68040 machine 85.0, 68000 interpreter 100.2,
+  68000 machine at 16.67 MHz 87.8.
+
+#### 12.14.2 Faster ethernet
+
+- `Nic`: `QUEUE_FRAMES` is 256 each way, RX_INFO at 0x38, CTRL bit 5 TX_CSUM (CTRL masked to
+  0x3F on write and on load), `SIZE` 0x3C. The saved state stays at version 1 with the same
+  format; the reader caps each queue at 256 frames (257 is refused), and a hand-written state with
+  32 frames in each queue loads byte for byte. A full card adds up to about 760 KiB to a PC's
+  saved state.
+- RX_INFO is recomputed from the oldest received frame on every read (0 with the queue empty);
+  nothing is cached or saved. Bit 2 means only that the type field is 0x0800. Bit 0 needs
+  version 4, a header of at least 20 bytes, a total length that covers the header and fits in the
+  frame (padding after it allowed), and a header that sums to 0xFFFF. Bit 1 needs bit 0, no
+  fragment, TCP or UDP, and a good checksum over pseudo-header and segment. A UDP checksum of 0
+  (none computed) leaves bit 1 clear, which Linux allows.
+- TX_CSUM recomputes from scratch (ignoring what the guest left in the field) the IPv4 header
+  checksum and, for a TCP or UDP frame that is not a fragment, its checksum; a UDP result of 0 is
+  sent as 0xFFFF. Fragments get only the header checksum; frames that are not well-formed IPv4
+  go out unchanged. Only the queued copy changes, not guest memory.
+- `FrameEndpoint` (`computer/net`) with `canReceive` (12.4.2); `PcLinkExchange.ethernet` takes
+  two endpoints and `ethernetDown` one. Its real caller is `PcServer`, which needed no change.
+- Review findings fixed: a UDP segment shorter than its 8-byte header made RX_INFO and TX_CSUM
+  read past the frame and throw out of a bus access (one guest could crash another PC on its
+  link); `l4Length` now checks the payload length first. The modem's held frames counted as
+  RX_DROPPED and RX_OVERFLOW; `canReceive` fixed that.
+- Tests: `NicTest` (15), `NetworkE2eTest` adds a burst of 256 full frames with offload and
+  RX_INFO on RV32I, the 68000 and the 68040, and `LinkExchangeTest` adds a NIC linked to another
+  endpoint.
+
+#### 12.14.3 The modem stack and `.fdi`
+
+- Package `computer/net`. Public: `Modem`, `Catalogue`, `ContentSource`, `FolderContent`,
+  `MemoryContent`, `CatalogueFile`, `CatalogueIndex`, `DeflatedChunks`, `Fdi`, `Packets`,
+  `FrameEndpoint`. Package-private: `DhcpServer`, `DnsServer`, `Tcp`, `TcpConnection`,
+  `HttpSession`.
+- `Modem`: `new Modem(long mac, Catalogue)`, `exchange`, `tick`, plus counters for the block's
+  lights and for tests (`framesIn`, `framesOut`, `framesDropped`, `outgoingCount`,
+  `connectionCount`, `retransmissions`, `leaseHolder`). Link down clears the queue and drops
+  every TCP connection silently; `tick` does nothing while the link is down. The outgoing queue
+  holds 256 data frames plus 64 slots for frames without data.
+- IPv4: fragments, bad header checksums and bad TCP or UDP checksums are dropped; frames sent
+  carry DF, TTL 64 and a rising IP ID. ICMP: echo reply only.
+- DHCP: DISCOVER gets an OFFER; a REQUEST for 10.88.0.2 (option 50 or ciaddr) gets an ACK, any
+  other address a NAK, one naming another server id is ignored; RELEASE clears the lease;
+  DECLINE and INFORM are ignored. Options 53 and 54, plus 51 (86400), 1, 3 and 6 on OFFER and
+  ACK. Replies are padded to 300 bytes. Addressing follows RFC 2131 4.1; relays are not
+  supported.
+- DNS: A or ANY for a catalogue host (any case) answers 10.88.0.1, TTL 3600; other types for a
+  catalogue host get NOERROR with no answer; every other name, including `flip` itself and
+  subdomains of a host, gets NXDOMAIN. Not exactly one question: FORMERR; another opcode:
+  NOTIMP; a response: dropped. AA and RA set, RD copied, EDNS ignored.
+- TCP: window scaling as 12.4.2 says (a deviation the plan lacked). MSS 1460 offered, the peer's
+  honoured (536 when absent). Go-back-N resend after 20 ticks without progress; after 10
+  timeouts in a row, a RST. Zero window: a 1-byte probe on each timeout. A SYN when 8
+  connections exist is dropped silently. Out-of-order segments are dropped with a duplicate ACK.
+  A SYN on an open connection gets a challenge ACK (RFC 5961). An in-window RST closes the
+  connection; segments for no connection get a RST (RFC 9293 3.5.2). Idle for 1200 ticks: we
+  close with a FIN, then wait up to 1200 ticks for the client's; no TIME_WAIT. The first ISS is
+  0xFFFFF000, so a first big transfer crosses the 32-bit wrap.
+- HTTP: Host from the header or an absolute URL (port ignored). 400 for a missing Host,
+  malformed or folded lines, a bad Content-Length, `%2F` or `%00`; 431 for headers over 8 KiB;
+  505 for HTTP/2 and later; 501 for Transfer-Encoding (and close) and other methods (keep the
+  connection). `.`, `..`, empty segments and paths ending in `/` get 404. Range: one range in
+  the forms a-b, a- or -n; several or an invalid one send the whole file; unsatisfiable gives
+  416 with `Content-Range: bytes */size`; If-Range always sends the whole file (we send no
+  validators). Content-Type is text for txt, html for html, else octet-stream. A store error
+  gives 500; an error while streaming a body ends the connection with a RST.
+- `index.txt`: kind, path, size, then the title as the rest of the line, separated by spaces or
+  tabs; the path is absolute on get.flip; `#` lines and blank lines are skipped. `FolderContent`
+  treats only lower-case folder names as hosts.
+- `.fdi`: the layout of 12.4.4. Deviation: a CRC32 of the chunk table at offset 16, which the
+  plan did not list.
+- Measured throughput (8 MiB, the PC's card holding 256 frames, the client reading 256 frames a
+  tick, no retransmissions in any case): TCP receive window 64 KiB, 129 ticks, about
+  1.24 MiB/s; 256 KiB, 33 ticks, about 4.8 MiB/s; 1 MiB or 4 MiB, 23 ticks, about 7 MiB/s.
+- Review findings fixed: a valid-checksum TCP segment shorter than 13 bytes threw out of
+  `Modem.deliver` (the length check now comes first); a client advertising a zero window could
+  queue responses without limit (now at most 32 per connection, 12.4.2); a `RuntimeException`
+  from the content source (an invalid path on Windows, a `ResourceLocationException` in the
+  game) escaped into the exchange phase and now gives 404. During the build, a NAK that copied
+  ciaddr (RFC 2131 table 3 says 0) was also fixed.
+- Not built (not in the plan): DHCP relays, DHCPINFORM, ICMP unreachable replies, fast
+  retransmit.
+- Tests: `ModemTest` 8, `TcpTest` 20, `HttpSessionTest` 15, `CatalogueTest` 9, `FdiTest` 6,
+  `ModemE2eTest` 3 (DHCP, DNS and a download through a real `Nic` that stalls, with RX_DROPPED 0
+  and RX_OVERFLOW clear afterwards).
+
+#### 12.14.4 Headless runner
+
+- Test sources, package `computer/tools`: `HeadlessPc` (options, run loop), `RawDiskFile` (a raw
+  image file as a `PagedDiskImage`, written back with `flush`), `Screenshot`. Gradle task
+  `runHeadlessPc` (a `JavaExec` on the test runtime classpath, Java 17, stdin forwarded,
+  `-Djava.awt.headless=true`).
+- Usage:
+  `./gradlew -q --console=plain runHeadlessPc --args='--cpu 68040 --ram 32M --hdd hdd.img --floppy boot.img'`
+  - `--cpu rv32i|68000|68040` (default 68040); `--clock HZ` (25000000, 25MHz, 12.5M; default
+    the model's); `--ram SIZE` (K, M or G, powers of 1024; default 8M).
+  - `--hdd FILE` (a multiple of 512 bytes, at most 1 GiB); `--hdd-size SIZE` creates a missing
+    HDD file, sparse; `--floppy FILE` (1,474,560 bytes; shorter reads as zeros past its end).
+  - `--readonly` never writes the image files; `--sync-seconds S` also writes disk changes back
+    every S emulated seconds.
+  - `--catalogue DIR` links the NIC to a modem serving DIR (one lower-case folder per host);
+    `--modem` a modem with an empty catalogue (DHCP, DNS, ping; HTTP 404s).
+  - `--mac MAC` (default 02:46:4c:50:43:01; the modem's is 02:46:4c:4d:44:01); `--strict-fpu`;
+    `--epoch SECONDS` fixes the RTC start (default host time).
+  - `--max-seconds S` in emulated time; `--screenshot FILE` at exit, of `--display N` (0 to 2);
+    `--realtime` holds emulated time to wall-clock time; `--help`.
+  - Both `--opt value` and `--opt=value` work.
+- The machine is built from `MachineConfig` and the model's `BootRoms` image, as the game does,
+  then cold-booted (floppy first, then HDD). A keyboard is on PS/2 port 0 and a mouse on port 1,
+  neither given input. The floppy is not write-protected.
+- Each tick: `machine.runTick` for 50 ms with a 10-second budget (no emulated time dropped), then
+  COM1 to stdout and stdin to COM1, then with a modem `modem.exchange(nic)` and `modem.tick()`.
+  The link is always up. COM1 is raw bytes with no line-ending translation (run `stty raw -echo`
+  first for an interactive shell). stdin is read on a daemon thread; bytes the UART cannot take
+  yet wait, and end of input does not stop the guest.
+- Disks: changed 64 KiB chunks are written back in place and fsync'd at every exit (a shutdown
+  hook covers SIGINT and SIGTERM, waiting up to 30 s) and every `--sync-seconds`.
+- Exit status: the guest's on SysCon power-off (POWER 0x5555 gives 0; 0x3333 with code C in bits
+  31..16 gives C's low byte, or 1 if that is 0). The runner's own: 124 time limit, 125 CPU
+  halted, 64 bad options or setup, 70 runner error, 130 on SIGINT, 143 on SIGTERM (the JVM's
+  status after a signal wins). The last stderr line names the reason, the guest's full code in
+  hex, emulated and host seconds and the speed. Through Gradle any non-zero status becomes 1;
+  for the exact status run the class with `java` on the test runtime classpath. Gradle's stdout
+  starts with build.gradle's "Java: ..." line even with `-q`.
+- Screenshot: graphics modes give a PNG at the mode's resolution (8 bpp through the palette,
+  4 bpp with the high nibble the left pixel, black while DISPLAY is clear). Text mode gives FILE
+  with `.txt`: one line per row, code page 437, control characters as spaces, trailing spaces
+  trimmed, attributes dropped. There is no PNG for text mode because the codebase has no 8x16
+  font outside Minecraft (`CrtFont` is built from Minecraft's `ascii.png`).
+- Deviations from 12.9: the extra options `--realtime`, `--sync-seconds`, `--readonly`,
+  `--hdd-size`, `--epoch`, `--mac`, `--strict-fpu` and `--display`; text-mode screenshots as
+  text. A review finding fixed: the docs said 130 for SIGTERM as well.
+- Speed on the developer's Mac, through Gradle with JVM start: a busy 68040 loop at 25 MHz, MMU
+  off, 30 s emulated in 1.76 s (about 17 times real time); Cog Maze on RV32I at 25 MHz, mostly
+  waiting for vertical blank, about 5 times; an idle 68040 boot floppy, 3.3 to 3.8 times. The
+  plan's "about 3 times real time for a busy 68040" was not reproduced; Linux with the MMU on is
+  the real measure.
+- Tests: `HeadlessPcTest` (6): a 68040 boot floppy that prints through the ROM, ARPs the modem,
+  writes the HDD and echoes a stdin byte, then exits with 42; `--readonly`; no modem until the
+  time limit (124); Cog Maze on RV32I to its title screen PNG; option parsing; setup errors.
+
+#### 12.14.5 Docker toolchain
+
+- Files: `guest/docker/Dockerfile`, `guest/docker/build.sh`, `guest/docker/entrypoint.sh`;
+  kernel and debian-ports facts in `guest/linux/NOTES.md`; `guest/linux/.cache/` for tarballs
+  (ignored by git).
+- Base `debian:trixie-slim` pinned by digest
+  (`sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad`). Cross GCC 14.2 and
+  binutils 2.44. Packages beyond 12.9's list: `arch-test`, `libdw-dev`, `debhelper`, `dpkg-dev`,
+  `fakeroot`, `gpg`, `patch`, `git`, `xz-utils`, `zstd`, `curl`, `ca-certificates`, `file`,
+  `e2fsprogs`, `fdisk`. `qemu-user` and `qemu-user-binfmt` replace `qemu-user-static`.
+- `DEB_BUILD_PROFILES=pkg.linux-upstream.nokernelheaders` is set in the image (12.6).
+- `/build` is created with mode 1777 and `build.sh` mounts a named volume there
+  (`FLIPPIES_GUEST_VOLUME`, default `create-flippies-guest-build`), the case-sensitive work area
+  for kernel trees and other large intermediates.
+- The entrypoint registers m68k with binfmt_misc from qemu's `/usr/lib/binfmt.d/qemu-m68k.conf`
+  (flags POF) when the container is privileged and m68k is missing.
+- `build.sh` usage: `guest/docker/build.sh` for a shell, `guest/docker/build.sh <command>` to run
+  one command (in the matching directory under `/work` when called from inside the repo),
+  `--privileged <command>` for mmdebstrap and the binfmt registration, `--image-only` to build
+  the image and stop. The image is rebuilt from cache on every call. On a Linux host unprivileged
+  runs use the caller's uid and gid. `FLIPPIES_GUEST_IMAGE` overrides the image name (default
+  `create-flippies-guest:latest`).
+- Proved by running: a freestanding `-m68040` object linked to a flat binary (`__mc68040__`
+  defined, 68040-only instructions emitted); `mmdebstrap --variant=extract` from debian-ports,
+  and a refusal with an empty keyring; an essential m68k bootstrap that runs maintainer scripts
+  (about 40 s, an 83 MB tarball); `virt_defconfig` plus `bindeb-pkg` of 6.18.58 in about a
+  minute, giving `linux-image-6.18.58-virt_6.18.58-1_m68k.deb` (3.1 MB) and
+  `linux-libc-dev_6.18.58-1_m68k.deb`, and failing on unmet `libssl-dev` with the profile
+  emptied.
+- Review findings fixed: `arch-test` was missing (mmdebstrap refused every m68k bootstrap that
+  runs maintainer scripts); `libdw-dev` and the build profile were missing (`bindeb-pkg`
+  failed); kernel trees were to be unpacked in the case-insensitive repo folder (13 paths
+  merged); NOTES called loading page 0 harmless (now the max(p_paddr, 0x1000) rule of 12.7) and
+  claimed a fetch script that does not exist.
+
+### 12.15 As built (step 3: the Linux fork)
+
+Linux 6.18.58 with our own drivers boots on the 68040 PC (25 MHz, 128 MiB) to a busybox shell
+on COM1 and on the framebuffer console. Nothing under `src/main` changed in this step: every
+fault found was in the guest port, and the emulator was checked against qemu-m68k byte for byte
+on integer, floating point, compression and hashing work.
+
+#### 12.15.1 Patch series and config
+
+- `guest/linux/patches`, applied in name order by `fetch.sh`:
+  - 0001: the machine (`MACH_FLIPPIES`, head.S early serial, bootinfo, clock, reset and power).
+  - 0002: the platform devices, and `min_low_pfn = 0` in `arch/m68k/flippies/platform.c`.
+  - 110: `flippies-hdd`, one blk-mq driver for the HDD (`fhda`, MBR partitions) and the floppy
+    (`fhdb`, removable, media-change interrupt, read-only while the tab is set).
+  - 120: `flippies-nic`, no rings (one buffer per command), NAPI receive, checksum offload both
+    ways (TX_CSUM, RX_INFO), link state from the link interrupt.
+  - 130: `flippiesfb` for all three displays (default 640x480 at 8 bits, panning, mmap,
+    FBIO_WAITFORVSYNC on the display's interrupt, fbcon 80x30 on fb0) and `flippies_ps2`, which
+    registers both ports as `SERIO_8042` so the stock atkbd and psmouse bind.
+  - 140: `rtc-flippies` (64-bit seconds, hwclock works) and the error light as the LED
+    `flippies::fault` (also the panic indicator).
+- Each of 110 to 140 applies alone on top of 0001 and 0002.
+- Config: fragments `00-base`, `block`, `input-fb`, `misc` and `net` in `config.d`, merged onto
+  allnoconfig in that order. Not yet the single `config-flippies` of 12.6.
+- checkpatch `--strict --no-signoff`: 0 errors on every patch, one warning each (no
+  MAINTAINERS entry). No Signed-off-by lines.
+- Why `min_low_pfn = 0` is in 0002: both the disk controllers and the network card DMA into
+  kernel image pages freed after boot, which dma-direct otherwise refuses ("DMA addr ...
+  overflow"), and the read then retries forever. The virt machine does the same.
+- flippies_ps2 keeps each port's interrupt and port enable on from probe onward, as i8042
+  does. Bytes reaching an unbound port make serio rescan it, so a keyboard or mouse plugged in
+  after boot binds. (A review found that clearing CTRL in serio close left hot-plugged devices
+  dead; fixed.)
+- Port fixes found while booting: `COMPAT_32BIT_TIME` must be on (glibc sleeps returned at
+  once without it), and the clock event device's maximum delta is capped at 1 s (a long
+  tickless idle made timekeeping catch up with interrupts off and overran the COM FIFO).
+
+#### 12.15.2 The kernel
+
+- `guest/linux/fetch.sh`, `build.sh` (`--tree`, `--patches`, `--fragments`, `--out`, `--deb`)
+  and `mkinitramfs.sh` (busybox from the pinned debian-ports snapshot; `--net`).
+- Full series: text 3,903,806, data 1,129,300, bss 196,800. `_end` is 0x4ff000, so 4.99 MiB
+  loads from 0x1000, under the 6 MiB target. Entry 0x2000.
+- `vmlinux` is 5.9 MB. `build.sh --deb` makes `linux-image-6.18.58-flippies_*_m68k.deb`
+  (2.2 MB) whose `/boot/vmlinuz` is `out/vmlinux` byte for byte.
+- With every driver in: "Memory: 122384K/131072K available".
+- `initramfs/init` also starts a shell on tty1 when the console is a ttyS port and /dev/fb0
+  exists, so the PS/2 keyboard has a shell.
+
+#### 12.15.3 Measured
+
+- Boot to the prompt with the console pair `console=tty0 console=ttyS0,115200`: 5.2 s
+  emulated, 1.3 s of host time. With ttyS0 alone: 3.4 s. The serial console is the main cost:
+  it reprints the whole log when it registers and holds interrupts off about 7 ms per line, so
+  `quiet` on the Debian command line roughly halves boot time.
+- Network (busybox wget from the modem): at 25 MHz the guest CPU limits it, about 4.8 MiB/s to
+  /dev/null. At 40 MHz the card's 256 frames per tick is the steady state: 32 MiB in 4.84 s
+  (6.6 MiB/s) after a 5-tick receive-window ramp. Checksum offload saves about 20% of the CPU;
+  NAPI gives 124 interrupts for 17,338 frames.
+- Disk: mke2fs of 16 MiB takes about 3 s. A direct 64 KiB floppy read takes 4 s (one command
+  per 4 KiB page). sha256 runs at about 190 KB/s at 25 MHz.
+- The whole test session: 30.9 s emulated in 5.6 s host (5.5x real time) on the developer's
+  Mac. Under the game's 2 ms budget per tick Linux runs far slower than real time (12.12).
+
+#### 12.15.4 Runner and tests
+
+- HeadlessPc gained `--kernel`, `--initrd` and `--cmdline` (new `KernelLoader`: segments from
+  max(p_paddr, 0x1000), bootinfo at `_end`, the initrd page-aligned at the top of RAM),
+  `--input FILE` (timed keys, text, mouse moves and buttons, screenshots), `--screenshot-at S`,
+  and a package-private per-tick listener for tests.
+- `LinuxBootTest`, tagged `linux`, runs with `./gradlew linuxTest`; the default `test` task
+  excludes the tag. It is skipped while `guest/linux/out/vmlinux` or the initramfs is missing.
+  - The boot session: 128 MiB, a 32 MiB HDD with an MBR, a floppy, the modem with a small
+    catalogue and scripted PS/2 typing. 26 commands on COM1 cover the partitions, mke2fs and
+    mount, the floppy, DHCP, ping, two wget downloads, the RTC and the error light; then a
+    screenshot of fbcon and power off, and host-side checks of the disk images.
+  - The hot-plug test empties both PS/2 ports, waits out the probe (it ends about 9.85 s after
+    power-on, so the test sleeps 10 s), then plugs in a keyboard and a mouse and checks they
+    bind and deliver input.
+- Computer suite: 1012 tests, 0 failures.
+
+#### 12.15.5 Open
+
+- No `BI_RNG_SEED`: "crng init done" came 259 to 405 s after boot, and Debian's `getrandom()`
+  callers will block until then. Stage 2 (12.7) should pass a seed.
+- The system clock drifts from the RTC, because the RTC runs on host time and the kernel on
+  emulated time.
+- Runner gaps: no floppy eject or write-protect option, and `--kernel` is not reloaded after a
+  guest reboot (stage 2 will do that in the real boot chain).
+- Not yet covered from 12.11: "login:" on COM1 and an X screenshot, which need the Debian
+  image.
+- The Docker image lacks `libc6-dev-m68k-cross` (no m68k userland C programs; harmless
+  dpkg-genbuildinfo error) and checkpatch's python3-ply and python3-git.
+- `build.sh --deb` with a custom `--tree` removes `/build/*.deb`, shared by every tree.
+- The Docker build volume is nearly full (about 1.2 GB free); old check trees can go. The
+  current series lives as git commits in `/build/series`, branch `flippies`.
+- VgaDisplay marks the whole frame dirty on every CTRL write (3.7), so a guest that toggles the
+  vertical blank interrupt makes the game resend the frame. fbcon's cursor blink also dirties
+  rows five times a second; `vt.global_cursor_default=0` avoids it.
+- Later config the Debian image needs: SYSVIPC, INOTIFY_USER, SWAP, UNIX sockets and the rest of
+  Debian's list.
+
+### 12.16 As built (step 4: boot chain, Debian image and desktop)
+
+One raw 1 GiB disk image (`guest/debian/out/debian.img`) boots from the boot ROM, with no
+`--kernel`, to a JWM desktop: the ROM loads flipboot stage 1 from the MBR, stage 1 loads stage 2,
+stage 2 loads the kernel from the boot area's active slot, then sysvinit, Xorg on flippiesfb and
+JWM with a taskbar and an xterm. The PS/2 mouse moves the cursor and opens the Start menu.
+Nothing under `src/main` changed. The GUI decision (12.13 question 2): a super minimal X desktop,
+a simple window manager plus a taskbar. The mouse block (question 3) is decided but not built:
+one "keyboard and mouse" block that duplicates the keyboard model.
+
+#### 12.16.1 Disk layout (`guest/boot/mkdisk.py`; `FlipbootDisk` in the tests writes the same bytes)
+
+- Sector 0: stage 1 in bytes 0..439, disk signature "FLPC" at 440, the MBR partition table (LBA
+  only), 0x55 0xAA. Sectors 1..127: stage 2.
+- p1, sectors 2048..67583, type 0xDA, bootable: the boot area. p2, 67584..329727, type 0x82:
+  swap. p3, 329728 to the end, type 0x83: the ext4 root.
+- `mkdisk.py create OUT --stage1 --stage2 [--size] [--kernel-a F --cmdline-a T] [--kernel-b ...]
+  [--active a|b] [--root F]` writes a sparse image; `mkdisk.py show IMAGE` checks it.
+
+#### 12.16.2 Boot area format (big-endian)
+
+- Header, 4096 bytes: "FLBT", version 1 at 4, active slot at 8 (0 = A, 1 = B), CRC at 12 (over
+  the header with this field as 0), generation at 16, slot A record at 32, slot B at 576.
+- Slot record, 544 bytes: kernel offset from the partition start (multiple of 512), length (0
+  for empty), CRC of the whole kernel file, and at +32 a 512-byte NUL-terminated command line
+  of at most 239 characters, so stage 2's marker always fits in m68k's 255.
+- A second header copy at byte 4096. Stage 2 uses copy 0 if it checks, else copy 1, else stops.
+- Slot A's kernel at 1 MiB, slot B's at 16 MiB.
+- Every CRC is the POSIX `cksum` CRC, so the Debian package needs no m68k binary.
+
+#### 12.16.3 Stage 1 (`guest/boot/stage1.S`, 252 bytes)
+
+- Prints "flipboot" through the ROM's print routine (A1). Needs 16 MiB of RAM.
+- Reads sectors 1..127 to 0x00F00000 with the HDD polled, checks "FLB2", and enters stage 2 with
+  D0 = RAM size, D1 = capacity, A1 unchanged. Errors print "flipboot: ..." and stop.
+
+#### 12.16.4 Stage 2 (`start.S`, `flipboot.c`, 5,408 bytes)
+
+- Linked at 15 MiB, with bss, buffers and stack below 16 MiB. The kernel loads straight to
+  0x1000.._end with the bootinfo after it, so a stage 2 above all of that never moves itself;
+  the kernel plus bootinfo must end below 15 MiB (it ends at 0x51E000).
+- Reads both header copies, prints "flipboot: slot X active, generation N". If the other slot
+  holds a kernel it waits 2 s for Esc on either PS/2 port, which boots the other slot. With the
+  other slot empty there is no prompt and no wait. A key held since power-on is lost (the ports
+  are disabled until stage 2 enables them).
+- Loads the ELF with KernelLoader's rules: each PT_LOAD from max(p_paddr, 0x1000), p_filesz to
+  p_memsz zeroed, `_end` as the last segment's end rounded to 4 KiB (the symbol table is
+  streamed past; equal to the `_end` symbol today). The file streams once in 64 KiB chunks,
+  CRC'd as it goes, straight into place by DMA where possible, the next read overlapping the
+  CRC.
+- When a slot cannot boot (empty, bad ELF, CRC error, too big) it says why and tries the other
+  slot. Disk errors stop at once.
+- Writes the bootinfo at `_end` in KernelLoader's order: MACHTYPE 15, CPUTYPE, FPUTYPE and
+  MMUTYPE 4, MEMCHUNK, BI_RNG_SEED (tag 8; 32 bytes from the RTC, the interval timer and the
+  kernel CRC, mixed; the kernel credits it, so "crng init done" comes at once; not
+  cryptographic), COMMAND_LINE with ` flipboot.slot=A` or `B` appended, LAST.
+- Enters the ELF entry with SR 0x2700, SP 0x1000, the MMU off.
+- Power-on to kernel entry: about 1.5 s emulated (disk-bound: the HDD's 5 MB/s alone needs
+  1.25 s for the 6 MB vmlinux), plus 2 s with the prompt.
+
+#### 12.16.5 `flippies-boot` package (`guest/boot/flippies-boot`, `flippies-boot_1.0_all.deb`)
+
+- `/usr/sbin/flipboot-update [--device DEV] [--cmdline TEXT] KERNEL` and `--show`, POSIX sh with
+  dd, od, cksum and blockdev, plus the `/etc/kernel/postinst.d/zz-flipboot` hook.
+- Order of writes, each followed by sync, so a power loss at any point leaves one whole header
+  naming a whole kernel:
+  1. A stale or damaged header copy is rewritten from the valid one.
+  2. If the running slot (from `flipboot.slot=` in /proc/cmdline) is not the active one, it is
+     made active first. So the running kernel is never overwritten, even after an Esc.
+  3. The kernel goes into the other slot and is read back.
+  4. The new header: copy 0, then copy 1.
+- A kernel already in the active slot changes nothing.
+- At 25 MHz the hook takes 28.7 s to install a kernel, and 19.7 s when it finds it already
+  active (two cksums of 6 MB).
+
+#### 12.16.6 Kernel changes for Debian
+
+- `guest/linux/config.d/debian.config`: SYSVIPC, POSIX_MQUEUE, INOTIFY_USER and SWAP turned on,
+  and the other facilities udev, Xorg and sysvinit need restated so the build stops if one
+  drops out. Off on purpose: IPv6, CGROUPS (udevd only logs that it has none), POSIX ACLs.
+- `guest/linux/build.sh` builds with `KCFLAGS=-fno-tree-slsr`. GCC 14.2 for m68k at -O2
+  miscompiles `pivots[end + 1] = mas->last` in lib/maple_tree.c's mas_wr_append into a store to
+  `pivots[end]`. The maple tree gets corrupted and udev oopses on every Debian boot. The kernel's
+  own maple tree self-test fails the same way in qemu-system-m68k (upstream virt kernel), and
+  passes with the flag. Whether other files or Debian's userland hit this is unknown.
+- Size: text 4,014,622, data 1,144,792, bss 198,336; `_end` 0x51e000, 5.11 MiB loaded.
+- The runner's `--kernel` path still passes no BI_RNG_SEED; only stage 2 does.
+
+#### 12.16.7 The Debian image (`guest/debian`)
+
+- `guest/debian/build.sh` (through `guest/docker/build.sh --privileged`): `--size` 512M to 1G
+  (default 1G), `--kernel-deb`, `--cmdline`, `--chunks`, `--rebootstrap`, `--out`.
+  - mmdebstrap minbase from snapshot 20261025T063552Z, recommends off, man pages, docs and
+    locales excluded by dpkg path-exclude. Cached in `/build/debian/base-<hash>.tar` (the hash
+    covers the snapshot, the package list and the kernel package), 3 to 4 minutes when not
+    cached.
+  - Then `guest/debian/rootfs/` is copied over, the image is written with `mkdisk.py` and
+    `mkfs.ext4 -d` (no loop mounts), and `mkfdi.py` makes the `.fdi` and, with `--chunks`, the
+    deflated chunk files of 12.4.3.
+  - Not byte-for-byte reproducible between builds yet (cause not looked into).
+- Packages beyond the required set: sysvinit-core, systemd-standalone-sysusers, udev, ifupdown,
+  udhcpc, netbase, iputils-ping, wget, xserver-xorg-core, -video-fbdev, -input-evdev, xinit,
+  xauth, jwm, xterm, xfonts-base, x11-xserver-utils, x11-utils, e2fsprogs, sudo, nano, less,
+  procps, debian-ports-archive-keyring, flippies-boot, the kernel. 252 packages.
+- Deviations from 12.8:
+  - busybox udhcpc instead of dhcpcd-base: dhcpcd 10.5.2 crashes on m68k at this snapshot (also
+    in qemu-system-m68k).
+  - Root fsck off (fstab pass 0): e2fsck refuses the mounted root as busy; the cause (the kernel
+    naming it /dev/root) is inferred.
+- Configuration:
+  - Hostname `flippies`. fstab: /dev/fhda3 root (noatime), /dev/fhda2 swap, /tmp on a 16 MiB
+    tmpfs. eth0 by DHCP; ping works unprivileged.
+  - `/etc/apt/sources.list` is `deb [check-valid-until=no] http://deb.flip/ unstable main`, but
+    the catalogue has no deb.flip archive yet, so apt cannot install anything.
+  - User `flip`: empty password, passwordless sudo, root locked. Auto-login on tty1 runs
+    startx (not exec'd: when X ends, tty1 stays at a shell saying how to restart it). Logins on
+    tty2 and COM1 (agetty ttyS0, the "login:" of 12.11).
+  - X: fbdev on /dev/fb0, 640x480 at 8 bits (PseudoColor), shadow framebuffer, no blanking or
+    DPMS, COMPOSITE off, no GLX. Input through evdev and udev.
+  - `~/.jwmrc`: a 24 px bottom taskbar with Start, the task list and an `%H:%M` clock (a click
+    shows `busybox cal`). Start menu: Terminal, Root terminal, Display info, Show key and mouse
+    events, Close a window by clicking it, Restart the desktop, Exit to the text console,
+    Reboot, Power off. Flat grey, navy and teal theme, focus by click. Alt+F1 menu, Alt+Tab,
+    Alt+F4, Alt+F2 terminal. An xterm opens at start.
+- Default command line: `root=/dev/fhda3 rw console=tty0 console=ttyS0,115200 quiet`. `quiet`
+  saves only 3 to 4 s: Debian's boot is userland time, not console output.
+- Sizes: root 280 MiB of used blocks of 863 MiB (target under 450). `.fdi` 270,238,000 bytes
+  (4,123 of 16,384 chunks). Deflated chunks for the jar: about 94.3 MB.
+
+#### 12.16.8 Measured (developer's Mac, 25 MHz 68040, 128 MiB, headless runner)
+
+- Power-on to "login:" on COM1: about 99 s emulated, 26 s host.
+- Power-on to the complete desktop: about 210 s emulated, 44 s host. X's RENDER start-up in
+  8-bit PseudoColor takes about 66 s of that and udev coldplug plus the rcS scripts about 50 s;
+  neither has been tuned. Under the game's 2 ms budget per tick this is many minutes.
+
+#### 12.16.9 Tests (12.11 complete)
+
+- `FlipbootE2eTest` (computer/tools): in the default suite, skipped until `guest/boot/build.sh`
+  has run. ROM banner, prompt, Esc fallback, CRC errors, bootinfo, slot fallback, two power
+  losses during upgrades, the running slot never overwritten, command line limits. Two of its
+  tests are tagged `linux` (the real kernel from the disk).
+- `LinuxDesktopTest` (tagged `linux`) boots `guest/debian/out/debian.img` (or
+  `FLIPPIES_DEBIAN_IMAGE`) read-only, skipped while the image is missing, with no network
+  access. One session: "login:" within 180 s; a COM1 login, ping and wget from the modem; the
+  postinst hook into slot B; the desktop within 330 s from power-on, checked from Java (taskbar
+  row, xterm); a mouse move changes the screen; a click on Start opens the menu; `reboot -f`
+  back through flipboot from slot B; X exit leaves tty1 at a shell; `poweroff` exits 0. The whole
+  session: 512 s emulated in about 100 s host.
+- Gradle does not list guest outputs as test inputs: after rebuilding stage 2 use `cleanTest`
+  (linuxTest always reruns).
+- Results: computer suite 1028 tests, 0 failures; `./gradlew linuxTest` 5 tests, 0 failures.
+
+#### 12.16.10 Open
+
+- In-game mouse block: built, see 11.2.15.
+- deb.flip has no archive layout, so apt in the image installs nothing.
+- Boot time to the desktop (X RENDER start-up, udev coldplug) is untuned.
+- The runner's `--kernel` passes no RNG seed; the system clock still drifts from the RTC.
+- Security defaults: empty password and passwordless sudo for `flip`.
+- Build volume: `/build/debian/linux-tree`, `/build/linux-net` and `/build/linux-input-fb` are
+  stale, and the `flippies-qemu-scratch` Docker image can go.
+- A GCC bug report for the SLSR miscompile has not been filed.
+
+### 12.17 As built (step 5: the modem, the bundled catalogue and the netinstall floppy)
+
+Everything below was tested headless. Nothing has run inside Minecraft yet (runClient or runServer).
+
+#### 12.17.1 The modem block (12.4.5)
+
+
+Block and block entity (`content/modem`):
+- `network_modem`: `NetworkModemBlock extends Block implements IBE` and `NetworkModemBlockEntity extends SmartBlockEntity implements DataPortHost`.
+- It is registered in ModBlocks, ModBlockEntities and ModItems as a plain BlockItem, and appears in the creative tab through the item list. Recipe later.
+- Horizontal `facing`. It is placed with its front (the lights' end, model -x) towards the player, and the blockstate turns it as the case does (west 0, north 90, east 180, south 270).
+- It takes no clicks of its own: the data cord item handles the port, and the wrench does nothing. Breaking it drops the item (loot table) and its cord (`DataCords.breakAll`).
+
+Placeholder model (open question 4), made to be replaced:
+- `models/block/network_modem/shell.json` holds the cube `body` (3,0,4 to 13,3,12, light grey concrete) and the cube `ethernet` (13,1,7.25 to 13.25,2,8.75, the case's port texture).
+- The lights are partials: `power_led.json` (4,3,5 to 4.75,3.25,5.75, green) and `link_led.json` (4,3,6.25 to 4.75,3.25,7, amber). The item model is the shell.
+- `ModemGeometry` holds the same boxes in pixels, in the case's convention (`PcCaseGeometry.toBlock`). A real model only needs those four boxes updated.
+
+Port:
+- One port, index 0, ETHERNET, PEER. Its click box is the port cube grown 0.375 px outward (+x).
+- Origin and normal are worked out the case's way. The link is saved as `Link`, and `DataCords.validateLinks` runs every 20 ticks.
+
+PoE and the exchange:
+- `PcLinkExchange.modem(modem, nic)` is `modem.exchange(nic)` then `modem.tick()`, or `ethernetDown(modem)` when `nic` is null.
+- `PcServer.exchange` checks a running PC's ethernet port with `PcCaseBlockEntity.peerModem()`, a loaded modem whose link pairs, and drives it with that PC's card.
+- After all PCs, every loaded modem that no PC drove this tick gets `exchange(null)`: no power, link down, queue and TCP connections dropped. Loaded modems are tracked by `PcServer.modemLoaded` and `modemUnloaded`.
+- The link goes up and down with the PC as a PC-to-PC link does.
+- Draw: `PcPower.MODEM_WATTS = 2.5` on the rails while the PC runs and a loaded modem is linked (3.125 W at the input at 0.8 efficiency). See `railWatts(Draw, boolean modemLinked)`.
+
+Modem instance:
+- One `Modem` per block entity, server only. It is made the first time a running PC drives it and dropped on unload or removal.
+
+Lights:
+- Power: driven by a running PC this tick. Link: the same, since the link is up exactly while powered.
+- Activity: frames moved (framesIn plus framesOut changed) within the last 6 ticks.
+- All three are synced with `sendData` only when one changes.
+- `NetworkModemRenderer` draws the partials the case's way: lit is full bright and full colour, dark is world light at 89/255. While activity is set, the link light blinks off every other 2-tick period, computed on the client.
+
+Catalogue (deviation from 12.4.3: class path, not Forge's resource manager, so datapacks cannot add or replace content; the user's "hardcoded in the jar" decision):
+- `ClasspathContent` (computer/net, pure Java) serves `data/create_flippies/internet/` from a class loader, lazily: one stream per request, one 64 KiB chunk inflated at a time by `CatalogueFile`. All modems share one `Catalogue(ClasspathContent.bundled())`.
+- Hosts come from `internet/hosts.txt`, because a class loader cannot list a folder in a jar. It has one host per line, with `#` and blank lines skipped. Today it lists only `get.flip`.
+- No escaping rule is needed: the class path takes any name.
+
+Bundling (build.gradle; build outputs only, never src/main/resources):
+- `processResources` copies `guest/debian/out/chunks/` into `data/create_flippies/internet/get.flip/`, giving `get.flip/debian.fdi.z/size.txt, 0.z ...`. It also copies `guest/netinstall/out/netinstall.img` into `data/create_flippies/floppies/`. Missing folders copy nothing.
+- The `internetIndex` task writes `build/generated/internet/data/create_flippies/internet/get.flip/index.txt`, with one `image /<name>.fdi <size> <title>` line per `*.fdi.z` folder. The size comes from size.txt; the title comes from the FDI header inflated from chunk 0 (bytes 20 to 83).
+- Measured: the jar is 99,156,751 bytes with the Debian chunks (270,238,000-byte .fdi, 4,124 chunk entries, about 98 MB) and the floppy.
+- After rebuilding either guest output, run `./gradlew jar` again.
+
+Headless runner:
+- `--catalogue JAR` serves a mod jar's bundled internet through `ClasspathContent` on a parentless `URLClassLoader`, the same lookups the block makes. `--catalogue DIR` is unchanged.
+
+#### 12.17.2 Modem server side, failures and catalogue sizes (after review)
+
+Server side:
+- The block entity's server logic is `ModemDriver` (content/modem, plain Java, unit tested). `NetworkModemBlockEntity` owns one driver and syncs the lights when `ModemDriver.exchange(pc, gameTime)` reports that one changed.
+- The block entity registers with `PcServer.modemLoaded` and assigns its MAC in `onLoad` (server side), as `PcCaseBlockEntity` does, not in Create's lazy `initialize()`. So a modem in a loaded chunk that does not tick still gets the "no PC drove it" pass and has a MAC before any PC drives it.
+- MAC: locally administered (`PcMotherboardItem.randomMac`), assigned at the first server load after placement and saved as `Mac`.
+- Unload (`onChunkUnloaded`) or removal: `modemUnloaded`, then `ModemDriver.close()`, which takes the Modem's link down before dropping it. That runs `Tcp.dropAll` and closes the HTTP sessions and their open catalogue files now, rather than when the Modem is garbage collected.
+
+Failures:
+- A throw (RuntimeException or StackOverflowError) from the modem's own stack stops that modem only:
+  - It is closed (link down), the PC card's link is taken down, and the lights go dark.
+  - No new Modem is made for `RETRY_TICKS = 100` ticks (5 s). Until then the modem is treated as unpowered and the card's link stays down.
+  - It is logged ("Network modem at <pos> failed; restarting it in 5 s", with the stack trace) at most once per `QUIET_TICKS = 6000` ticks (5 min) per block entity. A later failure is logged again once that time has passed.
+- The PC's card is passed to the Modem wrapped. Anything the card throws is rethrown unchanged, out of the modem's failure handling. `PcServer` then crashes that PC, as it does on a PC-to-PC link.
+
+Catalogue sizes and folders (replaces "Sizes come from the URL connection's length, else by reading through"):
+- When a resource URL names a file system path through an installed provider (`Path.of(url.toURI())`: "file:" in a dev run, Forge's "union:" for a mod jar):
+  - Only a regular file is served, so a folder such as `/debian.fdi.z` is a 404 without any read.
+  - The size is `Files.size`, and the file streams through `Files.newInputStream`.
+  - This matters because Forge's own union URL connection gives no length and reads the whole resource into memory for every stream.
+- Otherwise (a plain "jar:" URL): a path ending in '/' or a jar directory entry is absent, the size is the connection's length, and only failing that is the file read through.
+- Tested against securejarhandler 2.1.10's union filesystem and its `UnionURLStreamHandler` stream function. The `test` task passes `--add-opens java.base/java.lang.invoke=ALL-UNNAMED` for it, as Forge's launcher does.
+
+Bundling: `linuxTest` depends on `jar`, so `./gradlew linuxTest` alone installs from a jar built from the current guest outputs. processResources takes those outputs as inputs.
+
+Tests: ClasspathContentTest 5, ModemLinkTest 4, ModemDriverTest 4 and FloppyPresetsTest 4 in the default suite. NetinstallDebianTest (linux).
+
+
+#### 12.17.3 The netinstall floppy (12.5)
+
+
+Program (`guest/netinstall/`):
+- Files: `netinstall.c` (freestanding C17, about 2,200 lines), `start.S` (boot sector, C start, interrupt handler, CRC32 word loop, MOVEM copy), `link.ld` (linked at 0x1000, boot sector padded to 510 bytes plus 0x55 0xAA, at most 96 KiB), `mkfloppy.py` (pads to 1,474,560 bytes, checks the signature and size) and `build.sh` (runs in the Docker toolchain).
+- Flags: `-std=c17 -m68040 -O2 -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie -fno-stack-protector -fno-asynchronous-unwind-tables -fno-tree-loop-distribute-patterns -fno-delete-null-pointer-checks -Wall -Wextra -Werror`, plus libgcc.
+- Output: `out/netinstall.img`. The program is 29,329 bytes in 58 sectors, loaded in about 0.7 s. bss is 1.8 MiB.
+- 68040 only: on a 68000 it takes an illegal-instruction trap, and an RV32I PC cannot run its boot sector.
+
+Boot and memory:
+- The ROM loads sector 0 to 0x1000 with D2 = 1. Sector 0 reads sectors 1..N to 0x1200, 128 per command, polled.
+- It needs about 1.9 MiB of RAM. Below 2 MiB it prints "netinstall: needs 2 MiB of RAM" and stops.
+- bss holds the 1 MiB receive ring, 128 KiB of read-back buffers, 513 KiB of CRC tables, a 128 KiB chunk table (16,384 entries, 1 GiB) and the 16 KiB index text.
+- The interrupt handler only raises the interrupted SR's mask. All work runs at task level between `stop #0x2000`. Lines in use: COM1, both PS/2 ports, the HDD, the 20 ms interval timer and the NIC.
+
+Devices:
+- NIC: RX_ENABLE, IRQ_RX, IRQ_LINK and TX_CSUM. IPv4 frames need RX_INFO IP_OK, and TCP and UDP also need L4_OK. Frames are padded to 60 bytes.
+- HDD: interrupt driven, by DMA, with IDENTIFY for the size and model and FLUSH at the end.
+- Keyboard: set 2 on either PS/2 port.
+- Display: VGA text 80x25 on display 0.
+- COM1: mirrors every screen (25 trimmed lines, then "--"), "progress: ..." at most once a second, "problem: ...", "refetch: ..." and "netinstall: done".
+
+Network:
+- ARP with a 4-entry cache, cleared on link change.
+- DHCP (DISCOVER, OFFER, REQUEST, ACK; broadcast flag; restart every 2 s or on NAK).
+- DNS: an A query for get.flip every 500 ms, giving up after 5 s.
+- TCP: one connection to port 80, MSS 1460, window scale shift 4, in-order receive. The window is the free room in the ring, up to 1 MiB. Inside long bursts it ACKs every 32 frames and services the HDD every 8.
+- HTTP/1.1: GET with Range and keep-alive, at most one request in flight. It accepts 200 and 206.
+
+Screens:
+1. "Network: no link. Connect the modem to this PC's ethernet port.", then DHCP, then "Network: address 10.88.0.2, gateway 10.88.0.1, DNS 10.88.0.1".
+2. The catalogue from http://get.flip/index.txt: up to 64 entries, 16 per page. A `file` entry is refused.
+3. The header and chunk table are fetched and checked (magic, CRCs, rising indexes, at most 1 GiB). An image larger than the HDD is refused with both sizes. Then "This erases the HDD. Type YES to continue.": YES installs, WIPE first zeroes the absent chunks, and Esc goes back.
+4. Progress: MB written of the MB present, speed, time left and a bar.
+5. Verify: every present chunk is read back and its CRC32 checked. Then "Done. Remove the floppy and press Enter to restart." Enter writes SysCon POWER 0x7777.
+
+Download:
+- A 1 MiB ring of 16 chunk slots replaces "two 128 KiB buffers" (deviation). Entry k goes to slot k mod 16, and the HDD writes straight from the slots. One GET with Range runs from the first entry not yet whole and checked.
+- Failures: a CRC mismatch, a RST, an early FIN, a link change, a 5 s stall or an HTTP error each count as one failure. Each resumes with Range. Three in a row stop the install.
+- A chunk that fails read-back is fetched again alone, up to three times.
+- With YES, absent chunks are not written: a blank HDD reads zeros. On a used HDD the free space keeps its old data, which is untested for booting.
+
+In game (owner: game):
+- `FloppyDiskItem` reads NBT `Preset`. The creative tab lists a write-protected `floppy_disk` with `Preset: "netinstall"`, named "Netinstall Floppy".
+- On install into a case, a preset disk without a `DiskId` gets a new id. `FloppyPresets` copies `data/create_flippies/floppies/<preset>.img` from the class path (names [a-z0-9_]+, at most 1,474,560 bytes) from sector 0, with the last sector zero-padded. After that it is an ordinary floppy.
+- A preset that is not bundled leaves a blank disk and logs a warning.
+
+Measured (developer's Mac, 25 MHz 68040, 128 MiB, the modem exchanged every 50 ms tick, headless runner, the mod jar as the catalogue and the jar's floppy):
+- Power-on to "netinstall: done": 116.4 s emulated, 19.9 s host.
+- Download and write: 59.0 s (4.4 MB/s). Verify: 54.9 s (4.7 MB/s). 0 CRC errors, 0 refetches.
+- The 1 GiB HDD then equals guest/debian/out/debian.img byte for byte.
+- Restart: kernel entry 1.5 s after the reset, "login:" 99 s after it, and the JWM desktop 206 s after it.
+- The whole session, to poweroff: 343 s emulated in 67 s host.
+- The HDD (about 4.9 MB/s for 64 KiB writes) is the limit, not the network.
+
+Tests:
+- `NetinstallE2eTest` (default suite, skipped until guest/netinstall/build.sh has run): 3 tests. They cover the catalogue, the plain-file and too-large refusals, YES and WIPE, a corrupt chunk in transit, a link dropped halfway, a chunk damaged on the HDD during verify, and the restart.
+- `NetinstallDebianTest` (tagged linux; `./gradlew jar linuxTest`; skipped while the jar lacks the Debian chunks or the floppy; output in build/netinstall-debian): 2 tests. One checks that the jar's catalogue serves debian.fdi byte for byte. The other runs the full install from the jar, compares the HDD with debian.img, removes the floppy, restarts, reaches login and the desktop, runs wget of get.flip/index.txt inside Debian, and powers off. The HDD is a read-write file synced every 10 s, so the heap stays small.
+- Gradle does not track guest outputs or the jar as test inputs: after rebuilding the floppy use `cleanTest`, and rebuild the jar before linuxTest.
+
+
+#### 12.17.4 Netinstall verify and preset name (after review)
+- Program: `netinstall.c` is 29,497 bytes of program in 58 sectors (bss unchanged at 1.8 MiB).
+- Screen 5, verify:
+  - Every present chunk is read back and its CRC32 checked.
+  - The first 256 that fail are listed. Each is fetched again with a Range request and checked again, up to 3 tries, after which the install stops with "A chunk keeps failing its check after it is written."
+  - When more than 256 fail, the check goes on after the last chunk listed ("Verifying again after the chunks fetched again") and repeats until a pass lists them all. No damaged chunk is left behind a "Done".
+  - The done screen's "fetched again N" counts every refetch.
+  - The verify time on the done screen is the first full pass.
+
+
+- A preset floppy is named after its preset ("Netinstall Floppy") until it is the player's own disk: once it has a `DiskId` (its image was copied on first insert) and is writable, it loses `Preset` and is named as a plain floppy. Its id and data stay.
+- This is applied when the write-protect tab is switched off (sneak-use), and at the first insert's copy when the stack is already writable.
+- A write-protected copied disk keeps the name. A never-inserted stack keeps `Preset` either way, so its first insert still copies the image.
+
+
+#### 12.17.5 Netinstall internals: Files and build
+
+- `guest/netinstall/`:
+  - `netinstall.c`: the program, freestanding C17, about 2,200 lines.
+  - `start.S`: the boot sector, the C start, the interrupt handler, the CRC32 word loop and a MOVEM copy.
+  - `link.ld`: linked at 0x1000, the boot sector padded to 510 bytes and followed by 0x55 0xAA, an assertion that the image is at most 96 KiB.
+  - `mkfloppy.py`: pads the program to 1,474,560 bytes and checks the boot signature and the 96 KiB limit.
+  - `build.sh`: runs itself in the toolchain image like guest/boot/build.sh.
+- Flags: `-std=c17 -m68040 -O2 -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie -fno-stack-protector -fno-asynchronous-unwind-tables -fno-tree-loop-distribute-patterns -fno-delete-null-pointer-checks -Wall -Wextra -Werror`, linked with libgcc for 64-bit division.
+- Output: `guest/netinstall/out/netinstall.img`. The program is 29,329 bytes in 58 sectors, loaded from the floppy in about 0.7 s. bss is 1.8 MiB and is not on the floppy.
+- build.gradle's processResources copies the image to `data/create_flippies/floppies/netinstall.img` when it exists (12.5 "In game").
+
+
+#### 12.17.6 Netinstall internals: Boot and memory
+
+- The ROM loads sector 0 to 0x1000 and enters it with D2 = 1 (11.1.5). The boot sector reads sectors 1..N to 0x1200, 128 sectors per command with the controller polled. It uses the floppy controller for D2 = 1 and the HDD controller for D2 = 0.
+- It checks that RAM reaches past the bss plus 64 KiB of stack. Otherwise it prints "netinstall: needs 2 MiB of RAM" and stops; the real floor is about 1.9 MiB.
+- Then it sets SP to the top of RAM, clears the bss and calls `netinstall_main`.
+- bss contents:
+  - the receive ring, 1 MiB;
+  - read-back buffers, 128 KiB;
+  - CRC tables, 513 KiB;
+  - the .fdi chunk table, 128 KiB, enough for 16,384 entries, a 1 GiB image;
+  - the index text, 16 KiB.
+- Interrupts:
+  - Vectors 24..31 point to a handler that only raises the interrupted SR's mask to 7 and returns.
+  - The program sleeps with `stop #0x2000` and does all its work at task level after waking.
+  - Lines enabled: COM1, both PS/2 ports, HDD, the interval timer (20 ms period) and the network card. Every line is cleared or drained before the next STOP.
+
+
+#### 12.17.7 Netinstall internals: Devices
+
+- Network card:
+  - CTRL is RX_ENABLE, IRQ_RX, IRQ_LINK and TX_CSUM, so every checksum we send is left 0 for the card to fill.
+  - Received IPv4 frames need RX_INFO IP_OK, and TCP and UDP also L4_OK; others are dropped.
+  - Frames go out padded to 60 bytes.
+- HDD: interrupt driven, one command at a time. IDENTIFY gives the capacity and model. Writes and reads go straight between the HDD and the ring or the read-back buffers by DMA. FLUSH runs at the end.
+- Keyboard: scancode set 2 on either PS/2 port. Keys used: Up, Down, PgUp, PgDn, Home, End, Enter (both), Esc, Backspace, A..Z.
+- VGA: text mode, 80x25, display 0. The cursor is shown only on the YES prompt.
+- COM1:
+  - A 16 KiB ring drained by the THR-empty interrupt, 16 bytes per FIFO refill.
+  - Every full screen is mirrored as 25 lines with trailing spaces trimmed, then a line "--".
+  - Progress lines ("progress: ...") are sent at most once a second.
+  - Each failure is sent as "problem: ...", each read-back re-fetch as "refetch: ...", and the end as "netinstall: done".
+
+
+#### 12.17.8 Netinstall internals: Network
+
+- ARP: requests and replies, and answers for our address. A cache of 4 entries, cleared on every link change.
+- DHCP:
+  - DISCOVER, OFFER, REQUEST with options 50 and 54, then ACK, sent with the broadcast flag and padded to 300 bytes.
+  - Options asked: 1, 3, 6 and 51. Every 2 s it starts again while not bound, and a NAK starts it again.
+  - The address is kept across link drops.
+- DNS: one A query for get.flip to the DHCP server's DNS address, asked again every 500 ms, given up after 5 s with a retry screen.
+- TCP:
+  - One connection to port 80. The SYN carries MSS 1460 and window scale shift 4. Receive is in order only; out-of-order segments get a duplicate ACK.
+  - The window is the receiver's free room: 8 KiB while response headers arrive, then the ring's room, at most 1 MiB.
+  - Retransmission: the SYN every 1 s, up to 5 times. An unacknowledged request every 1 s, up to 6 times.
+  - Closing: a RST in window closes. A FIN is answered with FIN and ACK, then the connection is closed. A segment for any other connection gets a RST so the modem forgets it.
+  - Inside a long receive burst it acknowledges every 32 frames and services the HDD every 8. Without this, the modem saw a stale window at the next exchange and throughput swung between ticks.
+- HTTP/1.1:
+  - GET with Host get.flip and User-Agent flippies-netinstall/1.0, keep-alive, at most one request outstanding.
+  - Accepts 200 and 206, and reads Content-Length and the start of Content-Range. Any other status is read to its end and counts as a failure; 404 stops a catalogue or header fetch at once.
+  - A catalogue or header fetch is tried up to 3 times, with a 5 s stall timeout.
+
+
+#### 12.17.9 Netinstall internals: Screens
+
+1. Network:
+   - "Network: no link. Connect the modem to this PC's ethernet port." until LINK.
+   - Then "Network: link up, asking for an address (DHCP)...".
+   - Then "Network: address 10.88.0.2, gateway 10.88.0.1, DNS 10.88.0.1" and "Looking up get.flip...".
+2. The catalogue from http://get.flip/index.txt:
+   - Up to 64 entries, 16 per page, each with its title, size in MB and kind.
+   - A `file` entry is refused with "This is a plain file, not a disk image."
+3. Confirmation:
+   - The image's header (Range bytes=0-87) and chunk table (Range 88 to the table's end) are fetched and checked: magic, header CRC, table CRC, chunk size, rising indexes, at most 1 GiB.
+   - Then "Image: ..." and "HDD: model, capacity". An image larger than the HDD is refused with both sizes.
+   - Then "This erases the HDD. Type YES to continue." YES installs; WIPE also zeroes the absent chunks first; Esc goes back.
+4. Progress:
+   - "Written: X of Y MB, R MB/s, about M:SS left", where Y counts only the data present in the .fdi.
+   - A 60-column bar, the last problem being retried, and "Network: no link, waiting for the modem." while the link is down.
+5. Verify, then the done screen:
+   - "Verified: X of Y MB", then "Done. Remove the floppy and press Enter to restart."
+   - It shows the image's title, the MB written of the image's size, the times and rates of the download and verify passes, the chunks present, and the CRC errors in transit and chunks fetched again.
+   - Enter writes SysCon POWER 0x7777.
+- A stop for any reason shows "Install failed." with the cause, and Enter restarts.
+
+
+#### 12.17.10 Netinstall internals: The download
+
+- The ring has 16 slots of 64 KiB. Table entry k goes into slot k mod 16, and its data begins at file offset 88 + 8 * count + k * 65,536.
+- There is one GET with Range from the first entry not yet received whole and checked to the end of the range.
+- When an entry is complete, its CRC32 is checked:
+  - a mismatch aborts the connection with a RST and resumes from that entry;
+  - a good entry is written from its slot, two adjacent entries in one command when they are adjacent on disk and in the ring.
+- New data is taken only up to 16 entries past the oldest unwritten one, which is what the window advertises.
+- Failures:
+  - A RST, a FIN before the end, a link change, 5 s without data while the window is open, a CRC mismatch, an HTTP error, or an answer that ends early each count as one failure.
+  - Any chunk passing its check resets the count. Three in a row stop.
+  - While the link is down, no request starts.
+- After the download every present chunk is read back, one 64 KiB command at a time, double-buffered, and its CRC32 checked again. A chunk that fails is fetched again alone with Range, written and checked again. If it fails three times, the install stops.
+- Absent chunks:
+  - YES does not write them: a new HDD reads zeros there (12.4.4).
+  - WIPE writes zeros over them first, 128 KiB per command, before the download.
+  - Nothing past the image's last sector is ever written.
+  - With YES on an HDD that held other data, the image's free space keeps that old data. This is inferred to be harmless for the Debian image's ext4, swap and boot area, but it is not tested.
+
+
+#### 12.17.11 Netinstall internals: CRC32
+
+- zlib's CRC32, with the state kept byte-swapped so a big-endian long load needs no swap.
+- Two tables of 65,536 entries (512 KiB) built at start: per long, two lookups (`ta[x >> 16] ^ tb[x & 0xFFFF]`). The loop in start.S is unrolled four times.
+- Under the 68040 cost model it is about 2.75 cycles a byte, about 9 MB/s at 25 MHz. The fastest 64 KiB-table (slicing-by-4) loop was about 5.3 cycles a byte.
+
+
+#### 12.17.12 Netinstall internals: Deviations from 12.5
+
+- A 1 MiB ring of 16 chunk slots, written straight to the HDD, instead of "two 128 KiB buffers". The window must reach 256 KiB to 1 MiB, and the data has to be held until the HDD has written it.
+- WIPE as a second answer to the confirmation, the "full wipe" of 12.4.4.
+- The minimum RAM is about 1.9 MiB, not stated by the plan.
+- The program is 68040-only. On a 68000 PC the C code takes an illegal-instruction trap, and an RV32I PC cannot run its boot sector.
+
+#### 12.17.13 Open
+
+- Not seen in Minecraft: the placeholder model and lights, the cord into the modem port, the floppy copy on first insert, the union: URLs Forge's module class loader hands out, a modem in a non-ticking chunk, and the install's real-time length under the 2 ms per-tick budget.
+- The jar is 99 MB (open question 1). A dev runClient also copies about 98 MB into build/resources/main.
+- deb.flip is not in hosts.txt, so apt inside the installed Debian fails at DNS.
+- A modem bug stops only that modem and never crashes the PC, unlike PC-to-PC ethernet. Needs the user's confirmation.
+- Two modems cabled together are allowed by PortCompatibility. Harmless, but could be refused.
+- With YES on a used HDD, the image's free space keeps old data. Booting from such a disk is untested. WIPE zeroes it.
+- The install is HDD-bound (4.4 MB/s against the HDD's 4.9 MB/s). Going faster needs a faster HDD model (open question on HDD speed).
+- The floppy runs only on a 68040 PC. On a 68000 or RV32I PC it fails to boot.
+- At most 64 catalogue entries; index.txt is read up to its first 16 KiB.
+- A preset disk made writable and then write-protected again keeps the plain name.
+- Not covered by tests (they need a Minecraft bootstrap): PcServer's undriven-modem pass, NetworkModemBlockEntity's onLoad and light sync, and FloppyDiskItem.fillFromPreset's ordering.
+
 ## Review decisions
 
 Two reviews (ISA facts, and architecture) were applied. Everything was accepted except what is
@@ -4732,15 +6192,16 @@ listed here.
     emulated).
   - The public 68000 test-vector suite has no licence: it is not downloaded or used. Tests are
     hand-checked only.
-  - No MMU on the 68040; the integer unit and the FPU are emulated.
+  - No MMU on the 68040; the integer unit and the FPU are emulated. Superseded by section 12:
+    the 68040 has its MMU (12.2, 12.14.1).
 
 ## Implementation status
 
 As of the first build, its two reviews (ISA, and bus, devices and machine), save and restore
 (1.5), the 68000 and 68040 foundation step (10.9), the three parallel 68k owners (integer core,
-FPU, assembler), the 68k integration step (10.8.5) and the core additions of section 11 (11.1,
-as built in 11.1.12). The game side of section 11 (11.2) is the game owner's and is not covered
-here.
+FPU, assembler), the 68k integration step (10.8.5), the core additions of section 11 (11.1,
+as built in 11.1.12) and step 1 of section 12 with its reviews (as built in 12.14). The game
+side of section 11 (11.2) is the game owner's and is not covered here.
 
 What exists now:
 
@@ -4754,6 +6215,16 @@ What exists now:
   take either device, the network card, disk ids and `PagedDiskImage`, 128 MiB of RAM on RV32I
   and the 68040 (13.5 MiB on the 68000), `busyFraction`, `guestErrorLed`, `haltReason`, the
   activity calls and saved-state version 4.
+- Section 12, step 1 (12.14): the 68040 MMU (paging with 4 KiB and 8 KiB pages, TT registers,
+  a saved software TLB, restartable access errors with format 7 frames, PTEST, PFLUSH, MOVES
+  with SFC and DFC, CPU state version 2); the network card's 256-frame queues, RX_INFO and
+  TX_CSUM; `FrameEndpoint`; the modem's pure-Java stack (ARP, ICMP echo, DHCP, DNS, TCP on port
+  80 with window scaling, HTTP/1.1 with Range), the content catalogue with deflated chunks, and
+  the `.fdi` reader and writer; the headless runner `HeadlessPc` with Gradle task
+  `runHeadlessPc`; the guest toolchain Docker image under `guest/docker` and the checked kernel
+  and debian-ports facts in `guest/linux/NOTES.md`. Not yet built: the netinstall floppy, the
+  kernel fork, the boot chain, the Debian image and the game's modem block (steps 2 to 5 of
+  12.10).
 - No Minecraft, Forge or Create imports anywhere under `computer`, so the tests run on the plain
   JUnit platform.
 
@@ -4768,8 +6239,8 @@ Main files, under `src/main/java/com/nectariich/create_flippies/content/computer
 - `bus`: Bus, BusDevice, BusFault, ByteArrays, CycleClock, DmaWindow, IrqSink, MemoryRegion,
   StateFormatException, StateIo, SystemBus.
 - `cpu`: Cpu, CpuFactory, CpuHost, CpuModel.
-- `cpu/m68k`: Bitfield, FpuOpcodes, M68kCpu, M68kFlags, M68kFpuHost, M68kFpuUnit, M68kOpTable,
-  M68kOptions, M68kSr, M68kTiming, M68kVectors.
+- `cpu/m68k`: Bitfield, FpuOpcodes, M68kCpu, M68kFlags, M68kFpuHost, M68kFpuUnit, M68kMmu,
+  M68kOpTable, M68kOptions, M68kSr, M68kTiming, M68kVectors.
 - `cpu/m68k/fpu`: FpConstantRom, FpPacked, FpSupport, Fx80, M68kFpu.
 - `cpu/rv32`: Rv32Cpu, Rv32Csr.
 - `device`: Clint, DiskChunkStore, DiskImage, FloppyController, HddController,
@@ -4778,6 +6249,12 @@ Main files, under `src/main/java/com/nectariich/create_flippies/content/computer
   VgaDisplay, VgaFrame.
 - `machine`: Board, BootRom, BootRoms, M68kBootRom, M68kMap, M68kPlatform, Machine,
   MachineConfig, MachineState, Platform, Rv32Map, Rv32Platform, StandardCpus.
+- `net`: Catalogue, CatalogueFile, CatalogueIndex, ContentSource, DeflatedChunks, DhcpServer,
+  DnsServer, Fdi, FolderContent, FrameEndpoint, HttpSession, MemoryContent, Modem, Packets, Tcp,
+  TcpConnection.
+- Outside `computer`: `content/pc/PcLinkExchange` takes `FrameEndpoint`s. Under test sources,
+  `computer/tools`: HeadlessPc, RawDiskFile, Screenshot. Under `guest/docker`: Dockerfile,
+  build.sh, entrypoint.sh.
 
 Tests, under `src/test/java/com/nectariich/create_flippies/content/computer`:
 
@@ -4791,7 +6268,10 @@ Tests, under `src/test/java/com/nectariich/create_flippies/content/computer`:
 - `cpu/rv32`: instructions, CSRs, traps, timing, encodings, fuzz, interpreter benchmark, saved
   state.
 - `cpu/m68k`: instructions, 68040 additions, exceptions and frames (including the 68040 address
-  error frame), timing, saved state, fuzz, interpreter benchmark.
+  error frame), timing, saved state, fuzz, interpreter benchmark, and `M68kMmuTest` (12.14.1).
+- `net`: `ModemTest`, `TcpTest`, `HttpSessionTest`, `CatalogueTest`, `FdiTest`, `ModemE2eTest`
+  (12.14.3).
+- `tools`: `HeadlessPcTest` (12.14.4).
 - `cpu/m68k/fpu`: `Fx80`, packed decimal, support-package functions, `M68kFpu` with a fake host.
 - `device`: one class per device, a device fuzz test, and saved state of every device; for
   11.1 `FloppyControllerTest` (registers, spin-up, seek and sector timing to the cycle, motor
@@ -4830,7 +6310,8 @@ Tests, under `src/test/java/com/nectariich/create_flippies/content/computer`:
   every shift and rotate by immediate, register and on memory, MULU, MULS, DIVU, DIVS, the four
   bit instructions, Bcc, Scc and DBcc for every condition, and on the 68040 EXTB.L, MULx.L and
   DIVx.L, with random registers, sizes and effective addressing modes); and
-  `M68kThroughputBenchmarkTest` (tagged `benchmark`).
+  `M68kThroughputBenchmarkTest` (tagged `benchmark`); for the MMU, `M68kMmuDemandPagingE2eTest`
+  and `M68kMmuThroughputBenchmarkTest` (tagged `benchmark`).
 - `e2e`, in-game board (11.4), each on RV32I, the 68000 and the 68040 unless noted, through the
   `PcE2e` rig: `FloppyE2eTest` (a bootable floppy boots first with boot device 1, a non-bootable
   floppy falls back to the HDD, the old messages without a bootable floppy, a guest write and
@@ -4847,7 +6328,16 @@ Tests, under `src/test/java/com/nectariich/create_flippies/content/computer`:
 - `ReviewM68kCoreTest` (68k core and FPU) and `ReviewM68kSystemTest` (68k assembler, framework
   and machine): regression tests for the bugs the adversarial 68k review found.
 
-Test counts: 888 tests in 90 classes, all passing, under
+Test counts: 1033 tests, 0 failures, 0 errors, under this command:
+
+`./gradlew test --tests 'com.nectariich.create_flippies.content.computer.*' --tests 'com.nectariich.create_flippies.content.pc.LinkExchangeTest' --offline`
+
+That is the computer suite (1028) plus the 5 tests of `LinkExchangeTest`, which now covers
+`FrameEndpoint`. Step 3 (12.15) added `KernelLoaderTest` and more `HeadlessPcTest` cases; the
+`linux`-tagged `LinuxBootTest` runs only under `./gradlew linuxTest`. Step 1 of section 12
+added 111 to the computer suite: 35 for the MMU (32 unit, 2 end to end, 1 benchmark), 61 in
+`net`, 6 for the headless runner, and the new `NicTest` and `NetworkE2eTest` cases. Before step
+1: 888 tests in 90 classes under
 `./gradlew test --tests 'com.nectariich.create_flippies.content.computer.*' --offline`. The
 section 11 core added 99: 45 device tests in five classes and 54 end-to-end tests in four
 (counting each CPU of a parameterised test). The 789 tests from before still pass; tests whose
@@ -4871,8 +6361,11 @@ Benchmark (JDK 17, the developer's Mac, single run, so a rough figure):
 - 68040 interpreter alone: about 89 M instructions per second; whole machine at 40 MHz on the
   same loop: about 80 M instructions per second, 16.7 ms per 50 ms tick (3 times real time; at
   25 MHz about 10 ms per tick).
+- After step 1 of section 12, 68040 machine at 40 MHz: MMU off 81.5 to 83.6 M instructions per
+  second, MMU on 71.5 to 76.7 (86% to 93% of off; target 60%). The MMU-off figures did not drop
+  (68040 interpreter 102.0 M/s, machine 85.0). Single runs on a shared host (12.14.1).
 
-Fixed after review:
+Fixed after review (the reviews of section 12's step 1 are in 12.14):
 
 - PS/2 keyboard: an unplug while the queue held the overrun code left the keyboard dropping every
   byte until the next reset. Emptying the queue now clears the overrun mark.
@@ -4962,3 +6455,27 @@ Known gaps:
   machine performs it before a run returns to the tick loop); it is stored so a later change to
   when states are taken stays correct.
 - C and C++ (section 6) are planned, not built.
+- Section 12, step 1:
+  - PTEST writes U back (and M for PTESTW) as any table search does; UM040 does not say whether
+    the chip does, so this is inferred, not confirmed.
+  - Failed searches are not cached in the TLB (the chip's ATC caches them), so the emulator does
+    not need the PFLUSH that real hardware needs after an invalid descriptor is repaired.
+  - A fault while stacking any exception frame halts the CPU; the chip halts only while stacking
+    an access error or reset frame.
+  - Not checked in UM040's bus pages: the TM the chip puts out for an FPU immediate fetch (built
+    as 2 or 6, like any instruction fetch).
+  - The 13 MB partial kernel extract at `guest/linux/.cache/linux-6.18.58/`, unpacked on the
+    case-insensitive repo folder for the NOTES checks, is still there and should be deleted (the
+    tarball and `sha256sums.asc` stay).
+  - No script fetches the kernel tarball or checks its SHA-256 yet; the kernel build script
+    (12.6) must.
+  - `Catalogue.hasHost` can still throw if the content store's `hosts()` fails (a server-side
+    storage fault, not guest input).
+  - The resource name escaping rule for the catalogue (12.4.3) is not chosen.
+  - Interactive Ctrl-C under `./gradlew runHeadlessPc` is untested (SIGINT and SIGTERM to the
+    runner's JVM are).
+  - The m68k binfmt registration lasts only until the Docker VM restarts; any privileged
+    `build.sh` run registers it again.
+  - The house rule against the chip maker's name has one accepted exception: upstream kernel
+    file paths such as `motorola_pgtable.h` and `arch/m68k/mm/motorola.c`, cited by their real
+    names here and in `guest/linux/NOTES.md`.

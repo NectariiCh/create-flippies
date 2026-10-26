@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.network;
 import java.util.List;
 import java.util.function.Supplier;
 
+import com.nectariich.create_flippies.foundation.wire.bend.LegSag;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBends;
 
 import net.minecraft.network.FriendlyByteBuf;
@@ -11,30 +12,38 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
-/** A hanging wire's bend points as the server has them, after an edit or in answer to a refused one. */
+/**
+ * A hanging wire's bend points as the server has them, after an edit or in answer to a refused one.
+ * WIRE SAG: with the sag of each leg, or none for a wire that has no sag of its own.
+ */
 public class WireBendsSyncPacket {
 
     private final int entityId;
     private final List<Vec3> points;
+    private final float[] legSags;
 
-    public WireBendsSyncPacket(int entityId, List<Vec3> points) {
+    public WireBendsSyncPacket(int entityId, List<Vec3> points, float[] legSags) {
         this.entityId = entityId;
         this.points = points;
+        this.legSags = legSags;
     }
 
     public WireBendsSyncPacket(FriendlyByteBuf buffer) {
         entityId = buffer.readVarInt();
         points = WireBends.read(buffer);
+        legSags = LegSag.read(buffer);
     }
 
     public void encode(FriendlyByteBuf buffer) {
         buffer.writeVarInt(entityId);
         WireBends.write(buffer, points);
+        LegSag.write(buffer, legSags);
     }
 
     public void handle(Supplier<NetworkEvent.Context> context) {
         context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> () -> com.nectariich.create_flippies.client.wire.WireBendInput.received(entityId, points)));
+                () -> () -> com.nectariich.create_flippies.client.wire.WireBendInput.received(entityId, points,
+                        legSags)));
         context.get().setPacketHandled(true);
     }
 }

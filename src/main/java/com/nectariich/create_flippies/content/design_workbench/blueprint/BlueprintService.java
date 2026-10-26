@@ -225,6 +225,7 @@ public final class BlueprintService {
         Set<String> hashes = new HashSet<>();
         hashes.add(design.model());
         hashes.addAll(design.fontHashes());
+        hashes.addAll(design.artHashes());
         for (String hash : hashes)
             if (!DesignStore.has(player.server, hash))
                 return Status.refused("missing_files");

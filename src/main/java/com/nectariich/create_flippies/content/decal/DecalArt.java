@@ -51,6 +51,16 @@ import java.util.zip.InflaterInputStream;
  * of walls of nothing anyone could read. A drawing without any is written exactly
  * as it was before pictures were read, under {@link #MAGIC}; one with some is
  * written under {@link #PIXEL_MAGIC} with the pixel layers after the others.
+ *
+ * <h2>Shaded layers</h2>
+ *
+ * A picture imported for a display keeps its gradients, which a flat colour per layer
+ * cannot: such a layer carries a colour at each of its vertices as well
+ * ({@link Layer#shades}), cut finely enough that blending across each triangle follows
+ * the gradient, and its own colour is the average a flat drawing of it would use. Only
+ * a picture with at least one is written under {@link #SHADED_MAGIC}, so every other
+ * picture is stored exactly as before and the panel decal and the arrow keep drawing
+ * any picture flat.
  */
 public final class DecalArt {
 
@@ -61,11 +71,23 @@ public final class DecalArt {
     private static final byte[] PIXEL_MAGIC = { 'C', 'F', 'D', 'E', 'C', 'A', 'L', '2' };
 
     /**
+     * What a blob with a colour at every vertex of some layer starts with: a display's
+     * picture with its gradients kept. Pixel layers always follow, perhaps none.
+     */
+    private static final byte[] SHADED_MAGIC = { 'C', 'F', 'D', 'E', 'C', 'A', 'L', '3' };
+
+    /**
      * The most triangles one picture may hold. A detailed logo is a few thousand;
      * this is room for a dense illustration and a ceiling on what a chunk rebuild
      * can be asked to clip.
      */
     public static final int MAX_TRIANGLES = 200_000;
+
+    /**
+     * The most triangles a picture drawn on a display may hold, its shading included:
+     * a display draws its elements every frame rather than once into a chunk.
+     */
+    public static final int MAX_DISPLAY_TRIANGLES = 20_000;
 
     /** The most colours one picture may use, its pixel layers included; a gradient flattened to bands is the usual way to reach it. */
     public static final int MAX_LAYERS = 1024;
@@ -77,16 +99,23 @@ public final class DecalArt {
     private static final int STEPS = 0xFFFF;
 
     /** How far a blob may inflate, checked as it is read so a small upload cannot become a large one. */
-    private static final int MAX_INFLATED = 16 + 4 * MAX_NAME + 16 + MAX_LAYERS * 8 + MAX_TRIANGLES * 12;
+    private static final int MAX_INFLATED = 16 + 4 * MAX_NAME + 16 + MAX_LAYERS * 9 + MAX_TRIANGLES * 24;
 
     /**
-     * One colour of the picture.
+     * One colour of the picture, or one shaded region of it.
      *
-     * @param colour    opaque ARGB
+     * @param colour    opaque ARGB; for a shaded layer its average, which is what a
+     *                  panel decal or an arrow, drawn flat, paints it in
      * @param triangles three vertices per triangle, each an x and a y, as fractions of
      *                  the picture's box
+     * @param shades    null for a flat layer, else an ARGB colour for every vertex,
+     *                  which is how a gradient is kept: blended across each triangle
      */
-    public record Layer(int colour, float[] triangles) {
+    public record Layer(int colour, float[] triangles, int[] shades) {
+
+        public Layer(int colour, float[] triangles) {
+            this(colour, triangles, null);
+        }
 
         public int triangleCount() {
             return triangles.length / 6;
@@ -144,7 +173,14 @@ public final class DecalArt {
 
     /** Whether a stored blob is one of these rather than a model or a font. */
     public static boolean isDecal(byte[] blob) {
-        return startsWith(blob, MAGIC) || startsWith(blob, PIXEL_MAGIC);
+        return startsWith(blob, MAGIC) || startsWith(blob, PIXEL_MAGIC) || startsWith(blob, SHADED_MAGIC);
+    }
+
+    private boolean shaded() {
+        for (Layer layer : layers)
+            if (layer.shades() != null)
+                return true;
+        return false;
     }
 
     private static boolean startsWith(byte[] blob, byte[] magic) {
@@ -158,28 +194,35 @@ public final class DecalArt {
 
     public byte[] encode() throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        bytes.write(pixels.isEmpty() ? MAGIC : PIXEL_MAGIC);
+        boolean shaded = shaded();
+        bytes.write(shaded ? SHADED_MAGIC : pixels.isEmpty() ? MAGIC : PIXEL_MAGIC);
         Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
         try (DataOutputStream out = new DataOutputStream(new DeflaterOutputStream(bytes, deflater))) {
             out.writeUTF(name);
             out.writeFloat(width);
             out.writeFloat(height);
-            write(layers, out);
-            if (!pixels.isEmpty())
-                write(pixels, out);
+            write(layers, out, shaded);
+            if (shaded || !pixels.isEmpty())
+                write(pixels, out, shaded);
         } finally {
             deflater.end();
         }
         return bytes.toByteArray();
     }
 
-    private static void write(List<Layer> layers, DataOutputStream out) throws IOException {
+    private static void write(List<Layer> layers, DataOutputStream out, boolean shaded) throws IOException {
         out.writeInt(layers.size());
         for (Layer layer : layers) {
             out.writeInt(layer.colour());
             out.writeInt(layer.triangleCount());
             for (float coordinate : layer.triangles())
                 out.writeShort(quantise(coordinate));
+            if (!shaded)
+                continue;
+            out.writeBoolean(layer.shades() != null);
+            if (layer.shades() != null)
+                for (int i = 0; i < layer.triangleCount() * 3; i++)
+                    out.writeInt(layer.shades()[i]);
         }
     }
 
@@ -204,14 +247,15 @@ public final class DecalArt {
             if (!(width > 0) || !(height > 0) || !Float.isFinite(width) || !Float.isFinite(height))
                 throw new IOException("Decal has no size");
             int[] totals = new int[2];
-            List<Layer> layers = read(in, totals);
-            List<Layer> pixels = startsWith(blob, PIXEL_MAGIC) ? read(in, totals) : List.of();
+            boolean shaded = startsWith(blob, SHADED_MAGIC);
+            List<Layer> layers = read(in, totals, shaded);
+            List<Layer> pixels = shaded || startsWith(blob, PIXEL_MAGIC) ? read(in, totals, shaded) : List.of();
             return new DecalArt(name, width, height, layers, pixels);
         }
     }
 
     /** One list of layers, counting colours and triangles into {@code totals} against their ceilings. */
-    private static List<Layer> read(DataInputStream in, int[] totals) throws IOException {
+    private static List<Layer> read(DataInputStream in, int[] totals, boolean shaded) throws IOException {
         int layerCount = in.readInt();
         if (layerCount < 0 || layerCount > MAX_LAYERS - totals[0])
             throw new IOException("Decal has " + (totals[0] + layerCount) + " colours");
@@ -226,7 +270,13 @@ public final class DecalArt {
             float[] triangles = new float[count * 6];
             for (int j = 0; j < triangles.length; j++)
                 triangles[j] = (in.readShort() & 0xFFFF) / (float) STEPS;
-            layers.add(new Layer(colour, triangles));
+            int[] shades = null;
+            if (shaded && in.readBoolean()) {
+                shades = new int[count * 3];
+                for (int j = 0; j < shades.length; j++)
+                    shades[j] = in.readInt();
+            }
+            layers.add(new Layer(colour, triangles, shades));
         }
         return layers;
     }

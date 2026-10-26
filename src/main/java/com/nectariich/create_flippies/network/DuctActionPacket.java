@@ -20,10 +20,8 @@ public class DuctActionPacket {
     public enum Action {
         /** With a placeable wire being laid: take it into the duct at {@code hit}, or along to there. */
         ROUTE,
-        /** Left click: break the duct. */
-        BREAK,
-        /** Wrench, sneaking: take the duct back into the inventory. */
-        WRENCH,
+        /** Screwdriver in either hand, sneaking: take the duct back into the inventory. */
+        REMOVE,
         /** Wire cutters, sneaking, on a placeable wire run through ducts: cut the whole wire. */
         CUT,
         /** A dye: recolour the duct's run. */

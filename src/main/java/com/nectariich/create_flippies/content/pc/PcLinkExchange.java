@@ -1,7 +1,8 @@
 package com.nectariich.create_flippies.content.pc;
 
-import com.nectariich.create_flippies.content.computer.device.Nic;
 import com.nectariich.create_flippies.content.computer.device.Uart16550;
+import com.nectariich.create_flippies.content.computer.net.FrameEndpoint;
+import com.nectariich.create_flippies.content.computer.net.Modem;
 
 /**
  * Moving data between two linked ports in the scheduler's exchange phase (spec
@@ -16,26 +17,41 @@ public final class PcLinkExchange {
     private PcLinkExchange() {}
 
     /**
-     * Ethernet between two powered PCs: the link is up, and every frame each one
-     * sent this tick is delivered to the other (in send order, A's first).
+     * Ethernet between two powered ends (two PCs, or a PC and a modem, spec 12.4.2):
+     * the link is up, and every frame each one sent this tick is delivered to the
+     * other (in send order, A's first).
      */
-    public static void ethernet(Nic a, Nic b) {
+    public static void ethernet(FrameEndpoint a, FrameEndpoint b) {
         a.setLink(true);
         b.setLink(true);
         move(a, b);
         move(b, a);
     }
 
-    /** A NIC whose cable is missing or whose peer is off or unloaded. */
-    public static void ethernetDown(Nic nic) {
-        nic.setLink(false);
+    /** An end whose cable is missing or whose peer is off or unloaded. */
+    public static void ethernetDown(FrameEndpoint end) {
+        end.setLink(false);
         // Nothing can be sent while the link is down (the card refuses at send time),
         // so this only clears what was queued in the tick the link went down
-        while (nic.takeOutgoing() != null) {
+        while (end.takeOutgoing() != null) {
         }
     }
 
-    private static void move(Nic from, Nic to) {
+    /**
+     * A PC to modem link for one tick (spec 12.4.2, 12.4.5): {@code pc} is the PC's card while
+     * the PC is loaded and running, else null. The modem is powered over the cord, so with no
+     * running PC its link is down; with one, its frames move both ways and its timers run.
+     */
+    public static void modem(Modem modem, FrameEndpoint pc) {
+        if (pc == null) {
+            ethernetDown(modem);
+            return;
+        }
+        modem.exchange(pc);
+        modem.tick();
+    }
+
+    private static void move(FrameEndpoint from, FrameEndpoint to) {
         byte[] frame;
         while ((frame = from.takeOutgoing()) != null)
             to.deliver(frame, 0, frame.length);

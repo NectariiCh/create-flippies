@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.client.decal;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,6 +44,8 @@ public final class ClientDecals {
 
     private static final Map<String, DecalArt> ARTS = new ConcurrentHashMap<>();
     private static final Map<String, Set<BlockPos>> WAITING = new HashMap<>();
+    /** Pictures uploaded on this connection, so a picture pasted many times goes once. */
+    private static final Set<String> PROVIDED = new HashSet<>();
 
     private ClientDecals() {}
 
@@ -112,6 +115,65 @@ public final class ClientDecals {
     }
 
     /**
+     * Reads an SVG for a display element on a background thread, keeping its
+     * gradients ({@link SvgDecalImporter#readShaded}), then on the client thread
+     * installs it here and uploads it to the world, ahead of the edit that will name
+     * it. {@code done} hears of the result or {@code failed} of why there is none.
+     */
+    public static void importForDisplay(Path file, Consumer<Imported> done, Consumer<String> failed) {
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                SvgDecalImporter.Result result = SvgDecalImporter.readShaded(file);
+                byte[] blob = result.art().encode();
+                if (blob.length > DesignBundle.MAX_BYTES)
+                    throw new IllegalStateException("The drawing is too detailed to store");
+                return new Prepared(result, blob);
+            } catch (Exception e) {
+                throw new RuntimeException(e.getMessage() == null ? e.toString() : e.getMessage(), e);
+            }
+        }, Util.backgroundExecutor()).whenCompleteAsync((prepared, error) -> {
+            if (error != null) {
+                Throwable cause = error.getCause() != null ? error.getCause() : error;
+                CreateFlippies.LOGGER.warn("Could not import {}: {}", file, cause.toString());
+                failed.accept(cause.getMessage() == null ? cause.toString() : cause.getMessage());
+                return;
+            }
+            String hash = DesignBundle.hash(prepared.blob());
+            install(hash, prepared.result().art());
+            upload(hash, prepared.blob());
+            PROVIDED.add(hash);
+            done.accept(new Imported(hash, prepared.result().art().name(), prepared.result().art().triangleCount(),
+                    prepared.result().warnings()));
+        }, Minecraft.getInstance());
+    }
+
+    /**
+     * Client thread: makes sure the world's store holds a picture this client has, before
+     * an edit names it. A display element's picture travels in a pasted layout only as
+     * its hash, so pasting onto another world would otherwise name a picture that world
+     * never stored, and the display would refuse the element. Sent once per connection;
+     * nothing for a picture this client lacks (the world may hold it anyway), or for one
+     * whose encoding no longer gives its hash (the store would refuse it).
+     */
+    public static void provide(String hash) {
+        if (hash == null || hash.isEmpty() || PROVIDED.contains(hash))
+            return;
+        DecalArt art = ARTS.get(hash);
+        if (art == null || Minecraft.getInstance().getConnection() == null)
+            return;
+        byte[] blob;
+        try {
+            blob = art.encode();
+        } catch (IOException e) {
+            return;
+        }
+        if (!DesignBundle.hash(blob).equals(hash))
+            return;
+        upload(hash, blob);
+        PROVIDED.add(hash);
+    }
+
+    /**
      * Sends a picture to the world's store in chunks, the way a design's model goes.
      * Sent every time rather than only when the server lacks it: the store keeps one
      * copy whatever it is sent, and asking first would be a round trip to save a few
@@ -132,5 +194,6 @@ public final class ClientDecals {
     /** Leaving a server forgets which cells were waiting, but not the pictures, which are the same everywhere. */
     public static void onLogout() {
         WAITING.clear();
+        PROVIDED.clear();
     }
 }

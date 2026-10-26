@@ -9,7 +9,9 @@ import com.nectariich.create_flippies.foundation.wire.bend.BendGeometry;
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 import com.nectariich.create_flippies.foundation.wire.bend.DoubleClickDetector;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBendItems;
+import com.nectariich.create_flippies.foundation.wire.bend.WireBendService;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBends;
+import com.nectariich.create_flippies.foundation.wire.gauge.WireGaugeCompat;
 import com.nectariich.create_flippies.network.EditWireBendPacket;
 import com.nectariich.create_flippies.network.ModPackets;
 
@@ -26,6 +28,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
@@ -35,6 +38,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import org.patryk3211.powergrid.electricity.wire.HangingWireEntity;
 import org.patryk3211.powergrid.utility.PlayerUtilities;
 
 /**
@@ -86,6 +90,11 @@ public final class WireBendInput {
         return dragEntity != -1 || (player != null && player.isShiftKeyDown() && WireBendItems.holdsWireItem(player));
     }
 
+    /** Whether a point is in hand; a sag drag ({@link WireSagInput}) does not start meanwhile. */
+    public static boolean dragging() {
+        return dragEntity != -1;
+    }
+
     @SubscribeEvent
     public static void onUseKey(InputEvent.InteractionKeyMappingTriggered event) {
         if (!event.isUseItem())
@@ -101,11 +110,21 @@ public final class WireBendInput {
             return;
         }
         if (event.getHand() != InteractionHand.MAIN_HAND || !player.isShiftKeyDown()
-                || !WireBendItems.holdsWireItem(player))
+                || !WireBendItems.holdsWireItem(player) || WireSagInput.dragging())
             return;
         Pick pick = pick(minecraft, 1f);
-        if (pick == null)
+        if (pick == null) {
+            // WIRE SAG: Power Plant Grid starts its whole-wire sag on any click on a hanging
+            // wire with the same wire item, sneaking or not. A sneaking click is bending's,
+            // so one that Flippies' own pick just missed is swallowed rather than let
+            // through to sag the wire
+            if (WireGaugeCompat.ppgLoaded() && minecraft.hitResult instanceof EntityHitResult hit
+                    && hit.getEntity() instanceof HangingWireEntity wire && WireSagInput.ppgWouldSag(player, wire)) {
+                event.setSwingHand(false);
+                event.setCanceled(true);
+            }
             return;
+        }
         // WIRE BENDS 2: pulling a cord off its socket stays Power Grid's
         if (!pick.hit().isPoint() && pick.wire().bendClickReserved(pick.hit().onWire()))
             return;
@@ -118,7 +137,7 @@ public final class WireBendInput {
         BendGeometry.Hit hit = pick.hit();
         if (hit.isPoint()) {
             if (DOUBLE_CLICK.click(entity.getId(), hit.point(), Util.getMillis())) {
-                wire.setBendPoints(WireBends.apply(WireBends.Op.REMOVE, points, hit.point(), null));
+                WireBendService.applyEdit(wire, WireBends.Op.REMOVE, hit.point(), null);
                 ModPackets.CHANNEL.sendToServer(
                         new EditWireBendPacket(entity.getId(), WireBends.Op.REMOVE, hit.point(), null, true));
                 return;
@@ -134,7 +153,7 @@ public final class WireBendInput {
         }
         // A leg's index is the index the point between its two ends takes
         int index = hit.leg();
-        wire.setBendPoints(WireBends.apply(WireBends.Op.INSERT, points, index, hit.onWire()));
+        WireBendService.applyEdit(wire, WireBends.Op.INSERT, index, hit.onWire());
         ModPackets.CHANNEL.sendToServer(
                 new EditWireBendPacket(entity.getId(), WireBends.Op.INSERT, index, hit.onWire(), true));
         startDrag(entity, index, points.size() + 1, hit.onWire(), player.getEyePosition());
@@ -215,14 +234,19 @@ public final class WireBendInput {
         lastSent = null;
     }
 
-    /** The server's word on a wire's points. A drag on that wire keeps its point in hand. */
-    public static void received(int entityId, List<Vec3> points) {
+    /**
+     * The server's word on a wire's points and the sag of its legs. A drag on that wire
+     * keeps its point in hand, and a sag drag its leg's sag ({@link WireSagInput#held}).
+     */
+    public static void received(int entityId, List<Vec3> points, float[] legSags) {
         ClientLevel level = Minecraft.getInstance().level;
         if (level == null || !(level.getEntity(entityId) instanceof BendableWire wire))
             return;
         if (entityId == dragEntity && dragAt != null && points.size() == expectedCount)
             points = WireBends.apply(WireBends.Op.MOVE, points, dragIndex, dragAt);
         wire.setBendPoints(points);
+        if (legSags != null)
+            wire.setBendLegSags(WireSagInput.held(entityId, points.size(), legSags));
     }
 
     // Picking
@@ -253,8 +277,9 @@ public final class WireBendInput {
             List<Vec3> path = wire.bendPath();
             if (path == null)
                 continue;
-            BendGeometry.Hit hit = BendGeometry.pick(eye, look, limit, wire.bendPoints(), path,
-                    wire.bendHorizontalCoefficient(), wire.bendVerticalCoefficient(), wire.bendThickness());
+            // WIRE SAG: a click adds a point onto the leg where it is drawn, sagging as it does
+            BendGeometry.Hit hit = BendGeometry.pick(eye, look, limit, wire.bendPoints(), path, 0, wire.bendCurves(),
+                    wire.bendThickness());
             if (hit == null)
                 continue;
             if (hit.isPoint()) {
