@@ -1,0 +1,76 @@
+{
+  "variants": {
+    "facing=down,rotation=0": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=down,rotation=1": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=down,rotation=2": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=down,rotation=3": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=up,rotation=0": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=up,rotation=1": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=up,rotation=2": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=up,rotation=3": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=north,rotation=0": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=north,rotation=1": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=north,rotation=2": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=north,rotation=3": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=south,rotation=0": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=south,rotation=1": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=south,rotation=2": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=south,rotation=3": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=west,rotation=0": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=west,rotation=1": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=west,rotation=2": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=west,rotation=3": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=east,rotation=0": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=east,rotation=1": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=east,rotation=2": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    },
+    "facing=east,rotation=3": {
+      "model": "create_flippies:block/oled_display_light_shade_short_4x5"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 """Write the alphanumeric displays' assets from the authored Blockbench exports.
 
-One display is one export -- `alphanum-display-<border>-<size>-<shape>.json` -- and
+One display is one export -- `oled-display-<border>-<size>-<shape>.json` -- and
 everything the game loads is struck from it here, so a re-export is wired up by
 re-running this rather than by editing anything by hand.
 
@@ -8,22 +8,22 @@ re-running this rather than by editing anything by hand.
 
 Each export becomes two models plus a stub:
 
-* `<form>_screen` -- everything standing in the display's own cell, which is the
-  glass. It is drawn on its own so the renderer can raise its light level when the
+* `<form>_screen` -- the glass. It is drawn on its own so the renderer can raise its light level when the
   backlight is driven: a lit screen glows where it is drawn without lighting the room,
   exactly as an indicator's lens does. It has to be a split rather than Forge's
   per-face emissive data, because the model goes through a SuperByteBuffer and
   `light()` rewrites the lightmap of every vertex it is handed, baked-in face data
   included.
-* `<form>_body` -- everything behind the panel: the barrel and the rack of pins.
-  Always drawn at whatever light is falling on the panel.
+* `<form>_body` -- everything else: the barrel and the rack of pins behind the
+  panel, and any bezel or light shade in front of it. Always drawn at whatever light is falling on the panel.
 * `<form>` -- a particle-only stub for the block states to point at. A display is
   drawn entirely from partials by a block entity renderer, so a real model here would
   draw a second display inside the first; all the block state is for is the particle a
   broken one throws and the texture a breaking one is stippled with.
 
-Which elements are the screen is not guessed by index: it is everything that reaches
-above the mounting plane. The exports are authored in the frame everything
+Which elements are the screen is not guessed by index: it is the element named
+`screen`, or on an export that names none, everything that reaches above the
+mounting plane. The exports are authored in the frame everything
 panel-mounted uses -- the face of the device flush with the floor of its own cell and
 the body hanging through the panel below it -- so `y > 0` is "in front of the panel"
 and nothing else can be.
@@ -51,8 +51,62 @@ BLOCKSTATES = os.path.join(ASSETS, "blockstates")
 
 # The authored exports, by the id their generated files and their blocks are named
 # after. Never written. Add a line here when a new one is dropped in.
+# The exports keep their authored names; `snc` there is the light shade.
 SOURCES = {
-    "brdrl_1p5_sq": "alphanum-display-brdrl-1p5-sq",
+    "brdrl_1p5_sq": "oled-display-brdrl-1p5-sq",
+    "brdrl_1x1p5": "oled-display-brdrl-1x1p5",
+    "brdrl_1x2": "oled-display-brdrl-1x2",
+    "brd_1p5_sq": "oled-display-brd-1p5-sq",
+    "brd_1x1p5": "oled-display-brd-1x1p5",
+    "brd_1x2": "oled-display-brd-1x2",
+    "light_shade_short_1p5_sq": "oled-display-snc1-1p5-sq",
+    "light_shade_short_1x1p5": "oled-display-snc1-1x1p5",
+    "light_shade_short_1x2": "oled-display-snc1-1x2",
+    "light_shade_long_1p5_sq": "oled-display-snc2-1p5-sq",
+    "light_shade_long_1x1p5": "oled-display-snc2-1x1p5",
+    "light_shade_long_1x2": "oled-display-snc2-1x2",
+    # The larger sizes. 3x5 is authored; the rest are stand-ins written by
+    # tools/gen_display_sizes.py until a hand-drawn export replaces them.
+    "brdrl_2x3": "oled-display-brdrl-2x3",
+    "brdrl_3x4": "oled-display-brdrl-3x4",
+    "brdrl_3x5": "oled-display-brdrl-3x5",
+    "brdrl_4x5": "oled-display-brdrl-4x5",
+    "brdrl_4x6": "oled-display-brdrl-4x6",
+    "brdrl_5x8": "oled-display-brdrl-5x8",
+    "brdrl_4x10": "oled-display-brdrl-4x10",
+    "brdrl_6x10": "oled-display-brdrl-6x10",
+    "brdrl_8x12": "oled-display-brdrl-8x12",
+    "brdrl_8x15": "oled-display-brdrl-8x15",
+    "brd_2x3": "oled-display-brd-2x3",
+    "brd_3x4": "oled-display-brd-3x4",
+    "brd_3x5": "oled-display-brd-3x5",
+    "brd_4x5": "oled-display-brd-4x5",
+    "brd_4x6": "oled-display-brd-4x6",
+    "brd_5x8": "oled-display-brd-5x8",
+    "brd_4x10": "oled-display-brd-4x10",
+    "brd_6x10": "oled-display-brd-6x10",
+    "brd_8x12": "oled-display-brd-8x12",
+    "brd_8x15": "oled-display-brd-8x15",
+    "light_shade_short_2x3": "oled-display-snc1-2x3",
+    "light_shade_short_3x4": "oled-display-snc1-3x4",
+    "light_shade_short_3x5": "oled-display-snc1-3x5",
+    "light_shade_short_4x5": "oled-display-snc1-4x5",
+    "light_shade_short_4x6": "oled-display-snc1-4x6",
+    "light_shade_short_5x8": "oled-display-snc1-5x8",
+    "light_shade_short_4x10": "oled-display-snc1-4x10",
+    "light_shade_short_6x10": "oled-display-snc1-6x10",
+    "light_shade_short_8x12": "oled-display-snc1-8x12",
+    "light_shade_short_8x15": "oled-display-snc1-8x15",
+    "light_shade_long_2x3": "oled-display-snc2-2x3",
+    "light_shade_long_3x4": "oled-display-snc2-3x4",
+    "light_shade_long_3x5": "oled-display-snc2-3x5",
+    "light_shade_long_4x5": "oled-display-snc2-4x5",
+    "light_shade_long_4x6": "oled-display-snc2-4x6",
+    "light_shade_long_5x8": "oled-display-snc2-5x8",
+    "light_shade_long_4x10": "oled-display-snc2-4x10",
+    "light_shade_long_6x10": "oled-display-snc2-6x10",
+    "light_shade_long_8x12": "oled-display-snc2-8x12",
+    "light_shade_long_8x15": "oled-display-snc2-8x15",
 }
 
 # One block per form and rating; see the module comment. These mirror SupplyVoltage.
@@ -68,6 +122,11 @@ MIDDLE = 8.0
 # indicators use, and for the same reason: the model is only ever a picture of the
 # unit, never the unit itself.
 ITEM_SCALE = 3.0
+
+# The widest a display's face is drawn as an item, in model pixels: the bordered 1x2's
+# at ITEM_SCALE. A bigger glass is scaled up by less so it still fits a slot -- an 8x15
+# blown up 3x would fill several.
+ITEM_FACE = 7.5
 
 # How a display is held. The rotary switches' transforms, which are authored for a
 # part standing off a panel rather than for a flat item.
@@ -121,6 +180,20 @@ def head(model, texture):
     }
 
 
+def in_front(element):
+    return max(element["from"][1], element["to"][1]) > 0
+
+
+def is_screen(model, element):
+    """The glass: the element named `screen` when the export names one, otherwise
+    everything in front of the panel. A bezel or a light shade also stands in front,
+    so on a framed form only the name tells the glass from the frame -- and the frame
+    goes with the body, since it must not glow with the backlight."""
+    if any(e.get("name") == "screen" for e in model["elements"]):
+        return element.get("name") == "screen"
+    return in_front(element)
+
+
 def split(form, source, model, texture):
     """The screen and the body, as the two models the renderer actually draws.
 
@@ -128,8 +201,8 @@ def split(form, source, model, texture):
     use costs nothing -- an unreferenced texture is simply not stitched -- and keeping
     the lists identical means the two halves diff against the export line for line.
     """
-    screen = [e for e in model["elements"] if max(e["from"][1], e["to"][1]) > 0]
-    body = [e for e in model["elements"] if max(e["from"][1], e["to"][1]) <= 0]
+    screen = [e for e in model["elements"] if is_screen(model, e)]
+    body = [e for e in model["elements"] if not is_screen(model, e)]
     assert screen, f"{source}: nothing stands in front of the panel, so there is no screen"
     assert body, f"{source}: nothing stands behind the panel, so there is no body"
 
@@ -138,12 +211,12 @@ def split(form, source, model, texture):
         part["__generated"] = (f"tools/gen_display.py from {source}.json; "
                                "re-run after re-exporting")
         part["elements"] = elements
-        write_json(os.path.join(MODELS, f"alphanum_display_{form}_{suffix}.json"), part)
+        write_json(os.path.join(MODELS, f"oled_display_{form}_{suffix}.json"), part)
     return screen, body
 
 
 def write_stub(form, texture):
-    write_json(os.path.join(MODELS, f"alphanum_display_{form}.json"),
+    write_json(os.path.join(MODELS, f"oled_display_{form}.json"),
                {"textures": {"particle": texture}})
 
 
@@ -156,15 +229,21 @@ def write_blockstates(form):
     """
     for rating in RATINGS:
         variants = {f"facing={facing},rotation={rotation}":
-                    {"model": f"create_flippies:block/alphanum_display_{form}"}
+                    {"model": f"create_flippies:block/oled_display_{form}"}
                     for facing in FACINGS for rotation in range(4)}
-        write_json(os.path.join(BLOCKSTATES, f"alphanum_display_{form}_{rating}.json"),
+        write_json(os.path.join(BLOCKSTATES, f"oled_display_{form}_{rating}.json"),
                    {"variants": variants})
 
 
-def scaled(value, shift, axis):
+def scaled(value, shift, axis, scale):
     """One authored coordinate, recentred on the cube and then blown up about it."""
-    return round(MIDDLE + (value + shift[axis] - MIDDLE) * ITEM_SCALE, 6)
+    return round(MIDDLE + (value + shift[axis] - MIDDLE) * scale, 6)
+
+
+def item_scale(lo, hi):
+    """ITEM_SCALE, or less for a face that would be drawn wider than ITEM_FACE."""
+    face = max(hi[0] - lo[0], hi[2] - lo[2])
+    return min(ITEM_SCALE, ITEM_FACE / face)
 
 
 def write_item_models(form, source, model, texture):
@@ -172,24 +251,25 @@ def write_item_models(form, source, model, texture):
     lo = [min(e["from"][a] for e in elements) for a in range(3)]
     hi = [max(e["to"][a] for e in elements) for a in range(3)]
     shift = [MIDDLE - (lo[a] + hi[a]) / 2 for a in range(3)]
+    scale = item_scale(lo, hi)
 
     for element in elements:
         for key in ("from", "to"):
-            element[key] = [scaled(element[key][a], shift, a) for a in range(3)]
+            element[key] = [scaled(element[key][a], shift, a, scale) for a in range(3)]
         if "rotation" in element:
             rotation = dict(element["rotation"])
-            rotation["origin"] = [scaled(rotation["origin"][a], shift, a) for a in range(3)]
+            rotation["origin"] = [scaled(rotation["origin"][a], shift, a, scale) for a in range(3)]
             element["rotation"] = rotation
 
-    item = f"alphanum_display_{form}"
+    item = f"oled_display_{form}"
     whole = head(model, texture)
     whole["__generated"] = (f"block/{source} recentred on the block middle and scaled "
-                            f"{ITEM_SCALE:g}x; re-run tools/gen_display.py after re-exporting")
+                            f"{round(scale, 4):g}x; re-run tools/gen_display.py after re-exporting")
     whole["elements"] = elements
     whole["display"] = ITEM_DISPLAY
     write_json(os.path.join(ITEM_MODELS, item + ".json"), whole)
     for rating in RATINGS:
-        write_json(os.path.join(ITEM_MODELS, f"{item}_{rating}.json"),
+        write_json(os.path.join(ITEM_MODELS, f"oled_display_{form}_{rating}.json"),
                    {"parent": f"create_flippies:item/{item}"})
 
 
@@ -207,10 +287,11 @@ def report(form, model, screen, body):
 
     print(f"{form}:")
     print(f"  screen  {bounds(screen)}  ({len(screen)} element(s))")
+    print(f"  front   {bounds([e for e in model['elements'] if in_front(e)])}")
     print(f"  body    {bounds(body)}  ({len(body)} element(s))")
     for element in model["elements"]:
         name = element.get("name")
-        if name:
+        if name and name not in ("screen", "border"):
             print(f"  pin {name:<14} {[round(v, 4) for v in element['from'] + element['to']]}")
 
 

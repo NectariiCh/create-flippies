@@ -1,16 +1,23 @@
 package com.nectariich.create_flippies.content.data_cord;
 
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A block entity with data ports a data cord can plug into (spec 11.2.5): the PC
- * case and the keyboard now, the monitor and the mouse later.
+ * A block entity or an entity with data ports a data cord can plug into (spec
+ * 11.2.5): the PC case, the keyboard and the monitor now, the mouse later.
  *
  * Ports are numbered from 0 and the numbering is saved in links, so a host's port
  * order is frozen.
  */
 public interface DataPortHost {
+
+    /** Where this host is, as its peers' links name it. */
+    PortAddress portAddress();
+
+    /** The level it is in, or null before it is in one. */
+    Level hostLevel();
 
     int dataPortCount();
 

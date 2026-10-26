@@ -2,7 +2,6 @@ package com.nectariich.create_flippies.network;
 
 import java.util.function.Supplier;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
@@ -17,31 +16,31 @@ public class KeyboardCaptureStatePacket {
 
     private static final int MAX_REASON = 32;
 
-    private final BlockPos pos;
+    private final int id;
     private final boolean granted;
     private final String reason;
 
-    public KeyboardCaptureStatePacket(BlockPos pos, boolean granted, String reason) {
-        this.pos = pos;
+    public KeyboardCaptureStatePacket(int id, boolean granted, String reason) {
+        this.id = id;
         this.granted = granted;
         this.reason = reason;
     }
 
     public KeyboardCaptureStatePacket(FriendlyByteBuf buffer) {
-        pos = buffer.readBlockPos();
+        id = buffer.readVarInt();
         granted = buffer.readBoolean();
         reason = buffer.readUtf(MAX_REASON);
     }
 
     public void encode(FriendlyByteBuf buffer) {
-        buffer.writeBlockPos(pos);
+        buffer.writeVarInt(id);
         buffer.writeBoolean(granted);
         buffer.writeUtf(reason, MAX_REASON);
     }
 
     public void handle(Supplier<NetworkEvent.Context> context) {
         context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> () -> com.nectariich.create_flippies.client.pc.KeyboardClient.captureState(pos, granted, reason)));
+                () -> () -> com.nectariich.create_flippies.client.pc.KeyboardClient.captureState(id, granted, reason)));
         context.get().setPacketHandled(true);
     }
 }

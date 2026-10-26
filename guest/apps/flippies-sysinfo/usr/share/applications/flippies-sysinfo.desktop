@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=System info
+Comment=CPU, memory, disk and network of this PC
+Exec=flippies-sysinfo
+Icon=flippies-sysinfo
+Terminal=false
+Categories=System;Monitor;

@@ -79,11 +79,11 @@ class WireBendsTest {
     @Test
     void nbtReadIsCappedAndSkipsBrokenEntries() {
         List<Vec3> many = new ArrayList<>();
-        for (int i = 0; i < WireBends.MAX_POINTS + 5; i++)
+        for (int i = 0; i < WireBends.MAX_STORED + 5; i++)
             many.add(new Vec3(i, i, i));
         CompoundTag tag = new CompoundTag();
         WireBends.write(tag, many);
-        assertEquals(WireBends.MAX_POINTS, WireBends.read(tag).size());
+        assertEquals(WireBends.MAX_STORED, WireBends.read(tag).size());
 
         CompoundTag nan = new CompoundTag();
         WireBends.write(nan, List.of(new Vec3(Double.NaN, 0, 0), new Vec3(1, 2, 3)));
@@ -98,7 +98,7 @@ class WireBendsTest {
         assertEquals(points, WireBends.read(buffer));
 
         FriendlyByteBuf hostile = new FriendlyByteBuf(Unpooled.buffer());
-        hostile.writeVarInt(WireBends.MAX_POINTS + 1);
+        hostile.writeVarInt(WireBends.MAX_STORED + 1);
         assertThrows(IllegalArgumentException.class, () -> WireBends.read(hostile));
     }
 

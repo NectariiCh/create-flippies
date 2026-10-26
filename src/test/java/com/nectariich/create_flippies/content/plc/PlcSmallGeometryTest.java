@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.nectariich.create_flippies.content.din_rail.DinRailMountable;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 
 import net.minecraft.core.Direction;
@@ -88,6 +89,33 @@ class PlcSmallGeometryTest {
                     && terminals[PlcSmallGeometry.TERMINAL_GND].check(at), "both at x = " + x);
         }
         assertTrue(PlcSmallGeometry.CLICK_EXPAND == 0, "Power Grid adds nothing to PAD");
+    }
+
+    @Test
+    void thePanelPlcHasTheSamePinsLowerAndOnlyTheDinOneClipsToARail() {
+        // The same twenty pins in the same order, PANEL_DROP lower: a click on each
+        // lowered pin resolves to it alone, and a click where the DIN pin would be
+        // resolves to nothing
+        ControlMount mount = ControlMount.centred(Direction.UP, 0);
+        TerminalBoundingBox[] terminals = PlcSmallControlType.PANEL.terminals(mount);
+        assertEquals(PlcSmallGeometry.TERMINALS, terminals.length);
+        assertEquals(PlcSmallGeometry.TERMINALS, PlcSmallControlType.PANEL.terminalCount());
+        for (int t = 0; t < PlcSmallGeometry.TERMINALS; t++) {
+            double[] pin = PlcSmallGeometry.pin(t);
+            double x = (pin[0] + pin[3]) / 2;
+            double z = (pin[2] + pin[5]) / 2;
+            Vec3 lowered = blockSpace(mount, x, pin[4] - PlcSmallGeometry.PANEL_DROP, z);
+            Vec3 dinHeight = blockSpace(mount, x, pin[4] + 0.5, z);
+            for (int other = 0; other < PlcSmallGeometry.TERMINALS; other++) {
+                assertEquals(other == t, terminals[other].check(lowered),
+                        "a click on panel terminal " + t + " tested against " + other);
+                assertFalse(terminals[other].check(dinHeight), "panel terminal " + other + " reaches DIN height");
+            }
+        }
+
+        assertTrue(PlcSmallControlType.DIN instanceof DinRailMountable);
+        assertFalse(PlcSmallControlType.PANEL instanceof DinRailMountable);
+        assertFalse(PlcSmallControlType.DIN.id().equals(PlcSmallControlType.PANEL.id()));
     }
 
     private static Vec3 blockSpace(ControlMount mount, double x, double y, double z) {

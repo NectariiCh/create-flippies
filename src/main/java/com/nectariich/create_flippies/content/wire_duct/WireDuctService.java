@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctColor;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctNetwork;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctPlacement;
@@ -33,7 +34,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
-import com.simibubi.create.content.equipment.wrench.WrenchItem;
 
 import org.patryk3211.powergrid.collections.ModdedTags;
 import org.patryk3211.powergrid.electricity.wire.BlockWireEntity;
@@ -55,12 +55,20 @@ public final class WireDuctService {
 
     // Finding ducts
 
-    /** A clicked point on a face as a duct end: snapped to the grid, or onto an end of a duct of that size nearby. */
-    public static Vec3 snapPoint(Level level, Vec3 hit, Direction face, DuctSize size) {
+    /**
+     * A clicked point on a face as a duct end: snapped to the grid, or onto an end
+     * of a duct of that size near it, but only of one the click itself was on (the
+     * line from {@code eye} to {@code hit} passes through it). A click on the bare
+     * face beside a duct starts a duct of its own.
+     */
+    public static Vec3 snapPoint(Level level, Vec3 eye, Vec3 hit, Direction face, DuctSize size) {
         Vec3 point = DuctPlacement.snap(hit, face, size);
+        Vec3 look = hit.subtract(eye);
+        // Just past the face, so a click landing on the duct's very edge still counts
+        Vec3 through = look.lengthSqr() < 1e-12 ? hit : hit.add(look.normalize().scale(1e-3));
         List<Vec3> ends = new ArrayList<>();
-        for (WireDuctEntity duct : DuctIndex.ducts(level, new AABB(point, point).inflate(DuctPlacement.END_SNAP))) {
-            if (duct.size() != size)
+        for (WireDuctEntity duct : DuctIndex.ducts(level, new AABB(eye, through))) {
+            if (duct.size() != size || duct.ductBox().clip(eye, through).isEmpty())
                 continue;
             ends.add(duct.segment().from());
             ends.add(duct.segment().to());
@@ -81,6 +89,18 @@ public final class WireDuctService {
 
     // Laying a duct
 
+    /** {@link DuctPlacement#plan(Vec3, Direction, Vec3, Direction, DuctSize, java.util.function.Predicate)} in this level. */
+    public static List<DuctSegment> plan(Level level, Vec3 from, Direction firstFace, Vec3 to, Direction face,
+            DuctSize size) {
+        return DuctPlacement.plan(from, firstFace, to, face, size, p -> {
+            BlockPos pos = BlockPos.containing(p);
+            for (AABB box : level.getBlockState(pos).getCollisionShape(level, pos).toAabbs())
+                if (box.move(pos).contains(p))
+                    return true;
+            return false;
+        });
+    }
+
     /**
      * The second click of a placement: lays the duct from {@code from} to {@code to},
      * in the colour of the items it is laid from, or says why not. Any length will
@@ -89,9 +109,7 @@ public final class WireDuctService {
     static void place(Player player, ItemStack stack, DuctSize size, Vec3 from, Direction firstFace, Vec3 to,
             Direction face) {
         Level level = player.level();
-        List<DuctSegment> pieces = DuctPlacement.plan(from, to, face, size);
-        if (pieces.isEmpty() && firstFace != face)
-            pieces = DuctPlacement.plan(from, to, firstFace, size);
+        List<DuctSegment> pieces = plan(level, from, firstFace, to, face, size);
         DuctPlacement.Verdict verdict = DuctPlacement.check(pieces, player.getEyePosition(),
                 PlayerUtilities.getReachDistance(player));
         if (verdict == DuctPlacement.Verdict.OK) {
@@ -211,9 +229,8 @@ public final class WireDuctService {
                 || distanceToBox(duct.ductBox(), hit) > 0.5)
             return;
         switch (action) {
-            case BREAK -> breakDuct(player, duct, false);
-            case WRENCH -> {
-                if (held.getItem() instanceof WrenchItem && player.isShiftKeyDown())
+            case REMOVE -> {
+                if (player.isShiftKeyDown() && ScrewdriverItem.heldBy(player) != null)
                     breakDuct(player, duct, true);
             }
             case ROUTE -> DuctRouting.route(player, duct, hit);
@@ -273,13 +290,15 @@ public final class WireDuctService {
 
     /**
      * Removes a duct and gives its items back, in its colour: dropped where it was,
-     * or into the inventory when taken with a wrench. Every wire running in it is
+     * or into the inventory when taken with a screwdriver. Every wire running in it is
      * cut whole, dropping its own items, since it cannot lie where its duct was.
      */
     public static void breakDuct(Player player, WireDuctEntity duct, boolean toInventory) {
         Level level = duct.level();
         DuctSegment segment = duct.segment();
         for (BlockWireEntity wire : DuctedWires.wiresIn(level, duct))
+            wire.kill();
+        for (var wire : DuctedWires.hangingIn(level, duct))
             wire.kill();
         for (WireDuctEntity other : DuctedWires.neighbours(level, duct)) {
             Vec3 joint = other.segment().jointWith(segment);

@@ -11,7 +11,6 @@ import com.nectariich.create_flippies.content.display.AlphanumDisplayBlock;
 import com.nectariich.create_flippies.content.display.DisplayKind;
 import com.nectariich.create_flippies.content.gauge.UniversalGaugeBlock;
 import com.nectariich.create_flippies.content.host.ControlHostBlock;
-import com.nectariich.create_flippies.content.plc.PlcSmallPanelBlock;
 import com.nectariich.create_flippies.content.indicator.IndicatorBlock;
 import com.nectariich.create_flippies.content.panel.LargePanelBlock;
 import com.nectariich.create_flippies.content.indicator.IndicatorKind;
@@ -29,7 +28,6 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
-import com.nectariich.create_flippies.content.keyboard.KeyboardBlock;
 import com.nectariich.create_flippies.content.pc.PcCaseBlock;
 
 public class ModBlocks {
@@ -101,14 +99,6 @@ public class ModBlocks {
     public static final RegistryObject<Block> LARGE_PANEL = BLOCKS.register("large_panel",
             () -> new LargePanelBlock(panelProperties()));
 
-    /**
-     * The panel-mount small PLC. There is no block for the DIN one: that exists
-     * only clipped to a rail, so it is a control kind and a plain item, the same
-     * arrangement the breakers use.
-     */
-    public static final RegistryObject<Block> PLC_SMALL_PANEL = BLOCKS.register("plc_small_panel",
-            () -> new PlcSmallPanelBlock(panelProperties()));
-
     /** The bench custom controls are designed at. Wood, like the crafting table it is built from. */
     public static final RegistryObject<Block> DESIGN_WORKBENCH = BLOCKS.register("design_workbench",
             () -> new DesignWorkbenchBlock(BlockBehaviour.Properties.of()
@@ -174,24 +164,14 @@ public class ModBlocks {
                     .sound(SoundType.METAL)
                     .noOcclusion()));
 
-    /** The keyboard (docs/PC_SPEC.md 11.2.12), typed on through a data cord to a case. */
-    public static final RegistryObject<Block> KEYBOARD = BLOCKS.register("keyboard",
-            () -> new KeyboardBlock(BlockBehaviour.Properties.of()
-                    .mapColor(MapColor.COLOR_LIGHT_GRAY)
-                    .strength(0.8f)
-                    .sound(SoundType.STONE)
-                    .noOcclusion()));
-    // PC end
-
-    // CRT
-    /** The CRT monitor (docs/PC_SPEC.md 11.2.14): shows a case's VGA display on its screen. */
-    public static final RegistryObject<Block> CRT = BLOCKS.register("crt",
-            () -> new com.nectariich.create_flippies.content.crt.CrtBlock(BlockBehaviour.Properties.of()
-                    .mapColor(MapColor.COLOR_LIGHT_GRAY)
-                    .strength(1.5f)
+    /** The network modem (docs/PC_SPEC.md 12.4.5), powered over its ethernet cord. */
+    public static final RegistryObject<Block> NETWORK_MODEM = BLOCKS.register("network_modem",
+            () -> new com.nectariich.create_flippies.content.modem.NetworkModemBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_GRAY)
+                    .strength(1.0f)
                     .sound(SoundType.METAL)
                     .noOcclusion()));
-    // CRT end
+    // PC end
 
     public static void register(IEventBus modBus) {
         BLOCKS.register(modBus);

@@ -10,7 +10,12 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public class ModPackets {
 
-    private static final String PROTOCOL = "1";
+    /**
+     * "2": the alphanumeric display's configure packet lost its print (the element
+     * editor's packets carry that now), so a client and server a version apart would
+     * misread each other's display edits rather than fail to connect.
+     */
+    private static final String PROTOCOL = "2";
 
     /**
      * The grid packets are the channel's first server-to-client traffic, and the
@@ -119,6 +124,8 @@ public class ModPackets {
                 KeyboardCaptureStatePacket::new, KeyboardCaptureStatePacket::handle, TO_CLIENT);
         CHANNEL.registerMessage(index++, KeyboardKeysPacket.class, KeyboardKeysPacket::encode,
                 KeyboardKeysPacket::new, KeyboardKeysPacket::handle, TO_SERVER);
+        CHANNEL.registerMessage(index++, KeyboardMousePacket.class, KeyboardMousePacket::encode,
+                KeyboardMousePacket::new, KeyboardMousePacket::handle, TO_SERVER);
         // PC end
         // CRT
         CHANNEL.registerMessage(index++, CrtFramePacket.class, CrtFramePacket::encode,
@@ -129,6 +136,9 @@ public class ModPackets {
                 EditWireBendPacket::new, EditWireBendPacket::handle, TO_SERVER);
         CHANNEL.registerMessage(index++, WireBendsSyncPacket.class, WireBendsSyncPacket::encode,
                 WireBendsSyncPacket::new, WireBendsSyncPacket::handle, TO_CLIENT);
+        // WIRE SAG
+        CHANNEL.registerMessage(index++, SetWireLegSagPacket.class, SetWireLegSagPacket::encode,
+                SetWireLegSagPacket::new, SetWireLegSagPacket::handle, TO_SERVER);
         // WIRE BENDS end
         // SCHEMATIC ARROWS
         CHANNEL.registerMessage(index++, ConfigureArrowPacket.class, ConfigureArrowPacket::encode,
@@ -143,5 +153,13 @@ public class ModPackets {
         CHANNEL.registerMessage(index++, ConfigureEdgewiseGaugePacket.class, ConfigureEdgewiseGaugePacket::encode,
                 ConfigureEdgewiseGaugePacket::new, ConfigureEdgewiseGaugePacket::handle, TO_SERVER);
         // EDGEWISE GAUGES end
+        // DEVICES
+        CHANNEL.registerMessage(index++, DeviceBreakPacket.class, DeviceBreakPacket::encode,
+                DeviceBreakPacket::new, DeviceBreakPacket::handle, TO_SERVER);
+        // DEVICES end
+        // SCREEN ELEMENTS
+        CHANNEL.registerMessage(index++, EditScreenElementPacket.class, EditScreenElementPacket::encode,
+                EditScreenElementPacket::new, EditScreenElementPacket::handle, TO_SERVER);
+        // SCREEN ELEMENTS end
     }
 }

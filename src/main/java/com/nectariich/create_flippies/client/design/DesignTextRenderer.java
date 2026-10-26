@@ -68,8 +68,12 @@ public final class DesignTextRenderer {
     private static final float[][] HALO = { { -1, -1 }, { 0, -1 }, { 1, -1 }, { -1, 0 }, { 1, 0 }, { -1, 1 },
             { 0, 1 }, { 1, 1 } };
 
-    /** At most this many placed designs' text is held back in one frame; any more is drawn at once. */
-    private static final int MAX_DEFERRED = 4096;
+    /**
+     * At most this many placed designs' text is held back in one frame; any more is
+     * drawn at once. Placed screens' elements are held to the same number
+     * ({@link DesignScreenRenderer}).
+     */
+    static final int MAX_DEFERRED = 4096;
 
     /** One placed control's text, posed in the block entity pass and waiting to be drawn. */
     private record Deferred(Matrix4f pose, Matrix3f normal, ControlDesign design, Quaternionf mount,

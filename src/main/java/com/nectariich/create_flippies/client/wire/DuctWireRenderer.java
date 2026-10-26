@@ -27,10 +27,11 @@ import org.patryk3211.powergrid.electricity.wire.registry.WireItemEntry;
 
 /**
  * Draws a Power Grid placeable wire that runs through wire ducts: what lies
- * outside them as Power Grid draws it, in its own texture and colour, and what
- * lies inside them as dashed strokes lying flat on their lids, in the same texture
- * and colour, side by side with the other wires there, each as wide as its gauge
- * ({@link DuctWires#layout}).
+ * outside them as Power Grid draws it, in its own texture and colour, and nothing
+ * of what lies inside them. Only a preview of a wire being laid also draws its
+ * part inside as dashed strokes lying flat on the lids, in the same texture and
+ * colour, side by side with the other wires there, each as wide as its gauge
+ * ({@link DuctWires#layout}); once the wire is down the duct hides it.
  *
  * What is hidden and where the strokes go is worked out once and kept until the
  * wire's chain or a duct around it changes.
@@ -104,7 +105,8 @@ public final class DuctWireRenderer {
 
     /**
      * Draws a wire relative to {@code origin}, where the pose stack stands. A preview
-     * is drawn fully lit; a wire is lit as Power Grid lights it.
+     * is drawn fully lit and with its strokes on the lids; a wire is lit as Power
+     * Grid lights it, and shows nothing inside a duct.
      */
     public static void draw(PoseStack ms, VertexConsumer buffer, Level level, Vec3 origin, Drawn drawn, int color,
             float thickness, int uvOffset, boolean preview) {
@@ -121,6 +123,8 @@ public final class DuctWireRenderer {
             BlockWireRenderer.renderSegment(ms, buffer, preview ? LightTexture.FULL_BRIGHT : light(level, b, dir),
                     color, a.subtract(origin), dir, thickness, length, uvOffset);
         }
+        if (!preview)
+            return;
         for (DuctWires.Dash dash : drawn.strokes())
             dash(ms, buffer, origin, dash, color,
                     preview ? LightTexture.FULL_BRIGHT : light(level, dash.to(), direction(dash.from(), dash.to())));

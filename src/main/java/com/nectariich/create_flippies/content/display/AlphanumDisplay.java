@@ -3,7 +3,8 @@ package com.nectariich.create_flippies.content.display;
 import java.util.List;
 
 import com.nectariich.create_flippies.CreateFlippies;
-import com.nectariich.create_flippies.content.label.PanelLabel;
+import com.nectariich.create_flippies.content.display.element.ScreenElement;
+import com.nectariich.create_flippies.content.display.element.ScreenElements;
 import com.nectariich.create_flippies.content.procedural_gauge.SupplyVoltage;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
@@ -84,21 +85,6 @@ public final class AlphanumDisplay {
     }
 
     /**
-     * A line as it is safe to store and to draw.
-     *
-     * The label's own filter, which strips formatting codes and control characters and
-     * caps the length — see {@link PanelLabel#sanitise}. Shared rather than restated
-     * because the reason is identical: the string is drawn straight through the font,
-     * it is what one player writes for every other player to read, and a legacy
-     * formatting code left in it would let anyone put obfuscated or invisible text on
-     * someone else's panel. A link's output goes through it too, since a link reads
-     * blocks the player does not necessarily own.
-     */
-    public static String sanitise(String text) {
-        return PanelLabel.sanitise(text);
-    }
-
-    /**
      * The display mounted at exactly this mount, or null if there is none.
      *
      * A mount identifies a control within its host because no two controls may occupy
@@ -117,15 +103,16 @@ public final class AlphanumDisplay {
     /**
      * What a pair of goggles says about a display, in either form.
      *
-     * The state of the two feeds, and then the line verbatim and nothing else — no
-     * label on it, and nothing derived from it. The glass already shows the text, so
-     * the tooltip exists for the part the glass cannot: whether the device is powered,
-     * whether the backlight is on, and the whole of a line the glass has cut short.
+     * The state of the two feeds, and then each lettering element's text verbatim and
+     * nothing else: no label on it, and nothing derived from it. The glass already
+     * shows the text, so the tooltip exists for the part the glass cannot: whether the
+     * device is powered, whether the backlight is on, and the whole of a line the glass
+     * has cut short.
      *
      * @return whether anything was added, which is always
      */
     public static boolean addTooltip(List<Component> tooltip, SupplyVoltage supply, boolean powered, boolean backlit,
-            String text) {
+            ScreenElements elements) {
         tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "header").withStyle(ChatFormatting.WHITE)));
         tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "supply",
                 supply.label().copy().withStyle(ChatFormatting.AQUA), state(powered))
@@ -138,11 +125,16 @@ public final class AlphanumDisplay {
             tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "off").withStyle(ChatFormatting.DARK_GRAY)));
             return true;
         }
-        if (text.isEmpty()) {
+        // Every piece of lettering in the order a link fills them, one to a line;
+        // shapes have nothing to read out
+        boolean any = false;
+        for (ScreenElement element : elements.texts())
+            if (!element.text().isEmpty()) {
+                tooltip.add(indent(Component.literal(element.text()).withStyle(ChatFormatting.WHITE)));
+                any = true;
+            }
+        if (!any)
             tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "no_data").withStyle(ChatFormatting.DARK_GRAY)));
-            return true;
-        }
-        tooltip.add(indent(Component.literal(text).withStyle(ChatFormatting.WHITE)));
         return true;
     }
 

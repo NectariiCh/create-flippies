@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.mixin;
 
 import com.nectariich.create_flippies.client.design.DesignCamera;
+import com.nectariich.create_flippies.client.display.editor.EditorCamera;
 
 import net.minecraft.client.Camera;
 import net.minecraft.world.entity.Entity;
@@ -20,6 +21,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * The camera is also marked detached so the player's own body is drawn, as it is in
  * third person, except from the workbench's top view, where the player's head would
  * hide the plate.
+ *
+ * The display editor's {@link EditorCamera} takes the camera the same way, and comes
+ * first: while it holds the camera the workbench's is not asked. It leaves the camera
+ * attached, so the player's body is not drawn between the camera and the glass. Its
+ * roll is not set here (the camera has none) but through Forge's camera angles event.
  */
 @Mixin(Camera.class)
 public abstract class CameraMixin {
@@ -45,6 +51,13 @@ public abstract class CameraMixin {
     @Inject(method = "setup", at = @At("TAIL"))
     private void create_flippies$designCamera(BlockGetter level, Entity entity, boolean detached,
             boolean mirrored, float partialTick, CallbackInfo ci) {
+        EditorCamera.Pose editor = EditorCamera.pose(getPosition(), getYRot(), getXRot());
+        if (editor != null) {
+            setRotation(editor.yaw(), editor.pitch());
+            setPosition(editor.position());
+            this.detached = false;
+            return;
+        }
         DesignCamera.Pose pose = DesignCamera.pose(getPosition(), getYRot(), getXRot());
         if (pose == null)
             return;

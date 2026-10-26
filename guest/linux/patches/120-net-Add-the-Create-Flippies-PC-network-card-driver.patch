@@ -1,0 +1,467 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andriy Chuma <chuma.andriy@gmail.com>
+Date: Sun, 25 Oct 2026 14:45:00 +0000
+Subject: [PATCH] net: ethernet: Add the Create Flippies PC network card driver
+
+Add a driver for the network card of the Create Flippies PC, a card of
+the emulator's own. The card copies a whole frame between memory and its
+queues when a command register is written, so the driver needs no rings:
+transmit hands the card the skb's data and is done when the write
+returns, and receive copies the oldest queued frame into a new skb.
+
+Receive runs in NAPI: the interrupt handler turns the card's receive
+interrupt off and schedules the poll, which turns it on again once the
+queue is empty. The card fills in IPv4, TCP and UDP checksums on
+transmit (NETIF_F_IP_CSUM) and says which received frames have good
+checksums (CHECKSUM_UNNECESSARY). Its link interrupt drives the carrier.
+
+The host empties the card's transmit queue between its ticks and the
+card has no interrupt for room in it, so when the queue is full the
+driver stops the queue and tries again a jiffy later.
+---
+ drivers/net/ethernet/Kconfig        |  12 +
+ drivers/net/ethernet/Makefile       |   1 +
+ drivers/net/ethernet/flippies_nic.c | 399 ++++++++++++++++++++++++++++
+ 3 files changed, 412 insertions(+)
+ create mode 100644 drivers/net/ethernet/flippies_nic.c
+
+diff --git a/drivers/net/ethernet/Kconfig b/drivers/net/ethernet/Kconfig
+index aead145..0e6ab07 100644
+--- a/drivers/net/ethernet/Kconfig
++++ b/drivers/net/ethernet/Kconfig
+@@ -73,6 +73,18 @@ source "drivers/net/ethernet/emulex/Kconfig"
+ source "drivers/net/ethernet/engleder/Kconfig"
+ source "drivers/net/ethernet/ezchip/Kconfig"
+ source "drivers/net/ethernet/faraday/Kconfig"
++
++config FLIPPIES_NIC
++	tristate "Create Flippies PC network card"
++	depends on FLIPPIES || COMPILE_TEST
++	depends on HAS_DMA && HAS_IOMEM
++	help
++	  Say Y here for the network card of the Create Flippies PC, the
++	  68040 computer that the Create Flippies mod for Minecraft emulates.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called flippies_nic.
++
+ source "drivers/net/ethernet/freescale/Kconfig"
+ source "drivers/net/ethernet/fujitsu/Kconfig"
+ source "drivers/net/ethernet/fungible/Kconfig"
+diff --git a/drivers/net/ethernet/Makefile b/drivers/net/ethernet/Makefile
+index 998dd62..1346e89 100644
+--- a/drivers/net/ethernet/Makefile
++++ b/drivers/net/ethernet/Makefile
+@@ -41,6 +41,7 @@ obj-$(CONFIG_NET_VENDOR_EMULEX) += emulex/
+ obj-$(CONFIG_NET_VENDOR_ENGLEDER) += engleder/
+ obj-$(CONFIG_NET_VENDOR_EZCHIP) += ezchip/
+ obj-$(CONFIG_NET_VENDOR_FARADAY) += faraday/
++obj-$(CONFIG_FLIPPIES_NIC) += flippies_nic.o
+ obj-$(CONFIG_NET_VENDOR_FREESCALE) += freescale/
+ obj-$(CONFIG_NET_VENDOR_FUJITSU) += fujitsu/
+ obj-$(CONFIG_NET_VENDOR_FUNGIBLE) += fungible/
+diff --git a/drivers/net/ethernet/flippies_nic.c b/drivers/net/ethernet/flippies_nic.c
+new file mode 100644
+index 0000000..fc54a25
+--- /dev/null
++++ b/drivers/net/ethernet/flippies_nic.c
+@@ -0,0 +1,399 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Network card of the Create Flippies PC, a simple card of the emulator's
++ * own rather than a model of a real chip. Frames are Ethernet II without
++ * preamble or FCS, 14 to 1514 bytes.
++ *
++ * The card keeps a queue of frames each way and moves a frame between that
++ * queue and memory at once when told to: TX_CMD copies the frame at TX_ADDR
++ * into the transmit queue, RX_CMD copies the oldest received frame to
++ * RX_ADDR. So the driver has no rings: it hands the card one buffer at a
++ * time, and the buffer is free again when the register write returns.
++ *
++ * Receive runs in NAPI, started by the card's receive interrupt. The card
++ * fills in the IPv4 header checksum and the TCP or UDP checksum of a frame
++ * it sends while CTRL.TX_CSUM is set, and RX_INFO says whether the oldest
++ * received frame's checksums are good.
++ */
++
++#include <linux/dma-mapping.h>
++#include <linux/etherdevice.h>
++#include <linux/ethtool.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/module.h>
++#include <linux/netdevice.h>
++#include <linux/platform_data/flippies.h>
++#include <linux/platform_device.h>
++#include <linux/skbuff.h>
++#include <linux/spinlock.h>
++#include <linux/timer.h>
++
++/* Registers, 32 bits wide */
++#define NIC_CTRL			0x00
++#define  NIC_CTRL_RX_ENABLE		BIT(0)
++#define  NIC_CTRL_PROMISC		BIT(1)
++#define  NIC_CTRL_IRQ_RX		BIT(2)
++#define  NIC_CTRL_IRQ_TX		BIT(3)
++#define  NIC_CTRL_IRQ_LINK		BIT(4)
++#define  NIC_CTRL_TX_CSUM		BIT(5)
++/* STATUS bits 1, 2, 3 and 5 are write 1 to clear */
++#define NIC_STATUS			0x04
++#define  NIC_STATUS_RX_READY		BIT(0)
++#define  NIC_STATUS_TX_DONE		BIT(1)
++#define  NIC_STATUS_TX_ERROR		BIT(2)
++#define  NIC_STATUS_RX_OVERFLOW		BIT(3)
++#define  NIC_STATUS_LINK		BIT(4)
++#define  NIC_STATUS_LINK_CHANGED	BIT(5)
++/* MAC_LO: address bytes 0 to 3, byte 0 in bits 7..0; MAC_HI: bytes 4, 5 */
++#define NIC_MAC_LO			0x08
++#define NIC_MAC_HI			0x0c
++#define NIC_TX_ADDR			0x10
++#define NIC_TX_LEN			0x14
++#define NIC_TX_CMD			0x18
++#define  NIC_TX_SEND			1
++/* RX_LEN: the oldest received frame's length, 0 for none */
++#define NIC_RX_LEN			0x20
++#define NIC_RX_ADDR			0x24
++#define NIC_RX_CMD			0x28
++#define  NIC_RX_COPY			1
++#define  NIC_RX_DROP			2
++#define NIC_RX_COUNT			0x2c
++/* ERROR_CODE: of the last command */
++#define NIC_ERROR_CODE			0x30
++#define  NIC_ERR_NONE			0
++#define  NIC_ERR_TX_FULL		3
++#define  NIC_ERR_NO_LINK		5
++#define NIC_RX_DROPPED			0x34
++/* RX_INFO: checksums of the oldest received frame */
++#define NIC_RX_INFO			0x38
++#define  NIC_RX_INFO_IP_OK		BIT(0)
++#define  NIC_RX_INFO_L4_OK		BIT(1)
++#define  NIC_RX_INFO_IPV4		BIT(2)
++
++#define NIC_STATUS_W1C	(NIC_STATUS_TX_DONE | NIC_STATUS_TX_ERROR | \
++			 NIC_STATUS_RX_OVERFLOW | NIC_STATUS_LINK_CHANGED)
++#define NIC_RX_CSUM_OK	(NIC_RX_INFO_IP_OK | NIC_RX_INFO_L4_OK)
++/* CTRL bits set while the interface is up */
++#define NIC_CTRL_RUN	(NIC_CTRL_RX_ENABLE | NIC_CTRL_IRQ_RX | \
++			 NIC_CTRL_IRQ_LINK)
++
++struct flippies_nic {
++	void __iomem *regs;
++	struct device *dev;
++	struct net_device *ndev;
++	struct napi_struct napi;
++	struct timer_list tx_wake;
++	spinlock_t lock;	/* ctrl and the CTRL register */
++	u32 ctrl;
++};
++
++static u32 nic_read(struct flippies_nic *nic, unsigned int reg)
++{
++	return ioread32be(nic->regs + reg);
++}
++
++static void nic_write(struct flippies_nic *nic, unsigned int reg, u32 val)
++{
++	iowrite32be(val, nic->regs + reg);
++}
++
++static void nic_update_ctrl(struct flippies_nic *nic, u32 clear, u32 set)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&nic->lock, flags);
++	nic->ctrl = (nic->ctrl & ~clear) | set;
++	nic_write(nic, NIC_CTRL, nic->ctrl);
++	spin_unlock_irqrestore(&nic->lock, flags);
++}
++
++static void flippies_nic_update_link(struct flippies_nic *nic, u32 status)
++{
++	bool up = status & NIC_STATUS_LINK;
++
++	if (up == netif_carrier_ok(nic->ndev))
++		return;
++	if (up)
++		netif_carrier_on(nic->ndev);
++	else
++		netif_carrier_off(nic->ndev);
++	netdev_info(nic->ndev, "link %s\n", up ? "up" : "down");
++}
++
++static irqreturn_t flippies_nic_interrupt(int irq, void *dev_id)
++{
++	struct flippies_nic *nic = netdev_priv(dev_id);
++	u32 status = nic_read(nic, NIC_STATUS);
++	irqreturn_t ret = IRQ_NONE;
++
++	if (status & NIC_STATUS_LINK_CHANGED) {
++		nic_write(nic, NIC_STATUS, NIC_STATUS_LINK_CHANGED);
++		flippies_nic_update_link(nic, status);
++		ret = IRQ_HANDLED;
++	}
++	if (status & NIC_STATUS_RX_READY) {
++		/* a level: off until the poll has emptied the queue */
++		nic_update_ctrl(nic, NIC_CTRL_IRQ_RX, 0);
++		napi_schedule(&nic->napi);
++		ret = IRQ_HANDLED;
++	}
++	return ret;
++}
++
++/* Takes the oldest received frame off the card; false when there is none. */
++static bool flippies_nic_rx(struct flippies_nic *nic)
++{
++	struct net_device *ndev = nic->ndev;
++	struct sk_buff *skb;
++	dma_addr_t dma;
++	u32 len, info;
++
++	len = nic_read(nic, NIC_RX_LEN);
++	if (!len)
++		return false;
++	info = nic_read(nic, NIC_RX_INFO);
++
++	skb = napi_alloc_skb(&nic->napi, len);
++	if (!skb)
++		goto drop;
++	dma = dma_map_single(nic->dev, skb->data, len, DMA_FROM_DEVICE);
++	if (dma_mapping_error(nic->dev, dma)) {
++		dev_kfree_skb_any(skb);
++		goto drop;
++	}
++	nic_write(nic, NIC_RX_ADDR, dma);
++	nic_write(nic, NIC_RX_CMD, NIC_RX_COPY);
++	dma_unmap_single(nic->dev, dma, len, DMA_FROM_DEVICE);
++	if (nic_read(nic, NIC_ERROR_CODE) != NIC_ERR_NONE) {
++		/* the card keeps a frame it could not copy */
++		dev_kfree_skb_any(skb);
++		ndev->stats.rx_errors++;
++		nic_write(nic, NIC_RX_CMD, NIC_RX_DROP);
++		return true;
++	}
++
++	skb_put(skb, len);
++	skb->protocol = eth_type_trans(skb, ndev);
++	if ((ndev->features & NETIF_F_RXCSUM) &&
++	    (info & NIC_RX_CSUM_OK) == NIC_RX_CSUM_OK)
++		skb->ip_summed = CHECKSUM_UNNECESSARY;
++	ndev->stats.rx_packets++;
++	ndev->stats.rx_bytes += len;
++	napi_gro_receive(&nic->napi, skb);
++	return true;
++
++drop:
++	nic_write(nic, NIC_RX_CMD, NIC_RX_DROP);
++	ndev->stats.rx_dropped++;
++	return true;
++}
++
++static int flippies_nic_poll(struct napi_struct *napi, int budget)
++{
++	struct flippies_nic *nic;
++	int done = 0;
++
++	nic = container_of(napi, struct flippies_nic, napi);
++	while (done < budget && flippies_nic_rx(nic))
++		done++;
++	if (done < budget && napi_complete_done(napi, done))
++		nic_update_ctrl(nic, 0, NIC_CTRL_IRQ_RX);
++	return done;
++}
++
++static netdev_tx_t flippies_nic_xmit(struct sk_buff *skb,
++				     struct net_device *ndev)
++{
++	struct flippies_nic *nic = netdev_priv(ndev);
++	unsigned int len = skb->len;
++	bool csum = skb->ip_summed == CHECKSUM_PARTIAL;
++	dma_addr_t dma;
++	u32 err;
++
++	/* TX_CSUM changes only here, so the unlocked read is stable */
++	if (!!(READ_ONCE(nic->ctrl) & NIC_CTRL_TX_CSUM) != csum)
++		nic_update_ctrl(nic, NIC_CTRL_TX_CSUM,
++				csum ? NIC_CTRL_TX_CSUM : 0);
++
++	dma = dma_map_single(nic->dev, skb->data, len, DMA_TO_DEVICE);
++	if (dma_mapping_error(nic->dev, dma)) {
++		ndev->stats.tx_errors++;
++		goto drop;
++	}
++	nic_write(nic, NIC_TX_ADDR, dma);
++	nic_write(nic, NIC_TX_LEN, len);
++	nic_write(nic, NIC_TX_CMD, NIC_TX_SEND);
++	err = nic_read(nic, NIC_ERROR_CODE);
++	dma_unmap_single(nic->dev, dma, len, DMA_TO_DEVICE);
++
++	switch (err) {
++	case NIC_ERR_NONE:
++		ndev->stats.tx_packets++;
++		ndev->stats.tx_bytes += len;
++		dev_consume_skb_any(skb);
++		return NETDEV_TX_OK;
++	case NIC_ERR_TX_FULL:
++		/*
++		 * The host empties the queue between its ticks, and the
++		 * card does not say when: try again a jiffy later.
++		 */
++		netif_stop_queue(ndev);
++		mod_timer(&nic->tx_wake, jiffies + 1);
++		return NETDEV_TX_BUSY;
++	case NIC_ERR_NO_LINK:
++		ndev->stats.tx_carrier_errors++;
++		break;
++	}
++	ndev->stats.tx_errors++;
++drop:
++	ndev->stats.tx_dropped++;
++	dev_kfree_skb_any(skb);
++	return NETDEV_TX_OK;
++}
++
++static void flippies_nic_tx_wake(struct timer_list *t)
++{
++	struct flippies_nic *nic = timer_container_of(nic, t, tx_wake);
++
++	netif_wake_queue(nic->ndev);
++}
++
++static int flippies_nic_open(struct net_device *ndev)
++{
++	struct flippies_nic *nic = netdev_priv(ndev);
++	int err;
++
++	err = request_irq(ndev->irq, flippies_nic_interrupt, 0, ndev->name,
++			  ndev);
++	if (err)
++		return err;
++
++	/* the card was not receiving, but frames of an earlier open may wait */
++	while (nic_read(nic, NIC_RX_LEN))
++		nic_write(nic, NIC_RX_CMD, NIC_RX_DROP);
++	nic_write(nic, NIC_STATUS, NIC_STATUS_W1C);
++	flippies_nic_update_link(nic, nic_read(nic, NIC_STATUS));
++
++	napi_enable(&nic->napi);
++	nic_update_ctrl(nic, 0, NIC_CTRL_RUN);
++	netif_start_queue(ndev);
++	return 0;
++}
++
++static int flippies_nic_stop(struct net_device *ndev)
++{
++	struct flippies_nic *nic = netdev_priv(ndev);
++
++	netif_stop_queue(ndev);
++	timer_delete_sync(&nic->tx_wake);
++	napi_disable(&nic->napi);
++	nic_update_ctrl(nic, NIC_CTRL_RUN, 0);
++	free_irq(ndev->irq, ndev);
++	netif_carrier_off(ndev);
++	return 0;
++}
++
++static void flippies_nic_set_rx_mode(struct net_device *ndev)
++{
++	struct flippies_nic *nic = netdev_priv(ndev);
++
++	/* the card always takes broadcast and every multicast frame */
++	nic_update_ctrl(nic, NIC_CTRL_PROMISC,
++			ndev->flags & IFF_PROMISC ? NIC_CTRL_PROMISC : 0);
++}
++
++static void flippies_nic_get_stats64(struct net_device *ndev,
++				     struct rtnl_link_stats64 *stats)
++{
++	struct flippies_nic *nic = netdev_priv(ndev);
++
++	netdev_stats_to_stats64(stats, &ndev->stats);
++	/* frames the card dropped: receive queue full, or not receiving */
++	stats->rx_missed_errors = nic_read(nic, NIC_RX_DROPPED);
++}
++
++static const struct net_device_ops flippies_nic_ops = {
++	.ndo_open		= flippies_nic_open,
++	.ndo_stop		= flippies_nic_stop,
++	.ndo_start_xmit		= flippies_nic_xmit,
++	.ndo_set_rx_mode	= flippies_nic_set_rx_mode,
++	.ndo_get_stats64	= flippies_nic_get_stats64,
++	.ndo_validate_addr	= eth_validate_addr,
++};
++
++static const struct ethtool_ops flippies_nic_ethtool_ops = {
++	.get_link		= ethtool_op_get_link,
++};
++
++static int flippies_nic_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct flippies_nic *nic;
++	struct net_device *ndev;
++	struct resource *res;
++	u8 addr[ETH_ALEN];
++	u32 lo, hi;
++	int irq, err;
++
++	ndev = devm_alloc_etherdev(dev, sizeof(*nic));
++	if (!ndev)
++		return -ENOMEM;
++	SET_NETDEV_DEV(ndev, dev);
++	nic = netdev_priv(ndev);
++	nic->dev = dev;
++	nic->ndev = ndev;
++	spin_lock_init(&nic->lock);
++	timer_setup(&nic->tx_wake, flippies_nic_tx_wake, 0);
++
++	nic->regs = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
++	if (IS_ERR(nic->regs))
++		return PTR_ERR(nic->regs);
++	irq = platform_get_irq(pdev, 0);
++	if (irq < 0)
++		return irq;
++	ndev->irq = irq;
++	err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
++	if (err)
++		return err;
++
++	/* quiet until opened */
++	nic_write(nic, NIC_CTRL, 0);
++	nic_write(nic, NIC_STATUS, NIC_STATUS_W1C);
++
++	lo = nic_read(nic, NIC_MAC_LO);
++	hi = nic_read(nic, NIC_MAC_HI);
++	addr[0] = lo;
++	addr[1] = lo >> 8;
++	addr[2] = lo >> 16;
++	addr[3] = lo >> 24;
++	addr[4] = hi;
++	addr[5] = hi >> 8;
++	eth_hw_addr_set(ndev, addr);
++
++	ndev->netdev_ops = &flippies_nic_ops;
++	ndev->ethtool_ops = &flippies_nic_ethtool_ops;
++	ndev->hw_features = NETIF_F_IP_CSUM | NETIF_F_RXCSUM;
++	ndev->features = ndev->hw_features;
++	netif_napi_add(ndev, &nic->napi, flippies_nic_poll);
++	netif_carrier_off(ndev);
++
++	err = devm_register_netdev(dev, ndev);
++	if (err)
++		return err;
++	netdev_info(ndev, "registers at %pa, irq %d, address %pM\n",
++		    &res->start, irq, ndev->dev_addr);
++	return 0;
++}
++
++static struct platform_driver flippies_nic_driver = {
++	.probe	= flippies_nic_probe,
++	.driver	= {
++		.name	= FLIPPIES_NIC_NAME,
++	},
++};
++module_platform_driver(flippies_nic_driver);
++
++MODULE_DESCRIPTION("Create Flippies PC network card driver");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:" FLIPPIES_NIC_NAME);

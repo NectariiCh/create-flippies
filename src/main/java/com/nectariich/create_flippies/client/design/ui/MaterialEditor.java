@@ -37,6 +37,9 @@ import net.minecraft.util.Mth;
  * it off whichever element had it. The colour and sliders still apply: the colour
  * multiplies the dial, so it is left white to show the dial as printed.
  *
+ * On a screen the same checkbox makes this element the screen's glass, whose content
+ * is drawn in front of it.
+ *
  * Every change goes straight into the design and the preview, so the window stays
  * open while the player looks; Reset puts the element back to how its model draws
  * it. The window is dragged about by its title bar, and opens where it was left
@@ -180,7 +183,8 @@ public final class MaterialEditor {
         int y = top + 30;
 
         if (showsDial()) {
-            Checkbox dial = new Checkbox(x, y, w, 20, t("material.dial"), host.state().isFace(part, material)) {
+            String key = host.state().kind.isScreen() ? "material.screen" : "material.dial";
+            Checkbox dial = new Checkbox(x, y, w, 20, t(key), host.state().isFace(part, material)) {
                 @Override
                 public void onPress() {
                     super.onPress();
@@ -191,7 +195,7 @@ public final class MaterialEditor {
                     host.rebuild();
                 }
             };
-            dial.setTooltip(Tooltip.create(t("material.dial.tooltip")));
+            dial.setTooltip(Tooltip.create(t(key + ".tooltip")));
             add.accept(dial);
             y += 22;
         }
@@ -269,9 +273,9 @@ public final class MaterialEditor {
                 .bounds(x, y, w, 20).build());
     }
 
-    /** Whether the face checkbox is offered: on a gauge only. */
+    /** Whether the face checkbox is offered: on a gauge, for its dial, and on a screen, for its glass. */
     private boolean showsDial() {
-        return host.state().kind.isGauge();
+        return host.state().kind.isGauge() || host.state().kind.isScreen();
     }
 
     private int height() {
@@ -465,7 +469,7 @@ public final class MaterialEditor {
     }
 
     /** Hue, saturation and value, 0..1 each, of a 0xRRGGBB colour. */
-    static float[] toHsv(int rgb) {
+    public static float[] toHsv(int rgb) {
         float r = (rgb >> 16 & 0xFF) / 255f, g = (rgb >> 8 & 0xFF) / 255f, b = (rgb & 0xFF) / 255f;
         float max = Math.max(r, Math.max(g, b)), min = Math.min(r, Math.min(g, b)), range = max - min;
         float h = 0;
@@ -483,7 +487,7 @@ public final class MaterialEditor {
     }
 
     /** The 0xRRGGBB colour of a hue, saturation and value, 0..1 each. */
-    static int fromHsv(float h, float s, float v) {
+    public static int fromHsv(float h, float s, float v) {
         float sector = (h - (float) Math.floor(h)) * 6;
         int i = (int) sector % 6;
         float f = sector - (int) sector;

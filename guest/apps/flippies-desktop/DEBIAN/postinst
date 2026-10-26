@@ -1,0 +1,7 @@
+#!/bin/sh
+# Makes the cached Apps menu at configure time and whenever a package adds or removes a file in
+# /usr/share/applications (the trigger).
+set -e
+case "$1" in
+    configure|triggered) flippies-apps-menu --update || true ;;
+esac

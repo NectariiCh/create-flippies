@@ -1,0 +1,265 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andriy Chuma <chuma.andriy@gmail.com>
+Date: Sun, 25 Oct 2026 14:30:00 +0000
+Subject: [PATCH] m68k: flippies: Add the real-time clock and error light
+ drivers
+
+Add drivers for two devices of the Create Flippies PC that the platform
+code registers:
+
+- rtc-flippies: the real-time clock, a 64-bit count of seconds since the
+  Unix epoch that keeps running while the PC is reset or switched off.
+  Reading SECONDS_LO latches SECONDS_HI, and writing SET_HI sets the
+  clock to SET_HI:SET_LO. It has no alarm and no interrupt.
+- leds-flippies: the error light on the case, bit 0 of the system
+  controller's LEDS register, as the LED class device flippies::fault.
+  The case shows it together with the emulator's own error conditions,
+  so software in the PC can light it to report a fault. It is a panic
+  indicator too. It binds to the system controller device; reset and
+  power off stay in the platform code.
+---
+ drivers/leds/Kconfig         | 14 ++++++
+ drivers/leds/Makefile        |  1 +
+ drivers/leds/leds-flippies.c | 69 ++++++++++++++++++++++++++++++
+ drivers/rtc/Kconfig          | 12 ++++++
+ drivers/rtc/Makefile         |  1 +
+ drivers/rtc/rtc-flippies.c   | 82 ++++++++++++++++++++++++++++++++++++
+ 6 files changed, 179 insertions(+)
+ create mode 100644 drivers/leds/leds-flippies.c
+ create mode 100644 drivers/rtc/rtc-flippies.c
+
+diff --git a/drivers/leds/Kconfig b/drivers/leds/Kconfig
+index 06e6291..3648fa3 100644
+--- a/drivers/leds/Kconfig
++++ b/drivers/leds/Kconfig
+@@ -337,6 +337,20 @@ config LEDS_COBALT_RAQ
+ 	help
+ 	  This option enables support for the Cobalt Raq series LEDs.
+ 
++config LEDS_FLIPPIES
++	tristate "LED Support for the Create Flippies PC error light"
++	depends on LEDS_CLASS
++	depends on FLIPPIES || COMPILE_TEST
++	depends on HAS_IOMEM
++	help
++	  This option enables support for the error light on the case of
++	  the Create Flippies PC, the 68040 computer that the Create
++	  Flippies mod for Minecraft emulates. Software can light it to
++	  report a fault, and it lights on a kernel panic.
++
++	  To compile this driver as a module, choose M here: the module
++	  will be called leds-flippies.
++
+ config LEDS_SUN50I_A100
+ 	tristate "LED support for Allwinner A100 RGB LED controller"
+ 	depends on LEDS_CLASS_MULTICOLOR
+diff --git a/drivers/leds/Makefile b/drivers/leds/Makefile
+index 9a0333e..8cc6972 100644
+--- a/drivers/leds/Makefile
++++ b/drivers/leds/Makefile
+@@ -30,6 +30,7 @@ obj-$(CONFIG_LEDS_CPCAP)		+= leds-cpcap.o
+ obj-$(CONFIG_LEDS_CROS_EC)		+= leds-cros_ec.o
+ obj-$(CONFIG_LEDS_DA903X)		+= leds-da903x.o
+ obj-$(CONFIG_LEDS_DA9052)		+= leds-da9052.o
++obj-$(CONFIG_LEDS_FLIPPIES)		+= leds-flippies.o
+ obj-$(CONFIG_LEDS_GPIO)			+= leds-gpio.o
+ obj-$(CONFIG_LEDS_GPIO_REGISTER)	+= leds-gpio-register.o
+ obj-$(CONFIG_LEDS_HP6XX)		+= leds-hp6xx.o
+diff --git a/drivers/leds/leds-flippies.c b/drivers/leds/leds-flippies.c
+new file mode 100644
+index 0000000..3f079c5
+--- /dev/null
++++ b/drivers/leds/leds-flippies.c
+@@ -0,0 +1,69 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * The error light on the case of the Create Flippies PC, bit 0 of the system controller's LEDS
++ * register. The case shows it together with the emulator's own error conditions, so software in
++ * the PC can light it to report a fault. It also lights on a kernel panic.
++ */
++
++#include <linux/bits.h>
++#include <linux/io.h>
++#include <linux/leds.h>
++#include <linux/module.h>
++#include <linux/platform_data/flippies.h>
++#include <linux/platform_device.h>
++
++#define SYSCON_LEDS		0x34
++#define SYSCON_LEDS_ERROR	BIT(0)
++
++struct flippies_led {
++	struct led_classdev cdev;
++	void __iomem *base;
++};
++
++static void flippies_led_set(struct led_classdev *cdev, enum led_brightness value)
++{
++	struct flippies_led *led = container_of(cdev, struct flippies_led, cdev);
++
++	iowrite32be(value ? SYSCON_LEDS_ERROR : 0, led->base + SYSCON_LEDS);
++}
++
++static enum led_brightness flippies_led_get(struct led_classdev *cdev)
++{
++	struct flippies_led *led = container_of(cdev, struct flippies_led, cdev);
++
++	return ioread32be(led->base + SYSCON_LEDS) & SYSCON_LEDS_ERROR ? LED_ON : LED_OFF;
++}
++
++static int flippies_led_probe(struct platform_device *pdev)
++{
++	struct flippies_led *led;
++
++	led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
++	if (!led)
++		return -ENOMEM;
++
++	led->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(led->base))
++		return PTR_ERR(led->base);
++
++	led->cdev.name = "flippies::fault";
++	led->cdev.max_brightness = LED_ON;
++	led->cdev.brightness_set = flippies_led_set;
++	led->cdev.brightness_get = flippies_led_get;
++	led->cdev.flags = LED_PANIC_INDICATOR;
++	led->cdev.brightness = flippies_led_get(&led->cdev);
++
++	return devm_led_classdev_register(&pdev->dev, &led->cdev);
++}
++
++static struct platform_driver flippies_led_driver = {
++	.probe	= flippies_led_probe,
++	.driver	= {
++		.name	= FLIPPIES_SYSCON_NAME,
++	},
++};
++module_platform_driver(flippies_led_driver);
++
++MODULE_DESCRIPTION("Create Flippies PC error light driver");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:" FLIPPIES_SYSCON_NAME);
+diff --git a/drivers/rtc/Kconfig b/drivers/rtc/Kconfig
+index 2933c41..806e9ca 100644
+--- a/drivers/rtc/Kconfig
++++ b/drivers/rtc/Kconfig
+@@ -2063,6 +2063,18 @@ config RTC_DRV_GOLDFISH
+ 	  Goldfish is a code name for the virtual platform developed by Google
+ 	  for Android emulation.
+ 
++config RTC_DRV_FLIPPIES
++	tristate "Create Flippies PC real-time clock"
++	depends on FLIPPIES || COMPILE_TEST
++	depends on HAS_IOMEM
++	help
++	  If you say yes here you get support for the real-time clock of
++	  the Create Flippies PC, the 68040 computer that the Create
++	  Flippies mod for Minecraft emulates.
++
++	  This driver can also be built as a module, if so, the module
++	  will be called "rtc-flippies".
++
+ config RTC_DRV_WILCO_EC
+ 	tristate "Wilco EC RTC"
+ 	depends on WILCO_EC
+diff --git a/drivers/rtc/Makefile b/drivers/rtc/Makefile
+index 8221bda..9f15aaa 100644
+--- a/drivers/rtc/Makefile
++++ b/drivers/rtc/Makefile
+@@ -68,6 +68,7 @@ obj-$(CONFIG_RTC_DRV_DS3232)	+= rtc-ds3232.o
+ obj-$(CONFIG_RTC_DRV_EFI)	+= rtc-efi.o
+ obj-$(CONFIG_RTC_DRV_EM3027)	+= rtc-em3027.o
+ obj-$(CONFIG_RTC_DRV_EP93XX)	+= rtc-ep93xx.o
++obj-$(CONFIG_RTC_DRV_FLIPPIES)	+= rtc-flippies.o
+ obj-$(CONFIG_RTC_DRV_FM3130)	+= rtc-fm3130.o
+ obj-$(CONFIG_RTC_DRV_FSL_FTM_ALARM)	+= rtc-fsl-ftm-alarm.o
+ obj-$(CONFIG_RTC_DRV_FTRTC010)	+= rtc-ftrtc010.o
+diff --git a/drivers/rtc/rtc-flippies.c b/drivers/rtc/rtc-flippies.c
+new file mode 100644
+index 0000000..d3ba31d
+--- /dev/null
++++ b/drivers/rtc/rtc-flippies.c
+@@ -0,0 +1,82 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Real-time clock of the Create Flippies PC: a 64-bit count of seconds since the Unix epoch that
++ * keeps running while the PC is reset or switched off. Reading SECONDS_LO latches SECONDS_HI;
++ * writing SET_HI sets the clock to SET_HI:SET_LO. It has no alarm and no interrupt.
++ */
++
++#include <linux/io.h>
++#include <linux/module.h>
++#include <linux/platform_data/flippies.h>
++#include <linux/platform_device.h>
++#include <linux/rtc.h>
++
++#define RTC_SECONDS_LO	0x00
++#define RTC_SECONDS_HI	0x04
++#define RTC_SET_LO	0x08
++#define RTC_SET_HI	0x0c
++
++/*
++ * The rtc core calls read_time and set_time with rtc->ops_lock held, so no other reader can
++ * come between a SECONDS_LO read and the SECONDS_HI read it latched.
++ */
++static int flippies_rtc_read_time(struct device *dev, struct rtc_time *tm)
++{
++	void __iomem *base = dev_get_drvdata(dev);
++	u32 lo, hi;
++
++	lo = ioread32be(base + RTC_SECONDS_LO);
++	hi = ioread32be(base + RTC_SECONDS_HI);
++	rtc_time64_to_tm((time64_t)((u64)hi << 32 | lo), tm);
++
++	return 0;
++}
++
++static int flippies_rtc_set_time(struct device *dev, struct rtc_time *tm)
++{
++	void __iomem *base = dev_get_drvdata(dev);
++	u64 secs = rtc_tm_to_time64(tm);
++
++	iowrite32be(lower_32_bits(secs), base + RTC_SET_LO);
++	iowrite32be(upper_32_bits(secs), base + RTC_SET_HI);
++
++	return 0;
++}
++
++static const struct rtc_class_ops flippies_rtc_ops = {
++	.read_time	= flippies_rtc_read_time,
++	.set_time	= flippies_rtc_set_time,
++};
++
++static int flippies_rtc_probe(struct platform_device *pdev)
++{
++	struct rtc_device *rtc;
++	void __iomem *base;
++
++	base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(base))
++		return PTR_ERR(base);
++	platform_set_drvdata(pdev, base);
++
++	rtc = devm_rtc_allocate_device(&pdev->dev);
++	if (IS_ERR(rtc))
++		return PTR_ERR(rtc);
++
++	rtc->ops = &flippies_rtc_ops;
++	rtc->range_max = U64_MAX;
++	clear_bit(RTC_FEATURE_UPDATE_INTERRUPT, rtc->features);
++
++	return devm_rtc_register_device(rtc);
++}
++
++static struct platform_driver flippies_rtc_driver = {
++	.probe	= flippies_rtc_probe,
++	.driver	= {
++		.name	= FLIPPIES_RTC_NAME,
++	},
++};
++module_platform_driver(flippies_rtc_driver);
++
++MODULE_DESCRIPTION("Create Flippies PC real-time clock driver");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:" FLIPPIES_RTC_NAME);

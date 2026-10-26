@@ -1,0 +1,507 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andriy Chuma <chuma.andriy@gmail.com>
+Date: Sun, 25 Oct 2026 14:34:09 +0000
+Subject: [PATCH] block: Add the Create Flippies PC hard disk and floppy driver
+
+The Create Flippies PC has two simple LBA disk controllers with DMA: the
+hard disk and a 1.44 MB floppy drive. One command moves 1 to 256 sectors
+of 512 bytes between the disk and one physically contiguous buffer and
+interrupts when it is done.
+
+flippies-hdd binds to both. It runs one request at a time through
+blk-mq and gives the controller one command per contiguous segment. The
+hard disk is fhda, with partitions. The floppy drive is fhdb: removable,
+without partitions, read-only while the inserted disk is write
+protected. Its controller interrupts on every insert and eject; the
+driver then reads the new capacity and write protection and reports a
+media change event, and the next open drops what was cached of the old
+disk.
+---
+ drivers/block/Kconfig        |  11 +
+ drivers/block/Makefile       |   1 +
+ drivers/block/flippies-hdd.c | 442 +++++++++++++++++++++++++++++++++++
+ 3 files changed, 454 insertions(+)
+ create mode 100644 drivers/block/flippies-hdd.c
+
+diff --git a/drivers/block/Kconfig b/drivers/block/Kconfig
+index 77d6944..286d1cf 100644
+--- a/drivers/block/Kconfig
++++ b/drivers/block/Kconfig
+@@ -89,6 +89,17 @@ config N64CART
+ 	help
+ 	  Support for the N64 cart.
+ 
++config BLK_DEV_FLIPPIES
++	tristate "Create Flippies PC hard disk and floppy support"
++	depends on FLIPPIES || COMPILE_TEST
++	depends on HAS_DMA
++	help
++	  Say Y here to use the hard disk (fhda, with partitions) and the
++	  floppy drive (fhdb) of the Create Flippies PC.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called flippies-hdd.
++
+ config CDROM
+ 	tristate
+ 
+diff --git a/drivers/block/Makefile b/drivers/block/Makefile
+index 2d8096e..339a396 100644
+--- a/drivers/block/Makefile
++++ b/drivers/block/Makefile
+@@ -18,6 +18,7 @@ obj-$(CONFIG_PS3_VRAM)		+= ps3vram.o
+ obj-$(CONFIG_ATARI_FLOPPY)	+= ataflop.o
+ obj-$(CONFIG_AMIGA_Z2RAM)	+= z2ram.o
+ obj-$(CONFIG_N64CART)		+= n64cart.o
++obj-$(CONFIG_BLK_DEV_FLIPPIES)	+= flippies-hdd.o
+ obj-$(CONFIG_BLK_DEV_RAM)	+= brd.o
+ obj-$(CONFIG_BLK_DEV_LOOP)	+= loop.o
+ obj-$(CONFIG_SUNVDC)		+= sunvdc.o
+diff --git a/drivers/block/flippies-hdd.c b/drivers/block/flippies-hdd.c
+new file mode 100644
+index 0000000..bc40d55
+--- /dev/null
++++ b/drivers/block/flippies-hdd.c
+@@ -0,0 +1,442 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Hard disk and floppy controllers of the Create Flippies PC (arch/m68k/flippies).
++ *
++ * Both are simple LBA controllers with DMA: one command moves 1 to 256 sectors of 512 bytes
++ * between the disk and one physically contiguous buffer, and raises the controller's interrupt
++ * line when it is done. The driver runs one request at a time and gives the controller one
++ * command per physically contiguous segment of the request.
++ *
++ * The hard disk is fhda, with partitions. The floppy drive is fhdb: removable, without
++ * partitions, read-only while the inserted disk's write-protect tab is set. Its controller
++ * interrupts on every insert and eject: the driver then reads the new capacity and tab and
++ * reports a media change event, and the next open drops what was cached of the old disk.
++ */
++
++#include <linux/bits.h>
++#include <linux/blk-mq.h>
++#include <linux/blkdev.h>
++#include <linux/dma-mapping.h>
++#include <linux/hdreg.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/platform_data/flippies.h>
++#include <linux/platform_device.h>
++#include <linux/scatterlist.h>
++#include <linux/spinlock.h>
++#include <linux/workqueue.h>
++
++/* Registers, 32 bits each; the floppy controller adds GEOMETRY */
++#define FHD_COMMAND		0x00
++#define FHD_STATUS		0x04
++#define FHD_LBA			0x08
++#define FHD_COUNT		0x0c
++#define FHD_DMA_ADDR		0x10
++#define FHD_CAPACITY		0x14
++#define FHD_IRQ_ENABLE		0x18
++#define FHD_ERROR_CODE		0x1c
++#define FHD_GEOMETRY		0x24
++
++#define FHD_CMD_READ		1
++#define FHD_CMD_WRITE		2
++
++/* STATUS; DONE, ERROR and CHANGED are write-1-to-clear. WP and CHANGED: floppy only */
++#define FHD_ST_BUSY		BIT(0)
++#define FHD_ST_DONE		BIT(1)
++#define FHD_ST_ERROR		BIT(2)
++#define FHD_ST_MEDIA		BIT(3)
++#define FHD_ST_WP		BIT(4)
++#define FHD_ST_CHANGED		BIT(5)
++
++/* IRQ_ENABLE: completion, and on the floppy controller media change */
++#define FHD_IRQ_DONE		BIT(0)
++#define FHD_IRQ_CHANGE		BIT(1)
++
++#define FHD_MAX_SECTORS		256
++#define FHD_MAX_SEGMENTS	128
++#define FHD_HDD_MINORS		16
++
++static const char *const fhd_errors[] = {
++	"no error", "no media", "sector out of range", "buffer outside RAM",
++	"bad command", "busy", "bad sector count", "media error",
++	"write protected", "media changed",
++};
++
++struct fhd {
++	struct device *dev;
++	void __iomem *regs;
++	struct gendisk *disk;
++	struct blk_mq_tag_set tag_set;
++	bool removable;
++
++	/* the request in flight and how far it got; lock also covers changed */
++	spinlock_t lock;
++	struct request *rq;
++	struct scatterlist sg[FHD_MAX_SEGMENTS];
++	int sg_count;		/* entries blk_rq_map_sg filled */
++	int dma_count;		/* entries dma_map_sg returned */
++	int next;		/* the entry the command in flight moves */
++	sector_t sector;	/* where that entry starts on the disk */
++
++	/* floppy: a disk was inserted or ejected since the block layer last cleared the event */
++	bool changed;
++	struct work_struct media_work;
++};
++
++static int fhd_major;
++
++static u32 fhd_read(struct fhd *fhd, unsigned int reg)
++{
++	return ioread32be(fhd->regs + reg);
++}
++
++static void fhd_write(struct fhd *fhd, unsigned int reg, u32 val)
++{
++	iowrite32be(val, fhd->regs + reg);
++}
++
++/* Starts the command for segment fhd->next. Called with fhd->lock held. */
++static void fhd_issue(struct fhd *fhd)
++{
++	struct scatterlist *sg = &fhd->sg[fhd->next];
++
++	fhd_write(fhd, FHD_LBA, fhd->sector);
++	fhd_write(fhd, FHD_COUNT, sg_dma_len(sg) >> SECTOR_SHIFT);
++	fhd_write(fhd, FHD_DMA_ADDR, sg_dma_address(sg));
++	fhd_write(fhd, FHD_COMMAND,
++		  rq_data_dir(fhd->rq) == WRITE ? FHD_CMD_WRITE : FHD_CMD_READ);
++}
++
++static void fhd_end(struct fhd *fhd, struct request *rq, blk_status_t status)
++{
++	dma_unmap_sg(fhd->dev, fhd->sg, fhd->sg_count, rq_dma_dir(rq));
++	blk_mq_end_request(rq, status);
++}
++
++static blk_status_t fhd_queue_rq(struct blk_mq_hw_ctx *hctx,
++				 const struct blk_mq_queue_data *bd)
++{
++	struct fhd *fhd = hctx->queue->queuedata;
++	struct request *rq = bd->rq;
++	unsigned long flags;
++	int i;
++
++	if (req_op(rq) != REQ_OP_READ && req_op(rq) != REQ_OP_WRITE)
++		return BLK_STS_NOTSUPP;
++
++	blk_mq_start_request(rq);
++
++	sg_init_table(fhd->sg, FHD_MAX_SEGMENTS);
++	fhd->sg_count = blk_rq_map_sg(rq, fhd->sg);
++	fhd->dma_count = dma_map_sg(fhd->dev, fhd->sg, fhd->sg_count, rq_dma_dir(rq));
++	if (!fhd->dma_count)
++		return BLK_STS_IOERR;
++
++	/* whole sectors, at most one command each: the queue limits promise both */
++	for (i = 0; i < fhd->dma_count; i++) {
++		unsigned int len = sg_dma_len(&fhd->sg[i]);
++
++		if (WARN_ON_ONCE(!len || len % SECTOR_SIZE ||
++				 len > FHD_MAX_SECTORS * SECTOR_SIZE)) {
++			dma_unmap_sg(fhd->dev, fhd->sg, fhd->sg_count, rq_dma_dir(rq));
++			return BLK_STS_IOERR;
++		}
++	}
++
++	spin_lock_irqsave(&fhd->lock, flags);
++	fhd->rq = rq;
++	fhd->next = 0;
++	fhd->sector = blk_rq_pos(rq);
++	fhd_issue(fhd);
++	spin_unlock_irqrestore(&fhd->lock, flags);
++
++	return BLK_STS_OK;
++}
++
++static irqreturn_t fhd_irq(int irq, void *data)
++{
++	struct fhd *fhd = data;
++	struct request *done = NULL;
++	blk_status_t status = BLK_STS_OK;
++	u32 st, code;
++
++	spin_lock(&fhd->lock);
++	st = fhd_read(fhd, FHD_STATUS);
++	st &= FHD_ST_DONE | FHD_ST_ERROR | (fhd->removable ? FHD_ST_CHANGED : 0);
++	if (!st) {
++		spin_unlock(&fhd->lock);
++		return IRQ_NONE;
++	}
++	fhd_write(fhd, FHD_STATUS, st);
++
++	if (st & FHD_ST_CHANGED) {
++		fhd->changed = true;
++		schedule_work(&fhd->media_work);
++	}
++
++	if ((st & (FHD_ST_DONE | FHD_ST_ERROR)) && fhd->rq) {
++		if (st & FHD_ST_ERROR) {
++			code = fhd_read(fhd, FHD_ERROR_CODE);
++			dev_err_ratelimited(fhd->dev, "%s: sector %llu: %s (%u)\n",
++					    fhd->disk->disk_name,
++					    (unsigned long long)fhd->sector,
++					    code < ARRAY_SIZE(fhd_errors) ?
++					    fhd_errors[code] : "unknown error", code);
++			status = BLK_STS_IOERR;
++			done = fhd->rq;
++		} else {
++			fhd->sector += sg_dma_len(&fhd->sg[fhd->next]) >> SECTOR_SHIFT;
++			if (++fhd->next < fhd->dma_count)
++				fhd_issue(fhd);
++			else
++				done = fhd->rq;
++		}
++		if (done)
++			fhd->rq = NULL;
++	}
++	spin_unlock(&fhd->lock);
++
++	if (done)
++		fhd_end(fhd, done, status);
++	return IRQ_HANDLED;
++}
++
++/* Floppy: capacity and write protection of the disk in the drive now */
++static void fhd_revalidate(struct fhd *fhd)
++{
++	u32 st = fhd_read(fhd, FHD_STATUS);
++
++	set_capacity_and_notify(fhd->disk, fhd_read(fhd, FHD_CAPACITY));
++	set_disk_ro(fhd->disk, fhd->removable && (st & FHD_ST_WP));
++}
++
++/*
++ * Floppy: an insert or eject the interrupt saw. The block layer sends the media change event,
++ * and the next open drops what it cached of the old disk.
++ */
++static void fhd_media_work(struct work_struct *work)
++{
++	struct fhd *fhd = container_of(work, struct fhd, media_work);
++	struct gendisk *disk = fhd->disk;
++
++	mutex_lock(&disk->open_mutex);
++	if (disk_check_media_change(disk))
++		fhd_revalidate(fhd);
++	mutex_unlock(&disk->open_mutex);
++}
++
++static unsigned int fhd_check_events(struct gendisk *disk, unsigned int clearing)
++{
++	struct fhd *fhd = disk->private_data;
++	unsigned int events;
++	unsigned long flags;
++	u32 st;
++
++	spin_lock_irqsave(&fhd->lock, flags);
++	st = fhd_read(fhd, FHD_STATUS) & FHD_ST_CHANGED;
++	if (st) {
++		fhd_write(fhd, FHD_STATUS, st);
++		fhd->changed = true;
++	}
++	events = fhd->changed ? DISK_EVENT_MEDIA_CHANGE : 0;
++	if (clearing & DISK_EVENT_MEDIA_CHANGE)
++		fhd->changed = false;
++	spin_unlock_irqrestore(&fhd->lock, flags);
++
++	return events;
++}
++
++static int fhd_open(struct gendisk *disk, blk_mode_t mode)
++{
++	struct fhd *fhd = disk->private_data;
++	u32 st;
++
++	if (!fhd->removable || (mode & BLK_OPEN_NDELAY))
++		return 0;
++
++	if (disk_check_media_change(disk))
++		fhd_revalidate(fhd);
++
++	st = fhd_read(fhd, FHD_STATUS);
++	if (!(st & FHD_ST_MEDIA))
++		return -ENOMEDIUM;
++	if ((mode & BLK_OPEN_WRITE) && (st & FHD_ST_WP))
++		return -EROFS;
++	return 0;
++}
++
++static int fhd_getgeo(struct gendisk *disk, struct hd_geometry *geo)
++{
++	struct fhd *fhd = disk->private_data;
++	u32 g;
++
++	if (fhd->removable) {
++		g = fhd_read(fhd, FHD_GEOMETRY);
++		geo->cylinders = g >> 16;
++		geo->heads = (g >> 8) & 0xff;
++		geo->sectors = g & 0xff;
++	} else {
++		/* the usual translation for an LBA-only disk */
++		geo->heads = 64;
++		geo->sectors = 32;
++		geo->cylinders = get_capacity(disk) / (64 * 32);
++	}
++	return 0;
++}
++
++static const struct block_device_operations fhd_fops = {
++	.owner		= THIS_MODULE,
++	.open		= fhd_open,
++	.check_events	= fhd_check_events,
++	.getgeo		= fhd_getgeo,
++};
++
++static const struct blk_mq_ops fhd_mq_ops = {
++	.queue_rq	= fhd_queue_rq,
++};
++
++static int fhd_probe(struct platform_device *pdev)
++{
++	struct queue_limits lim = {
++		.logical_block_size	= SECTOR_SIZE,
++		.max_hw_sectors		= FHD_MAX_SECTORS,
++		.max_segments		= FHD_MAX_SEGMENTS,
++		.max_segment_size	= FHD_MAX_SECTORS * SECTOR_SIZE,
++	};
++	struct device *dev = &pdev->dev;
++	struct gendisk *disk;
++	struct fhd *fhd;
++	int irq, err;
++
++	fhd = devm_kzalloc(dev, sizeof(*fhd), GFP_KERNEL);
++	if (!fhd)
++		return -ENOMEM;
++	fhd->dev = dev;
++	fhd->removable = platform_get_device_id(pdev)->driver_data;
++	spin_lock_init(&fhd->lock);
++	INIT_WORK(&fhd->media_work, fhd_media_work);
++
++	fhd->regs = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(fhd->regs))
++		return PTR_ERR(fhd->regs);
++	irq = platform_get_irq(pdev, 0);
++	if (irq < 0)
++		return irq;
++
++	/* quiet: no interrupts, nothing pending (the floppy reports a change at power-on) */
++	fhd_write(fhd, FHD_IRQ_ENABLE, 0);
++	fhd_write(fhd, FHD_STATUS, FHD_ST_DONE | FHD_ST_ERROR | FHD_ST_CHANGED);
++
++	err = devm_request_irq(dev, irq, fhd_irq, 0, dev_name(dev), fhd);
++	if (err)
++		return err;
++
++	fhd->tag_set.ops = &fhd_mq_ops;
++	fhd->tag_set.nr_hw_queues = 1;
++	fhd->tag_set.queue_depth = 1;
++	fhd->tag_set.numa_node = NUMA_NO_NODE;
++	err = blk_mq_alloc_tag_set(&fhd->tag_set);
++	if (err)
++		return err;
++
++	disk = blk_mq_alloc_disk(&fhd->tag_set, &lim, fhd);
++	if (IS_ERR(disk)) {
++		err = PTR_ERR(disk);
++		goto free_tag_set;
++	}
++	fhd->disk = disk;
++	disk->major = fhd_major;
++	disk->fops = &fhd_fops;
++	disk->private_data = fhd;
++	if (fhd->removable) {
++		disk->first_minor = FHD_HDD_MINORS;
++		disk->minors = 1;
++		disk->flags |= GENHD_FL_REMOVABLE | GENHD_FL_NO_PART;
++		disk->events = DISK_EVENT_MEDIA_CHANGE;
++		disk->event_flags = DISK_EVENT_FLAG_UEVENT;
++		strscpy(disk->disk_name, "fhdb");
++	} else {
++		disk->first_minor = 0;
++		disk->minors = FHD_HDD_MINORS;
++		strscpy(disk->disk_name, "fhda");
++	}
++	fhd_revalidate(fhd);
++
++	fhd_write(fhd, FHD_IRQ_ENABLE,
++		  FHD_IRQ_DONE | (fhd->removable ? FHD_IRQ_CHANGE : 0));
++
++	err = add_disk(disk);
++	if (err)
++		goto put_disk;
++	platform_set_drvdata(pdev, fhd);
++
++	dev_info(dev, "%s: %s, %llu sectors%s\n", disk->disk_name,
++		 fhd->removable ? "floppy drive" : "hard disk",
++		 (unsigned long long)get_capacity(disk),
++		 get_disk_ro(disk) ? ", write protected" : "");
++	return 0;
++
++put_disk:
++	fhd_write(fhd, FHD_IRQ_ENABLE, 0);
++	put_disk(disk);
++free_tag_set:
++	blk_mq_free_tag_set(&fhd->tag_set);
++	return err;
++}
++
++static void fhd_remove(struct platform_device *pdev)
++{
++	struct fhd *fhd = platform_get_drvdata(pdev);
++
++	fhd_write(fhd, FHD_IRQ_ENABLE, FHD_IRQ_DONE);
++	cancel_work_sync(&fhd->media_work);
++	del_gendisk(fhd->disk);
++	fhd_write(fhd, FHD_IRQ_ENABLE, 0);
++	put_disk(fhd->disk);
++	blk_mq_free_tag_set(&fhd->tag_set);
++}
++
++/* driver_data: the drive is removable */
++static const struct platform_device_id fhd_ids[] = {
++	{ FLIPPIES_HDD_NAME, 0 },
++	{ FLIPPIES_FDC_NAME, 1 },
++	{ }
++};
++MODULE_DEVICE_TABLE(platform, fhd_ids);
++
++static struct platform_driver fhd_driver = {
++	.probe		= fhd_probe,
++	.remove		= fhd_remove,
++	.id_table	= fhd_ids,
++	.driver		= {
++		.name	= "flippies-hdd",
++	},
++};
++
++static int __init fhd_init(void)
++{
++	int err;
++
++	fhd_major = register_blkdev(0, "fhd");
++	if (fhd_major < 0)
++		return fhd_major;
++
++	err = platform_driver_register(&fhd_driver);
++	if (err)
++		unregister_blkdev(fhd_major, "fhd");
++	return err;
++}
++module_init(fhd_init);
++
++static void __exit fhd_exit(void)
++{
++	platform_driver_unregister(&fhd_driver);
++	unregister_blkdev(fhd_major, "fhd");
++}
++module_exit(fhd_exit);
++
++MODULE_DESCRIPTION("Create Flippies PC hard disk and floppy driver");
++MODULE_LICENSE("GPL");

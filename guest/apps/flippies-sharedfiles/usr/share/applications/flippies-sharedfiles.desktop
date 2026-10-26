@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Shared files
+Comment=Download files from the world's localfilesys folder
+Exec=flippies-sharedfiles
+Icon=flippies-sharedfiles
+Terminal=false
+Categories=Network;FileTransfer;

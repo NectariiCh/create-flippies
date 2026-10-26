@@ -68,6 +68,42 @@ public final class BendGeometry {
      */
     public static void forEachPiece(List<Vec3> path, long ductLegs, double horizontal, double vertical,
             double thickness, double step, PieceVisitor visitor) {
+        forEachPiece(path, ductLegs, LegCurves.uniform(horizontal, vertical), thickness, step, visitor);
+    }
+
+    /**
+     * WIRE SAG: the curve coefficients of each leg of a path. A wire whose legs sag
+     * by their own amount ({@link LegSag}) hangs each with its own pair; everything
+     * else hangs every leg as its type does ({@link #uniform}).
+     */
+    public interface LegCurves {
+
+        double horizontal(int leg);
+
+        double vertical(int leg);
+
+        static LegCurves uniform(double horizontal, double vertical) {
+            return new LegCurves() {
+                @Override
+                public double horizontal(int leg) {
+                    return horizontal;
+                }
+
+                @Override
+                public double vertical(int leg) {
+                    return vertical;
+                }
+            };
+        }
+    }
+
+    /**
+     * As {@link #forEachPiece(List, long, double, double, double, double, PieceVisitor)},
+     * each leg hanging with its own coefficients. A ducted leg runs straight whatever
+     * its sag.
+     */
+    public static void forEachPiece(List<Vec3> path, long ductLegs, LegCurves curves, double thickness,
+            double step, PieceVisitor visitor) {
         double[] along = {0};
         for (int leg = 0; leg + 1 < path.size(); leg++) {
             Vec3 from = path.get(leg);
@@ -85,7 +121,7 @@ public final class BendGeometry {
                 along[0] += length;
                 continue;
             }
-            List<Vec3> vertices = legVertices(from, to, horizontal, vertical, thickness, step);
+            List<Vec3> vertices = legVertices(from, to, curves.horizontal(leg), curves.vertical(leg), thickness, step);
             for (int i = 1; i < vertices.size(); i++) {
                 Vec3 a = vertices.get(i - 1), b = vertices.get(i);
                 double length = a.distanceTo(b);
@@ -147,11 +183,15 @@ public final class BendGeometry {
 
     public static AABB bounds(List<Vec3> path, long ductLegs, double horizontal, double vertical,
             double thickness) {
+        return bounds(path, ductLegs, LegCurves.uniform(horizontal, vertical), thickness);
+    }
+
+    public static AABB bounds(List<Vec3> path, long ductLegs, LegCurves curves, double thickness) {
         double[] box = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE,
                 -Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
         for (Vec3 p : path)
             grow(box, p);
-        forEachPiece(path, ductLegs, horizontal, vertical, thickness, SAMPLE_STEP * 2,
+        forEachPiece(path, ductLegs, curves, thickness, SAMPLE_STEP * 2,
                 (leg, from, to, offset, length) -> {
             grow(box, from);
             grow(box, to);
@@ -176,8 +216,12 @@ public final class BendGeometry {
     /** As above; a leg inside a duct is shut in by it, so it touches nothing. */
     public static boolean touches(List<Vec3> path, long ductLegs, double horizontal, double vertical,
             double thickness, AABB box) {
+        return touches(path, ductLegs, LegCurves.uniform(horizontal, vertical), thickness, box);
+    }
+
+    public static boolean touches(List<Vec3> path, long ductLegs, LegCurves curves, double thickness, AABB box) {
         boolean[] hit = {false};
-        forEachPiece(path, ductLegs, horizontal, vertical, thickness, SAMPLE_STEP, (leg, from, to, offset, length) -> {
+        forEachPiece(path, ductLegs, curves, thickness, SAMPLE_STEP, (leg, from, to, offset, length) -> {
             if (!hit[0] && !isDucted(ductLegs, leg) && (box.contains(from) || box.clip(from, to).isPresent()))
                 hit[0] = true;
         });
@@ -205,6 +249,12 @@ public final class BendGeometry {
 
     public static Hit pick(Vec3 eye, Vec3 look, double maxDistance, List<Vec3> points, List<Vec3> path,
             long ductLegs, double horizontal, double vertical, double thickness) {
+        return pick(eye, look, maxDistance, points, path, ductLegs, LegCurves.uniform(horizontal, vertical),
+                thickness);
+    }
+
+    public static Hit pick(Vec3 eye, Vec3 look, double maxDistance, List<Vec3> points, List<Vec3> path,
+            long ductLegs, LegCurves curves, double thickness) {
         Vec3 unit = look.normalize();
         Hit best = null;
         for (int i = 0; i < points.size(); i++) {
@@ -219,7 +269,7 @@ public final class BendGeometry {
         }
         if (best != null)
             return best;
-        Hit leg = pickWire(eye, unit, maxDistance, path, ductLegs, horizontal, vertical, thickness);
+        Hit leg = pickWire(eye, unit, maxDistance, path, ductLegs, curves, thickness);
         return leg;
     }
 
@@ -231,9 +281,14 @@ public final class BendGeometry {
 
     public static Hit pickWire(Vec3 eye, Vec3 unit, double maxDistance, List<Vec3> path, long ductLegs,
             double horizontal, double vertical, double thickness) {
+        return pickWire(eye, unit, maxDistance, path, ductLegs, LegCurves.uniform(horizontal, vertical), thickness);
+    }
+
+    public static Hit pickWire(Vec3 eye, Vec3 unit, double maxDistance, List<Vec3> path, long ductLegs,
+            LegCurves curves, double thickness) {
         double radius = Math.max(MIN_WIRE_PICK_RADIUS, thickness);
         Hit[] best = {null};
-        forEachPiece(path, ductLegs, horizontal, vertical, thickness, SAMPLE_STEP, (leg, from, to, offset, length) -> {
+        forEachPiece(path, ductLegs, curves, thickness, SAMPLE_STEP, (leg, from, to, offset, length) -> {
             double[] t = closest(eye, unit, from, to);
             if (t == null || t[0] < 0 || t[0] > maxDistance)
                 return;
@@ -255,12 +310,17 @@ public final class BendGeometry {
 
     public static Vec3 raycast(Vec3 from, Vec3 to, List<Vec3> path, long ductLegs, double horizontal,
             double vertical, double thickness) {
+        return raycast(from, to, path, ductLegs, LegCurves.uniform(horizontal, vertical), thickness);
+    }
+
+    public static Vec3 raycast(Vec3 from, Vec3 to, List<Vec3> path, long ductLegs, LegCurves curves,
+            double thickness) {
         Vec3 dir = to.subtract(from);
         double length = dir.length();
         if (length < 1e-6)
             return null;
         Vec3 unit = dir.scale(1 / length);
-        Hit hit = pickWire(from, unit, length, path, ductLegs, horizontal, vertical, thickness);
+        Hit hit = pickWire(from, unit, length, path, ductLegs, curves, thickness);
         return hit == null ? null : from.add(unit.scale(hit.distance()));
     }
 

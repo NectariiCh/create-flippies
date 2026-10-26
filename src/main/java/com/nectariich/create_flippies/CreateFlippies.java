@@ -7,6 +7,7 @@ import com.nectariich.create_flippies.content.design_workbench.DesignTransfers;
 import com.nectariich.create_flippies.content.design_workbench.DesignedButtonControlType;
 import com.nectariich.create_flippies.content.design_workbench.DesignedRackControlType;
 import com.nectariich.create_flippies.content.design_workbench.DesignedGaugeControlType;
+import com.nectariich.create_flippies.content.design_workbench.DesignedScreenControlType;
 import com.nectariich.create_flippies.content.design_workbench.DesignedSwitchControlType;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayControlType;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayTarget;
@@ -108,6 +109,7 @@ public class CreateFlippies {
         DesignedButtonControlType.register();
         DesignedRackControlType.register();
         DesignedGaugeControlType.register();
+        DesignedScreenControlType.register();
         // EDGEWISE GAUGES
         com.nectariich.create_flippies.content.procedural_gauge.EdgewiseProceduralGaugeControlType.register();
         event.enqueueWork(() -> DisplayTarget.BY_BLOCK_ENTITY

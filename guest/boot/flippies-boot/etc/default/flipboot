@@ -1,0 +1,5 @@
+# flipboot-update settings (sourced by /bin/sh).
+# The boot area partition (MBR type 0xDA).
+FLIPBOOT_DEVICE=/dev/fhda1
+# The command line for a new kernel. Empty: keep the active slot's command line.
+FLIPBOOT_CMDLINE=

@@ -92,17 +92,17 @@ public class ModItems {
             () -> new BlockItem(ModBlocks.DIN_RAIL.get(), new Item.Properties()));
 
     /**
-     * A plain item for the same reason a breaker is: the DIN PLC exists only
-     * clipped to a rail, so there is no block form for an item to place. What makes
-     * it mountable is that {@link com.nectariich.create_flippies.content.plc.PlcSmallControlType}
-     * names it from {@code asItem}.
+     * Plain items for the same reason a breaker is: the PLC exists only as a
+     * control, clipped to a rail or screwed to a panel, so there is no block form
+     * for either item to place. What makes them mountable is that
+     * {@link com.nectariich.create_flippies.content.plc.PlcSmallControlType} has a
+     * kind for each mounting, and each kind names its item from {@code asItem}.
      */
     public static final RegistryObject<Item> PLC_S32F103_D_DIN = ITEMS.register("plc_s32f103-d_din",
             () -> new Item(new Item.Properties()));
 
-    /** The panel-mount PLC is an ordinary block, and places bare-handed. */
-    public static final RegistryObject<Item> PLC_SMALL_PANEL = ITEMS.register("plc_small_panel",
-            () -> new BlockItem(ModBlocks.PLC_SMALL_PANEL.get(), new Item.Properties()));
+    public static final RegistryObject<Item> PLC_S32F103_D_PANEL = ITEMS.register("plc_s32f103-d_panel",
+            () -> new Item(new Item.Properties()));
 
     /**
      * A breaker is a plain item for the same reason a panel label is: it exists
@@ -223,8 +223,17 @@ public class ModItems {
     public static final RegistryObject<Item> DATA_CORD = ITEMS.register("data_cord",
             () -> new DataCordItem(new Item.Properties()));
 
+    /** The network modem (docs/PC_SPEC.md 12.4.5). */
+    public static final RegistryObject<Item> NETWORK_MODEM = ITEMS.register("network_modem",
+            () -> new BlockItem(ModBlocks.NETWORK_MODEM.get(), new Item.Properties()));
+
     public static final RegistryObject<Item> KEYBOARD = ITEMS.register("keyboard",
-            () -> new BlockItem(ModBlocks.KEYBOARD.get(), new Item.Properties()));
+            () -> new com.nectariich.create_flippies.content.device.DeviceItem(ModEntityTypes.KEYBOARD,
+                    com.nectariich.create_flippies.content.keyboard.KeyboardEntity::new, new Item.Properties()));
+
+    public static final RegistryObject<Item> KEYBOARD_AND_MOUSE = ITEMS.register("keyboard_and_mouse",
+            () -> new com.nectariich.create_flippies.content.device.DeviceItem(ModEntityTypes.KEYBOARD_AND_MOUSE,
+                    com.nectariich.create_flippies.content.keyboard.KeyboardMouseEntity::new, new Item.Properties()));
 
     private static <E extends Enum<E>> Map<E, RegistryObject<Item>> registerPcFamily(Class<E> family,
             java.util.function.Function<E, String> id, java.util.function.Function<E, Item> item) {
@@ -237,21 +246,28 @@ public class ModItems {
 
     // CRT
     public static final RegistryObject<Item> CRT = ITEMS.register("crt",
-            () -> new BlockItem(ModBlocks.CRT.get(), new Item.Properties()));
+            () -> new com.nectariich.create_flippies.content.device.DeviceItem(ModEntityTypes.CRT,
+                    com.nectariich.create_flippies.content.crt.CrtEntity::new, new Item.Properties()));
     // CRT end
 
     // WIRE DUCTS
-    public static final RegistryObject<Item> WIRE_DUCT = ITEMS.register("wire_duct",
-            () -> new com.nectariich.create_flippies.content.wire_duct.WireDuctItem(
-                    com.nectariich.create_flippies.foundation.wire.duct.DuctSize.SMALL, new Item.Properties()));
+    /** One duct item per size, {@code wire_duct_<size>}, thinnest first. */
+    public static final java.util.Map<com.nectariich.create_flippies.foundation.wire.duct.DuctSize,
+            RegistryObject<Item>> WIRE_DUCTS = wireDucts();
 
-    public static final RegistryObject<Item> LARGE_WIRE_DUCT = ITEMS.register("large_wire_duct",
-            () -> new com.nectariich.create_flippies.content.wire_duct.WireDuctItem(
-                    com.nectariich.create_flippies.foundation.wire.duct.DuctSize.LARGE, new Item.Properties()));
+    private static java.util.Map<com.nectariich.create_flippies.foundation.wire.duct.DuctSize,
+            RegistryObject<Item>> wireDucts() {
+        var ducts = new java.util.EnumMap<com.nectariich.create_flippies.foundation.wire.duct.DuctSize,
+                RegistryObject<Item>>(com.nectariich.create_flippies.foundation.wire.duct.DuctSize.class);
+        for (var size : com.nectariich.create_flippies.foundation.wire.duct.DuctSize.values())
+            ducts.put(size, ITEMS.register("wire_duct_" + size.id(),
+                    () -> new com.nectariich.create_flippies.content.wire_duct.WireDuctItem(size,
+                            new Item.Properties())));
+        return ducts;
+    }
 
     public static Item wireDuct(com.nectariich.create_flippies.foundation.wire.duct.DuctSize size) {
-        return size == com.nectariich.create_flippies.foundation.wire.duct.DuctSize.LARGE ? LARGE_WIRE_DUCT.get()
-                : WIRE_DUCT.get();
+        return WIRE_DUCTS.get(size).get();
     }
     // WIRE DUCTS end
 

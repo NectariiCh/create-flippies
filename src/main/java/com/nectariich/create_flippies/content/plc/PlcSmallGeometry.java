@@ -11,16 +11,17 @@ import org.patryk3211.powergrid.electricity.base.IDecoratedTerminal;
 import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
 
 /**
- * The two small PLCs as boxes: what they occupy, in the
- * {@link SurfaceMount} frame their models are authored in, and — for the DIN one —
- * the twenty terminals along its ledges.
+ * The small PLC in its two mountings as boxes: what each occupies, in the
+ * {@link SurfaceMount} frame their models are authored in, and the twenty
+ * terminals along its ledges.
  *
  * There is one PLC in two mountings. The body is the same device either way — a
  * base with a raised cover on it and two rows of ten terminals along the ledges
  * the cover leaves either side — and the mounting is the whole of the difference:
  * the DIN one clips to a rail and so starts at the rail's lips, the panel one is
- * screwed to the plate and so starts at the plate, half a pixel lower, with two
- * flanges to put the screws through.
+ * screwed to the plate and so starts at the plate, {@link #PANEL_DROP} lower, with
+ * two flanges to put the screws through. Both are hosted controls of the same
+ * {@link PlcSmallControl}; {@link PlcSmallControlType} has a kind for each.
  *
  * Both are eight pixels along the mounting axis, which is eight rail modules, and
  * both are authored centred on the cell — {@code CircuitBreakerModel.shiftX(8)} is
@@ -29,8 +30,9 @@ import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
  *
  * <h2>Terminals</h2>
  *
- * Only the DIN PLC is wired; the panel one is a separate block and out of reach of
- * everything below. Its terminals are numbered in the order the export lists them,
+ * Both mountings have the same twenty pins in the same order; the panel one's are
+ * the DIN one's moved down by {@link #PANEL_DROP}, which is all that separates the
+ * two drawings above the rail clips. They are numbered in the order the export lists them,
  * which is the order {@code python tools/gen_plc.py} prints, and that order is
  * frozen: Power Grid numbers a control's terminals positionally and a host streams
  * them as one flat run, so swapping two of them would move every wire already
@@ -177,24 +179,43 @@ public final class PlcSmallGeometry {
             .plus(CONTACT_BOXES);
 
     // ------------------------------------------------------------ panel ---
-    private static final double PANEL_BASE_TOP = 1.75;
-    private static final double PANEL_TOP = 2.75;
+    /**
+     * How much lower the panel PLC stands than the DIN one: the height of the
+     * rail's lips, which is what the DIN one stands on and the panel one does not.
+     * {@code tools/gen_plc.py} lowers the drawing by the same figure.
+     */
+    public static final double PANEL_DROP = DIN_FLOOR;
+
+    private static final double PANEL_BASE_TOP = DIN_BASE_TOP - PANEL_DROP;
+    private static final double PANEL_TOP = DIN_TOP - PANEL_DROP;
     private static final double EAR_TOP = 0.25;
 
     /**
-     * The panel PLC's boxes, which are its outline and its collision both. It
-     * stands entirely inside its own cell — nothing passes through the plate, so
-     * unlike the lamps and the switches there is no protruding hitbox to give it
-     * and no reason to let anyone build through it.
+     * The panel PLC's body: the DIN body {@link #PANEL_DROP} lower, without the
+     * rail clips, with the two screw ears either end. It stands entirely inside
+     * its own cell: nothing passes through the plate, so unlike the lamps and the
+     * switches there is no protruding hitbox to give it.
      */
     public static final double[][] PANEL_BOXES = {
             { 3, 0, 6.5, 4, EAR_TOP, 9.5 },
             { 12, 0, 6.5, 13, EAR_TOP, 9.5 },
             { MIN_X, 0, 5, MAX_X, PANEL_BASE_TOP, 11 },
             { MIN_X, PANEL_BASE_TOP, 6, MAX_X, PANEL_TOP, 10 },
+            { 4.25, PANEL_TOP, 6.25, 5.5, PANEL_TOP + 0.2, 7.75 },
             { PINS_MIN_X, PANEL_BASE_TOP, 5.25, PINS_MAX_X, PANEL_BASE_TOP + PIN_RISE, 5.75 },
             { PINS_MIN_X, PANEL_BASE_TOP, 10.25, PINS_MAX_X, PANEL_BASE_TOP + PIN_RISE, 10.75 },
     };
+
+    /** The DIN contacts {@link #PANEL_DROP} lower, in the same terminal order. */
+    private static final double[][] PANEL_CONTACT_BOXES = lowered(CONTACT_BOXES, PANEL_DROP);
+
+    /**
+     * What a panel PLC occupies on a plate, built the way {@link #DIN_FOOTPRINT}
+     * is: the stepped body, with the grown terminal boxes added so that a wire
+     * target can never be built into.
+     */
+    public static final ControlFootprint PANEL_FOOTPRINT = ControlFootprint.of(PANEL_BOXES)
+            .plus(PANEL_CONTACT_BOXES);
 
     private PlcSmallGeometry() {}
 
@@ -208,11 +229,24 @@ public final class PlcSmallGeometry {
      * other way round.
      */
     public static TerminalBoundingBox[] terminals(ControlMount mount) {
+        return terminals(mount, 0);
+    }
+
+    /**
+     * The contacts of a PLC standing {@code drop} pixels lower than a DIN one
+     * ({@link #PANEL_DROP} for the panel mounting), in the same frozen order. Only
+     * the height moves; which pin is which cannot, for the reason the class
+     * comment gives.
+     */
+    public static TerminalBoundingBox[] terminals(ControlMount mount, double drop) {
         TerminalBoundingBox[] terminals = new TerminalBoundingBox[TERMINALS];
         for (int i = 0; i < TERMINALS; i++) {
-            double[] box = mount.box(CONTACT_BOXES[i]);
+            double[] contact = CONTACT_BOXES[i].clone();
+            contact[1] -= drop;
+            contact[4] -= drop;
+            double[] box = mount.box(contact);
             double[] origin = CONTACT_ORIGINS[i];
-            double[] tip = mount.point(origin[0], origin[1], origin[2]);
+            double[] tip = mount.point(origin[0], origin[1] - drop, origin[2]);
             terminals[i] = new TerminalBoundingBox(contactName(i), box[0], box[1], box[2], box[3], box[4], box[5],
                     CLICK_EXPAND)
                     .withColor(contactColor(i))
@@ -297,6 +331,17 @@ public final class PlcSmallGeometry {
             boxes[i] = grown;
         }
         return boxes;
+    }
+
+    private static double[][] lowered(double[][] boxes, double drop) {
+        double[][] out = new double[boxes.length][];
+        for (int i = 0; i < boxes.length; i++) {
+            double[] box = boxes[i].clone();
+            box[1] -= drop;
+            box[4] -= drop;
+            out[i] = box;
+        }
+        return out;
     }
 
     private static double[][] contactOrigins() {

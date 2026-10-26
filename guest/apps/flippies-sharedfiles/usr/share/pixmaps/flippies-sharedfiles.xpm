@@ -1,0 +1,23 @@
+/* XPM */
+static char *flippies_sharedfiles[] = {
+"16 16 4 1",
+"  c None",
+". c #000000",
+"o c #FFFF00",
+"+ c #000080",
+"                ",
+" .....          ",
+".ooooo.         ",
+".oooooo.......  ",
+".ooooooooooooo. ",
+".oooooo++ooooo. ",
+".oooooo++ooooo. ",
+".oooooo++ooooo. ",
+".oooo++++++ooo. ",
+".ooooo++++oooo. ",
+".oooooo++ooooo. ",
+".ooooooooooooo. ",
+".+++++++++++++. ",
+"............... ",
+"                ",
+"                "};

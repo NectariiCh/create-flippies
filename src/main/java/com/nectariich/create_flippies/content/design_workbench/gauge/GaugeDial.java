@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.content.design_workbench.gauge;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.content.design_workbench.SurfacePlacement;
 import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseFaceDefinition;
 import com.nectariich.create_flippies.content.procedural_gauge.GaugeFaceDefinition;
 import com.nectariich.create_flippies.content.procedural_gauge.GaugeScale;
@@ -29,7 +30,12 @@ import net.minecraft.util.Mth;
  * submesh's own UV space, by default the bounds of the submesh's UVs, so a face
  * whose UVs fill any part of the texture square still shows the whole dial. Its top
  * is the top of that rectangle as an image is read (the smallest V once the OBJ's V
- * is flipped, which Hypergraphical does on import).
+ * is flipped, which Hypergraphical does on import). On top of that the face can be
+ * moved, scaled and turned within the rectangle ({@link #placement}), for a face
+ * submesh whose dial area is not centred in, does not fill or is turned in its UVs,
+ * and mirrored either way ({@link #flipX}, {@link #flipY}) for one whose UVs are.
+ * The turn is baked into the face's texture, since a material can only be moved
+ * and scaled.
  *
  * The needle:
  * <ul>
@@ -59,6 +65,9 @@ public final class GaugeDial {
     public static final float UNDER = 0.04f, OVER = 0.06f;
 
     private static final int MAX_FACE = 2 * 128 + 1;
+
+    /** The least {@link #placement} may shrink the face to, so it is never scaled to nothing. */
+    public static final float MIN_SCALE = SurfacePlacement.MIN_SCALE;
 
     /** What the gauge measures between its two terminals, and the resistance it puts there to do it. */
     public enum Quantity {
@@ -113,6 +122,15 @@ public final class GaugeDial {
     public final String face;
     /** The rectangle of the face submesh's UV space the face fills: {u0, v0, u1, v1}. */
     private final float[] uv;
+    /**
+     * Where the face sits within {@link #uv}: {offsetX, offsetY, scaleX, scaleY,
+     * rotation}. The offsets are fractions of the rectangle, right and up; a scale of
+     * 2 prints the face twice as large about the rectangle's centre; the rotation is
+     * in degrees clockwise about the face's own centre.
+     */
+    private final float[] placement;
+    /** The face is mirrored left to right, or top to bottom, about its own centre. */
+    public final boolean flipX, flipY;
     /** Rotary: the dial angle, clockwise from 12 o'clock, the needle points at as modelled. */
     public final float needleZero;
     /** Rotary: the needle turns counter-clockwise as the reading rises, for a mirrored face. */
@@ -123,6 +141,12 @@ public final class GaugeDial {
     /** Exactly one of {@code dial} and {@code edgewise} is used, the edgewise face when it is given. */
     public GaugeDial(Quantity quantity, GaugeFaceDefinition dial, EdgewiseFaceDefinition edgewise, String face,
             float[] uv, float needleZero, boolean reverse, boolean slide) {
+        this(quantity, dial, edgewise, face, uv, null, false, false, needleZero, reverse, slide);
+    }
+
+    public GaugeDial(Quantity quantity, GaugeFaceDefinition dial, EdgewiseFaceDefinition edgewise, String face,
+            float[] uv, float[] placement, boolean flipX, boolean flipY, float needleZero, boolean reverse,
+            boolean slide) {
         this.quantity = quantity == null ? Quantity.VOLTAGE : quantity;
         if (edgewise != null) {
             this.dial = null;
@@ -134,6 +158,9 @@ public final class GaugeDial {
         this.face = face == null || face.length() > MAX_FACE || face.indexOf('#') <= 0
                 || face.indexOf('#') == face.length() - 1 ? "" : face;
         this.uv = sanitiseUv(uv);
+        this.placement = sanitisePlacement(placement);
+        this.flipX = flipX;
+        this.flipY = flipY;
         this.needleZero = Float.isFinite(needleZero) ? Mth.clamp(needleZero, -360, 360) : 0;
         this.reverse = reverse;
         this.slide = slide;
@@ -172,7 +199,7 @@ public final class GaugeDial {
                     .minorTicksPerMajor(from.minorTicksPerMajor).labelFormat(from.labelFormat)
                     .labelMultiplier(from.labelMultiplier).faceColor(from.faceColor)
                     .markingColor(from.markingColor).bands(from.bands).build();
-            return new GaugeDial(quantity, null, to, face, uv, needleZero, reverse, slide);
+            return new GaugeDial(quantity, null, to, face, uv, placement, flipX, flipY, needleZero, reverse, slide);
         }
         EdgewiseFaceDefinition from = this.edgewise;
         GaugeFaceDefinition to = defaultDial().toBuilder(from.minValue, from.maxValue)
@@ -180,7 +207,7 @@ public final class GaugeDial {
                 .minorTicksPerMajor(from.minorTicksPerMajor).labelFormat(from.labelFormat)
                 .labelMultiplier(from.labelMultiplier).faceColor(from.faceColor).markingColor(from.markingColor)
                 .bands(from.bands).build();
-        return new GaugeDial(quantity, to, null, face, uv, needleZero, reverse, slide);
+        return new GaugeDial(quantity, to, null, face, uv, placement, flipX, flipY, needleZero, reverse, slide);
     }
 
     public boolean isEdgewise() {
@@ -199,6 +226,15 @@ public final class GaugeDial {
 
     public float[] uv() {
         return uv.clone();
+    }
+
+    public float[] placement() {
+        return placement.clone();
+    }
+
+    /** Degrees clockwise the face is turned about its centre, baked into its texture. */
+    public float rotation() {
+        return placement[4];
     }
 
     // ------------------------------------------------------------- the scale
@@ -254,13 +290,15 @@ public final class GaugeDial {
     }
 
     /**
-     * The material UV transform that stretches the face over {@link #uv}: the
-     * shader samples {@code uv * tiling + offset}, so the rectangle's corners land on
-     * the texture's. Returned as {tilingU, tilingV, offsetU, offsetV}.
+     * The material UV transform that stretches the face over {@link #uv}, then moves
+     * and scales it there by {@link #placement}, mirroring it about its own centre
+     * when it is flipped (a negative tiling): the shader samples
+     * {@code uv * tiling + offset}, so with no placement the rectangle's corners land
+     * on the texture's. V runs down the image, so moving the face up samples further
+     * down. Returned as {tilingU, tilingV, offsetU, offsetV}.
      */
     public float[] uvTransform() {
-        float du = uv[2] - uv[0], dv = uv[3] - uv[1];
-        return new float[] { 1 / du, 1 / dv, -uv[0] / du, -uv[1] / dv };
+        return SurfacePlacement.uvTransform(uv, placement, flipX, flipY);
     }
 
     /**
@@ -291,9 +329,15 @@ public final class GaugeDial {
         for (float value : uv)
             list.add(FloatTag.valueOf(value));
         tag.put("Uv", list);
+        ListTag placed = new ListTag();
+        for (float value : placement)
+            placed.add(FloatTag.valueOf(value));
+        tag.put("Placement", placed);
         tag.putFloat("NeedleZero", needleZero);
         tag.putBoolean("Reverse", reverse);
         tag.putBoolean("Slide", slide);
+        tag.putBoolean("FlipX", flipX);
+        tag.putBoolean("FlipY", flipY);
         return tag;
     }
 
@@ -308,7 +352,13 @@ public final class GaugeDial {
         ListTag list = tag.getList("Uv", Tag.TAG_FLOAT);
         if (list.size() == 4)
             uv = new float[] { list.getFloat(0), list.getFloat(1), list.getFloat(2), list.getFloat(3) };
-        return new GaugeDial(base.quantity, base.dial, base.edgewise, tag.getString("Face"), uv,
+        float[] placement = null;
+        ListTag placed = tag.getList("Placement", Tag.TAG_FLOAT);
+        if (placed.size() == 5)
+            placement = new float[] { placed.getFloat(0), placed.getFloat(1), placed.getFloat(2), placed.getFloat(3),
+                    placed.getFloat(4) };
+        return new GaugeDial(base.quantity, base.dial, base.edgewise, tag.getString("Face"), uv, placement,
+                tag.getBoolean("FlipX"), tag.getBoolean("FlipY"),
                 tag.getFloat("NeedleZero"), tag.getBoolean("Reverse"),
                 !tag.contains("Slide", Tag.TAG_BYTE) || tag.getBoolean("Slide")).withKind(edgewise);
     }
@@ -337,24 +387,14 @@ public final class GaugeDial {
         return new GaugeDial(quantity, dial, null, "", null, 0, false, true);
     }
 
-    /**
-     * A UV rectangle held to something a material can be made from: finite, ordered,
-     * not degenerate, and within a few texture squares of the origin. The whole
-     * square when there is nothing usable.
-     */
+    /** {@link SurfacePlacement#sanitiseUv}, where a screen's surface shares it. */
     static float[] sanitiseUv(float[] uv) {
-        if (uv == null || uv.length != 4)
-            return new float[] { 0, 0, 1, 1 };
-        float u0 = clampUv(Math.min(uv[0], uv[2])), u1 = clampUv(Math.max(uv[0], uv[2]));
-        float v0 = clampUv(Math.min(uv[1], uv[3])), v1 = clampUv(Math.max(uv[1], uv[3]));
-        if (!(u1 - u0 >= 1e-4f) || !(v1 - v0 >= 1e-4f))
-            return new float[] { 0, 0, 1, 1 };
-        return new float[] { u0, v0, u1, v1 };
+        return SurfacePlacement.sanitiseUv(uv);
     }
 
-    /** NaN stays NaN, so the rectangle it is in is refused. */
-    private static float clampUv(float value) {
-        return Float.isNaN(value) ? value : Mth.clamp(value, -64, 64);
+    /** {@link SurfacePlacement#sanitisePlacement}, likewise. */
+    static float[] sanitisePlacement(float[] placement) {
+        return SurfacePlacement.sanitisePlacement(placement);
     }
 
     @Override
