@@ -55,4 +55,23 @@ public interface ContentSource {
     default boolean chunked() {
         return true;
     }
+
+    /**
+     * The source a file found now is read from to its end. By default this one; a source whose
+     * content can be replaced while the server runs ({@link PackRegistry}) answers its current
+     * {@link PackSet}, so a download in progress finishes from what it started on.
+     */
+    default ContentSource snapshot() {
+        return this;
+    }
+
+    /**
+     * A {@link CatalogueFile} reads from this source until the matching {@link #release}: what it
+     * reads from must stay open. Nothing to do by default.
+     */
+    default void retain() {
+    }
+
+    default void release() {
+    }
 }

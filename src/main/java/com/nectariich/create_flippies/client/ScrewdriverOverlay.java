@@ -42,7 +42,11 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -132,9 +136,13 @@ public final class ScrewdriverOverlay {
     private ScrewdriverOverlay() {}
 
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END)
             return;
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+    *///?}
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
         if (player == null || minecraft.level == null)

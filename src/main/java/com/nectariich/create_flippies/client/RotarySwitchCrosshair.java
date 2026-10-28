@@ -12,8 +12,13 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
+//? if forge {
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
+//?} else {
+/*import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -71,8 +76,13 @@ public final class RotarySwitchCrosshair {
      * before this runs.
      */
     @SubscribeEvent
+    //? if forge {
     public static void onRenderCrosshair(RenderGuiOverlayEvent.Pre event) {
         if (event.getOverlay() != VanillaGuiOverlay.CROSSHAIR.type())
+    //?} else {
+    /*public static void onRenderCrosshair(RenderGuiLayerEvent.Pre event) {
+        if (!event.getName().equals(VanillaGuiLayers.CROSSHAIR))
+    *///?}
             return;
         RotarySwitchSide side = aimedSide();
         // The drag speaks first: it owns the crosshair for as long as a handle is

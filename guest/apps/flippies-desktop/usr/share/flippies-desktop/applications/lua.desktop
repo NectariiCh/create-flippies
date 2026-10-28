@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Lua
+Comment=The Lua 5.4 interpreter
+Exec=lua5.4
+TryExec=lua5.4
+Terminal=true
+Categories=Development;

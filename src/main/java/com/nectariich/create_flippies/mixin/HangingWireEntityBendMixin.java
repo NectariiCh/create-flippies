@@ -234,7 +234,11 @@ public abstract class HangingWireEntityBendMixin implements BendableWire {
         HangingWireEntity self = create_flippies$self();
         // The same correction Power Grid makes to the endpoints, and on the same side
         if (!points.isEmpty() && !self.level().isClientSide && tag.contains("LastKnownPos")) {
+            //? if forge {
             BlockPos last = NbtUtils.readBlockPos(tag.getCompound("LastKnownPos"));
+            //?} else {
+            /*BlockPos last = NbtUtils.readBlockPos(tag, "LastKnownPos").orElse(self.blockPosition());
+            *///?}
             BlockPos now = self.blockPosition();
             if (!last.equals(now))
                 points = WireBends.offset(points, Vec3.atLowerCornerOf(now.subtract(last)));
@@ -310,9 +314,15 @@ public abstract class HangingWireEntityBendMixin implements BendableWire {
         WireItemEntry entry = create_flippies$entry();
         if (k == LegSag.DEFAULT || entry == null || self.terminalPos1 == null || self.terminalPos2 == null)
             return;
+        //? if forge {
         self.curveParams = new CurveParameters(self.terminalPos1, self.terminalPos2,
                 LegSag.horizontal(entry.horizontalCoefficient(), k), LegSag.vertical(entry.verticalCoefficient(), k),
                 entry.wireThickness());
+        //?} else {
+        /*self.curveParams = BendGeometry.curve(self.terminalPos1, self.terminalPos2,
+                LegSag.horizontal(entry.horizontalCoefficient(), k), LegSag.vertical(entry.verticalCoefficient(), k),
+                entry.wireThickness());
+        *///?}
         // Re-setting the position is what refits an entity's box
         self.setPos(self.getX(), self.getY(), self.getZ());
     }

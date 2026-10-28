@@ -16,7 +16,11 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -106,8 +110,13 @@ public final class ArrowColourPick {
     }
 
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || waiting == null)
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+        if (waiting == null)
+    *///?}
             return;
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null || !ScrewdriverItem.isScrewdriver(player.getItemInHand(waiting.hand())))

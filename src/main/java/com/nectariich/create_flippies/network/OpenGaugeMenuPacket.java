@@ -1,14 +1,10 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Tells one player's client to open the dial-customization menu for one mounted
@@ -29,7 +25,7 @@ import net.minecraftforge.network.NetworkEvent;
  * so a mount identifies one without depending on the order the host happens to hold
  * them in.
  */
-public class OpenGaugeMenuPacket {
+public class OpenGaugeMenuPacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final ControlMount mount;
@@ -49,9 +45,8 @@ public class OpenGaugeMenuPacket {
         mount.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientOnly.run(
                 () -> () -> com.nectariich.create_flippies.client.GaugeCustomizationScreen.open(pos, mount)));
-        context.get().setPacketHandled(true);
     }
 }

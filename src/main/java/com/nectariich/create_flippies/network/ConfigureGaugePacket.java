@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.gauge.GaugeTheme;
 import com.nectariich.create_flippies.content.gauge.UniversalGaugeBlockEntity;
 
@@ -10,9 +8,8 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
-public class ConfigureGaugePacket {
+public class ConfigureGaugePacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final float min;
@@ -40,9 +37,9 @@ public class ConfigureGaugePacket {
         buffer.writeEnum(theme);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null || !Float.isFinite(min) || !Float.isFinite(max))
                 return;
             Level level = player.level();
@@ -51,6 +48,5 @@ public class ConfigureGaugePacket {
             if (level.getBlockEntity(pos) instanceof UniversalGaugeBlockEntity gauge)
                 gauge.configure(min, max, theme);
         });
-        context.get().setPacketHandled(true);
     }
 }

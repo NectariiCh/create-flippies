@@ -98,7 +98,11 @@ public final class LegSag {
     /** The curve one leg from {@code from} to {@code to} hangs in at sag {@code k}. */
     public static CurveParameters curve(Vec3 from, Vec3 to, double horizontal, double vertical, double thickness,
             double k) {
+        //? if forge {
         return new CurveParameters(from, to, horizontal(horizontal, k), vertical(vertical, k), thickness);
+        //?} else {
+        /*return BendGeometry.curve(from, to, horizontal(horizontal, k), vertical(vertical, k), thickness);
+        *///?}
     }
 
     /** Every leg's coefficients, for {@link BendGeometry}; a leg past the end of {@code sags} hangs at 1. */

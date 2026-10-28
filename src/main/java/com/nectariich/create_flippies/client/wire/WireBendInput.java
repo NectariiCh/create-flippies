@@ -5,6 +5,7 @@ import java.util.List;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.RenderStageCompat;
 import com.nectariich.create_flippies.foundation.wire.bend.BendGeometry;
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 import com.nectariich.create_flippies.foundation.wire.bend.DoubleClickDetector;
@@ -34,7 +35,12 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RenderFrameEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -138,7 +144,7 @@ public final class WireBendInput {
         if (hit.isPoint()) {
             if (DOUBLE_CLICK.click(entity.getId(), hit.point(), Util.getMillis())) {
                 WireBendService.applyEdit(wire, WireBends.Op.REMOVE, hit.point(), null);
-                ModPackets.CHANNEL.sendToServer(
+                ModPackets.sendToServer(
                         new EditWireBendPacket(entity.getId(), WireBends.Op.REMOVE, hit.point(), null, true));
                 return;
             }
@@ -154,7 +160,7 @@ public final class WireBendInput {
         // A leg's index is the index the point between its two ends takes
         int index = hit.leg();
         WireBendService.applyEdit(wire, WireBends.Op.INSERT, index, hit.onWire());
-        ModPackets.CHANNEL.sendToServer(
+        ModPackets.sendToServer(
                 new EditWireBendPacket(entity.getId(), WireBends.Op.INSERT, index, hit.onWire(), true));
         startDrag(entity, index, points.size() + 1, hit.onWire(), player.getEyePosition());
     }
@@ -179,8 +185,13 @@ public final class WireBendInput {
     }
 
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || dragEntity == -1)
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+        if (dragEntity == -1)
+    *///?}
             return;
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
@@ -197,20 +208,29 @@ public final class WireBendInput {
         follow(wire, player, 1f);
         if (dragAt.distanceToSqr(lastSent) > SEND_EPSILON * SEND_EPSILON) {
             lastSent = dragAt;
-            ModPackets.CHANNEL.sendToServer(new EditWireBendPacket(wire.bendEntity().getId(), WireBends.Op.MOVE,
+            ModPackets.sendToServer(new EditWireBendPacket(wire.bendEntity().getId(), WireBends.Op.MOVE,
                     dragIndex, dragAt, false));
         }
     }
 
     /** Every frame, so the held point moves with the view rather than once a tick. */
     @SubscribeEvent
+    //? if forge {
     public static void onRenderTick(TickEvent.RenderTickEvent event) {
         if (event.phase != TickEvent.Phase.START || dragEntity == -1)
+    //?} else {
+    /*public static void onRenderTick(RenderFrameEvent.Pre event) {
+        if (dragEntity == -1)
+    *///?}
             return;
         Minecraft minecraft = Minecraft.getInstance();
         BendableWire wire = dragged(minecraft.level);
         if (wire != null && minecraft.player != null)
+            //? if forge {
             follow(wire, minecraft.player, event.renderTickTime);
+            //?} else {
+            /*follow(wire, minecraft.player, event.getPartialTick().getGameTimeDeltaPartialTick(false));
+            *///?}
     }
 
     private static void follow(BendableWire wire, LocalPlayer player, float partialTicks) {
@@ -223,7 +243,7 @@ public final class WireBendInput {
 
     /** Ends a drag with the move that tells the server the shape has settled. */
     private static void release(BendableWire wire) {
-        ModPackets.CHANNEL.sendToServer(new EditWireBendPacket(wire.bendEntity().getId(), WireBends.Op.MOVE,
+        ModPackets.sendToServer(new EditWireBendPacket(wire.bendEntity().getId(), WireBends.Op.MOVE,
                 dragIndex, dragAt, true));
         forget();
     }
@@ -304,7 +324,7 @@ public final class WireBendInput {
         if (level == null || !active(player))
             return;
 
-        float partialTicks = event.getPartialTick();
+        float partialTicks = RenderStageCompat.partialTick(event);
         Pick hover = dragEntity == -1 ? pick(minecraft, partialTicks) : null;
         Vec3 camera = event.getCamera().getPosition();
         PoseStack ms = event.getPoseStack();

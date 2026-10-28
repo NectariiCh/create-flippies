@@ -169,9 +169,15 @@ Inst foo (1.0 deb.flip [all])
         cmd = pkgdb.install_cmd(["vim"])
         self.assertEqual(cmd[:4], ["sudo", "-n", "env", "DEBIAN_FRONTEND=noninteractive"])
         self.assertEqual(cmd[-2:], ["install", "vim"])
-        self.assertIn("APT::Status-Fd=1", cmd)
+        self.assertIn("APT::Status-Fd=3", cmd)
+        # fd 3 is opened by a root shell, after sudo
+        i = cmd.index("sh")
+        self.assertEqual(cmd[i:i + 4], ["sh", "-c", 'exec 3>&1; exec "$@"', "sh"])
+        self.assertEqual(cmd[i + 4], "apt-get")
         self.assertEqual(pkgdb.remove_cmd(["feh"])[-3:], ["--autoremove", "remove", "feh"])
         self.assertNotIn("sudo", pkgdb.simulate_remove_cmd(["feh"]))
+        # the check simulates the very removal that runs, autoremove included
+        self.assertEqual(pkgdb.simulate_remove_cmd(["feh"])[-3:], ["--autoremove", "remove", "feh"])
         with self.assertRaises(ValueError):
             pkgdb.install_cmd(["-o"])
         with self.assertRaises(ValueError):

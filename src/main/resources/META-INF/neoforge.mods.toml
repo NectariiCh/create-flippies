@@ -1,0 +1,63 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+description='''${mod_description}'''
+
+# NeoForge 1.21.1 loads mixin configs from here (Forge 1.20.1 reads the jar manifest instead).
+[[mixins]]
+config="${mod_id}.mixins.json"
+
+# NeoForge 1.21.1 metadata. META-INF/mods.toml is the Forge 1.20.1 file. NeoForge reads type,
+# not mandatory, and an entry without a type is required.
+
+[[dependencies.${mod_id}]]
+modId="neoforge"
+type="required"
+versionRange="${neoforge_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="create"
+type="required"
+versionRange="${create_version_range}"
+ordering="AFTER"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="powergrid"
+type="required"
+versionRange="${powergrid_version_range}"
+ordering="AFTER"
+side="BOTH"
+
+# Renders the custom models the Design Workbench imports. Client only: it has no
+# server half, and on 1.21.1 it in turn requires Sodium.
+[[dependencies.${mod_id}]]
+modId="hypergraphical"
+type="required"
+versionRange="${hypergraphical_version_range}"
+ordering="AFTER"
+side="CLIENT"
+
+# WIRE GAUGES: optional. When installed, its gauged wires replace Flippies' own copies
+# (same ids under its namespace); Flippies registers none of its own and remaps them in saves.
+[[dependencies.${mod_id}]]
+modId="powerplantgrid"
+type="optional"
+versionRange="*"
+ordering="NONE"
+side="BOTH"

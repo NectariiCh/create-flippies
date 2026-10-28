@@ -2,6 +2,8 @@ package com.nectariich.create_flippies.content.data_cord;
 
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.StackData;
+
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -56,12 +58,12 @@ public class DataCordItem extends Item {
         if (level.isClientSide)
             return InteractionResult.SUCCESS;
 
-        CompoundTag start = stack.getTagElement(TAG_START);
+        CompoundTag start = StackData.sub(stack, TAG_START);
         if (start == null) {
             CompoundTag tag = new CompoundTag();
             host.portAddress().write(tag, "Pos");
             tag.putInt("Port", port);
-            stack.getOrCreateTag().put(TAG_START, tag);
+            StackData.put(stack, TAG_START, tag);
             message(player, Component.translatable("gui.create_flippies.pc.cord.next"), false);
             return InteractionResult.SUCCESS;
         }
@@ -70,7 +72,7 @@ public class DataCordItem extends Item {
         int startPort = start.getInt("Port");
         DataPortHost first = startAt == null ? null : DataCords.hostAt(level, startAt);
         if (first == null || startPort >= first.dataPortCount()) {
-            stack.removeTagKey(TAG_START);
+            StackData.remove(stack, TAG_START);
             message(player, Component.translatable("gui.create_flippies.pc.cord.start_gone"), true);
             return InteractionResult.FAIL;
         }
@@ -88,7 +90,7 @@ public class DataCordItem extends Item {
             message(player, Component.translatable("gui.create_flippies.pc.cord.failed"), true);
             return InteractionResult.FAIL;
         }
-        stack.removeTagKey(TAG_START);
+        StackData.remove(stack, TAG_START);
         if (player == null || !player.getAbilities().instabuild)
             stack.shrink(1);
         message(player, Component.translatable("gui.create_flippies.pc.cord.connected"), false);
@@ -101,17 +103,17 @@ public class DataCordItem extends Item {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
-        if (stack.getTagElement(TAG_START) == null)
+        if (StackData.sub(stack, TAG_START) == null)
             return InteractionResultHolder.pass(stack);
         cancel(level, player, stack);
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
     }
 
     private static InteractionResult cancel(Level level, Player player, ItemStack stack) {
-        if (stack.getTagElement(TAG_START) == null)
+        if (StackData.sub(stack, TAG_START) == null)
             return InteractionResult.PASS;
         if (!level.isClientSide) {
-            stack.removeTagKey(TAG_START);
+            StackData.remove(stack, TAG_START);
             message(player, Component.translatable("gui.create_flippies.pc.cord.cancelled"), false);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
@@ -124,7 +126,7 @@ public class DataCordItem extends Item {
 
     @Override
     public boolean isFoil(ItemStack stack) {
-        return stack.getTagElement(TAG_START) != null;
+        return StackData.sub(stack, TAG_START) != null;
     }
 
     @Override

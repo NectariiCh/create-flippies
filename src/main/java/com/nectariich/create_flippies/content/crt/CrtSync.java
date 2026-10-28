@@ -17,7 +17,6 @@ import com.nectariich.create_flippies.network.ModPackets;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * Sends every loaded CRT's picture to the players near it (spec 11.2.14). Runs on
@@ -98,7 +97,7 @@ public final class CrtSync {
                 byte[] payload = w.crt().stream().updateFor(player.getUUID(), gameTime, interval);
                 if (payload == null)
                     continue;
-                ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                ModPackets.sendToPlayer(player,
                         new CrtFramePacket(w.crt().getId(), payload));
                 bucket.spend(payload.length);
             }

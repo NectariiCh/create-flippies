@@ -27,7 +27,11 @@ public final class DevicePicker {
                 || minecraft.player.isSpectator())
             return;
         Vec3 eye = camera.getEyePosition(partialTicks);
+        //? if forge {
         double reach = minecraft.gameMode.getPickRange();
+        //?} else {
+        /*double reach = minecraft.player.blockInteractionRange();
+        *///?}
         Vec3 far = eye.add(camera.getViewVector(partialTicks).scale(reach));
         HitResult current = minecraft.hitResult;
         double limit = current == null || current.getType() == HitResult.Type.MISS ? reach

@@ -3,9 +3,10 @@ package com.nectariich.create_flippies.foundation.wire.entity;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.NbtCompat;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -64,7 +65,7 @@ public final class EntityWireEndpoint implements IWireEndpoint {
     @Override
     public void read(CompoundTag tag) {
         entity = tag.getUUID(TAG);
-        anchor = NbtUtils.readBlockPos(tag.getCompound("Anchor"));
+        anchor = NbtCompat.readBlockPos(tag.getCompound("Anchor"));
         terminal = tag.getInt("Terminal");
     }
 
@@ -72,7 +73,7 @@ public final class EntityWireEndpoint implements IWireEndpoint {
     public void write(CompoundTag tag) {
         tag.putUUID(TAG, entity);
         tag.putString(KIND, "terminal");
-        tag.put("Anchor", NbtUtils.writeBlockPos(anchor));
+        tag.put("Anchor", NbtCompat.writeBlockPos(anchor));
         tag.putInt("Terminal", terminal);
         // What an imaginary endpoint reads, should this mod be gone
         Vec3 at = Vec3.atCenterOf(anchor);

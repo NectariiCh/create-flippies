@@ -3,9 +3,10 @@ package com.nectariich.create_flippies.content.data_cord;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.NbtCompat;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.FriendlyByteBuf;
 
 /**
@@ -30,7 +31,7 @@ public record PortAddress(BlockPos pos, UUID entity) {
 
     /** Writes {@code Peer} (the block) and, for an entity, {@code PeerEntity}, as links always have. */
     public void write(CompoundTag tag, String key) {
-        tag.put(key, NbtUtils.writeBlockPos(pos));
+        tag.put(key, NbtCompat.writeBlockPos(pos));
         if (entity != null)
             tag.putUUID(key + "Entity", entity);
     }
@@ -39,7 +40,7 @@ public record PortAddress(BlockPos pos, UUID entity) {
     public static PortAddress read(CompoundTag tag, String key) {
         if (!tag.contains(key))
             return null;
-        BlockPos pos = NbtUtils.readBlockPos(tag.getCompound(key));
+        BlockPos pos = NbtCompat.readBlockPos(tag.getCompound(key));
         return new PortAddress(pos, tag.hasUUID(key + "Entity") ? tag.getUUID(key + "Entity") : null);
     }
 

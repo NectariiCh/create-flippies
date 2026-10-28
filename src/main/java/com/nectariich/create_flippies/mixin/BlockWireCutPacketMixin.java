@@ -23,7 +23,12 @@ import org.spongepowered.asm.mixin.injection.ModifyConstant;
 @Mixin(value = BlockWireCutC2SPacket.class, remap = false)
 public class BlockWireCutPacketMixin {
 
+    // Power Grid 0.6.2 (1.21.1) runs the handler directly in handle instead of a lambda
+    //? if forge {
     @ModifyConstant(method = "lambda$handle$0", constant = @Constant(floatValue = 16.0f))
+    //?} else {
+    /*@ModifyConstant(method = "handle", constant = @Constant(floatValue = 16.0f))
+    *///?}
     private float create_flippies$fineUnitsPerBlock(float pixelsPerBlock) {
         return BlockWireGeometry.UNITS_PER_BLOCK;
     }

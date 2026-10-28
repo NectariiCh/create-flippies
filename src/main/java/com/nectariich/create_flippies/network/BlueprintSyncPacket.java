@@ -1,17 +1,13 @@
 package com.nectariich.create_flippies.network;
 
 import java.util.Arrays;
-import java.util.function.Supplier;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.content.design_workbench.blueprint.BlueprintFiles;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * The world's whole blueprint section, with how the last op went, on its way to a
@@ -24,7 +20,7 @@ import net.minecraftforge.network.PacketDistributor;
  * one; packets from one server arrive in order, so that only happens on a sync the
  * newer one replaces anyway.
  */
-public class BlueprintSyncPacket {
+public class BlueprintSyncPacket implements FlippiesPacket {
 
     /** Bytes per piece, well under the clientbound limit. */
     public static final int CHUNK = 512 * 1024;
@@ -60,7 +56,7 @@ public class BlueprintSyncPacket {
         int sequence = nextSequence++;
         for (int i = 0; i < total; i++) {
             int from = i * CHUNK;
-            ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new BlueprintSyncPacket(sequence, i,
+            ModPackets.sendToPlayer(player, new BlueprintSyncPacket(sequence, i,
                     total, Arrays.copyOfRange(packed, from, Math.min(packed.length, from + CHUNK))));
         }
     }
@@ -72,10 +68,9 @@ public class BlueprintSyncPacket {
         buffer.writeByteArray(bytes);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientOnly.run(
                 () -> () -> com.nectariich.create_flippies.client.blueprint.ClientBlueprints.receiveSync(sequence,
                         index, total, bytes)));
-        context.get().setPacketHandled(true);
     }
 }

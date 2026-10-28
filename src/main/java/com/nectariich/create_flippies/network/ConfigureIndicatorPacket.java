@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.indicator.IndicatorAction;
 import com.nectariich.create_flippies.content.indicator.IndicatorBlock;
 import com.nectariich.create_flippies.content.indicator.IndicatorBlockEntity;
@@ -17,7 +15,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Applies the configuration menu's result to an indicator: which colour cap is
@@ -43,7 +40,7 @@ import net.minecraftforge.network.NetworkEvent;
  * a black cap is only allowed on a button, and which of the two the client asked for
  * last is not this packet's business to decide.
  */
-public class ConfigureIndicatorPacket {
+public class ConfigureIndicatorPacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final IndicatorColor color;
@@ -83,9 +80,9 @@ public class ConfigureIndicatorPacket {
             mount.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             Level level = player.level();
@@ -105,6 +102,5 @@ public class ConfigureIndicatorPacket {
             if (turn)
                 IndicatorBlock.turn(level, pos);
         });
-        context.get().setPacketHandled(true);
     }
 }

@@ -396,7 +396,11 @@ public final class DesignPreview {
         // corner as it stands relative to the camera
         ms.pushPose();
         ms.translate(origin.x - camera.x, origin.y - camera.y, origin.z - camera.z);
+        //? if forge {
         ms.mulPoseMatrix(flat);
+        //?} else {
+        /*ms.mulPose(flat);
+        *///?}
         ms.translate(camera.x - origin.x, camera.y - origin.y, camera.z - origin.z);
         if (showBoxes) {
             ControlFootprint footprint = DesignedFootprints.of(design);
@@ -412,7 +416,11 @@ public final class DesignPreview {
 
         ms.pushPose();
         ms.translate(origin.x - camera.x, origin.y - camera.y, origin.z - camera.z);
+        //? if forge {
         ms.mulPoseMatrix(flat);
+        //?} else {
+        /*ms.mulPose(flat);
+        *///?}
         List<DesignText> texts = design.texts();
         for (int i = 0; i < texts.size(); i++)
             textOutline(ms, lines, texts.get(i), motion, i == selectedText);
@@ -454,7 +462,11 @@ public final class DesignPreview {
         ms.pushPose();
         ms.scale(1 / 16f, 1 / 16f, 1 / 16f);
         if (text.onMoving())
+            //? if forge {
             ms.mulPoseMatrix(motion);
+            //?} else {
+            /*ms.mulPose(motion);
+            *///?}
         float y = text.y() + OUTLINE_LIFT;
         float r = selected ? 1 : 0.55f, g = 0.55f, b = selected ? 0.1f : 0.6f;
         float a = selected ? 1 : 0.6f;
@@ -477,8 +489,13 @@ public final class DesignPreview {
         dx /= length;
         dy /= length;
         dz /= length;
+        //? if forge {
         lines.vertex(pose.pose(), x1, y1, z1).color(r, g, b, a).normal(pose.normal(), dx, dy, dz).endVertex();
         lines.vertex(pose.pose(), x2, y2, z2).color(r, g, b, a).normal(pose.normal(), dx, dy, dz).endVertex();
+        //?} else {
+        /*lines.addVertex(pose.pose(), x1, y1, z1).setColor(r, g, b, a).setNormal(pose, dx, dy, dz);
+        lines.addVertex(pose.pose(), x2, y2, z2).setColor(r, g, b, a).setNormal(pose, dx, dy, dz);
+        *///?}
     }
 
     private static void outline(PoseStack ms, VertexConsumer lines, Vec3 origin, Vec3 camera, double[] box, float r,

@@ -15,7 +15,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
 
 import org.patryk3211.powergrid.electricity.sim.SwitchedWire;
 import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
@@ -139,7 +138,7 @@ public class RotarySwitchControl extends HostedControl {
     public boolean openEditor(ServerPlayer player) {
         if (host() == null)
             return false;
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+        ModPackets.sendToPlayer(player,
                 new OpenRotarySwitchMenuPacket(host().pos(), mount()));
         return true;
     }

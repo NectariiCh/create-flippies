@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowSettings;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 
@@ -9,8 +7,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
-
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * The schematic arrow menu, applied to the screwdriver the sender is holding.
@@ -21,7 +17,7 @@ import net.minecraftforge.network.NetworkEvent;
  * fallback. The arrow itself
  * is checked again when it is put on a panel.
  */
-public class ConfigureArrowPacket {
+public class ConfigureArrowPacket implements FlippiesPacket {
 
     private final InteractionHand hand;
     private final ArrowSettings settings;
@@ -45,15 +41,14 @@ public class ConfigureArrowPacket {
         return settings;
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             ItemStack stack = player.getItemInHand(hand);
             if (ScrewdriverItem.isScrewdriver(stack))
                 settings.apply(stack);
         });
-        context.get().setPacketHandled(true);
     }
 }

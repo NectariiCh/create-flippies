@@ -155,9 +155,15 @@ public final class DuctWireRenderer {
 
     private static void vertex(PoseStack.Pose pose, VertexConsumer buffer, Vec3 p, float u, float v, Vec3 n,
             int color, int light) {
+        //? if forge {
         buffer.vertex(pose.pose(), (float) p.x, (float) p.y, (float) p.z).color(color).uv(u, v)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light)
                 .normal(pose.normal(), (float) n.x, (float) n.y, (float) n.z).endVertex();
+        //?} else {
+        /*buffer.addVertex(pose.pose(), (float) p.x, (float) p.y, (float) p.z).setColor(color).setUv(u, v)
+                .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light)
+                .setNormal(pose, (float) n.x, (float) n.y, (float) n.z);
+        *///?}
     }
 
     private static Direction direction(Vec3 a, Vec3 b) {

@@ -3,13 +3,15 @@
 through apt-get as root (sudo, no password for the desktop user). Sized for 640x480 and plain
 colours for 8 bits per pixel.
 
-The package work runs in threads; only the Tk thread touches widgets, fed through a queue.
+The package work runs in threads; only the Tk thread touches widgets, fed through a queue
+and woken by a virtual event.
 """
 
 import os
 import queue
 import subprocess
 import threading
+import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -19,6 +21,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FEATURED = os.path.join(HERE, "featured.txt")
 # Rows the All view shows at most: inserting thousands of rows takes Tk many seconds at 25 MHz
 MAX_ROWS = 300
+# Lines of apt's output the log keeps
+LOG_LINES = 300
 STATE_TEXT = {pkgdb.AVAILABLE: "", pkgdb.INSTALLED: "installed", pkgdb.UPDATE: "update",
               pkgdb.LOCAL: "installed"}
 
@@ -52,8 +56,10 @@ class App:
         self.installed = {}
         self.featured = pkgdb.read_featured(FEATURED)
         self.queue = queue.Queue()
+        self.wake_pending = False
         self.busy = False
         self.search_job = None
+        self.result = None
 
         root.title("Flippies Apps")
         root.geometry("624x420")
@@ -92,10 +98,11 @@ class App:
         bar.pack(side="right", fill="y")
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.show_selected())
 
-        self.info = tk.Text(root, height=3, wrap="word", background="#FFFFE0", relief="flat",
-                            borderwidth=2, highlightthickness=0)
+        # Labels and a Listbox, not Text widgets: Tk 8.6.18's Text never finishes drawing on the
+        # m68k desktop (it spins at full CPU)
+        self.info = tk.Label(root, height=3, wraplength=600, justify="left", anchor="nw",
+                             background="#FFFFE0", borderwidth=2, text="")
         self.info.pack(fill="x", padx=4)
-        self.info.configure(state="disabled")
 
         act = ttk.Frame(root, padding=4)
         act.pack(fill="x")
@@ -110,14 +117,14 @@ class App:
 
         logf = ttk.Frame(root, padding=(4, 0, 4, 4))
         logf.pack(fill="x")
-        self.log = tk.Text(logf, height=4, wrap="none", background="#000000", foreground="#C0C0C0",
-                           relief="flat", highlightthickness=0)
+        self.log = tk.Listbox(logf, height=4, background="#000000", foreground="#C0C0C0",
+                              relief="flat", highlightthickness=0, activestyle="none")
         lbar = ttk.Scrollbar(logf, orient="vertical", command=self.log.yview)
-        self.log.configure(yscrollcommand=lbar.set, state="disabled")
+        self.log.configure(yscrollcommand=lbar.set)
         self.log.pack(side="left", fill="x", expand=True)
         lbar.pack(side="right", fill="y")
 
-        root.after(100, self.poll)
+        root.bind("<<Work>>", self.drain)
         self.load(update_if_empty=True)
 
     # ---- reading the lists ----
@@ -130,13 +137,13 @@ class App:
         def work():
             try:
                 if update_if_empty and not pkgdb.list_files(self.lists_dir):
-                    self.queue.put(("update-first", None))
+                    self.send("update-first", None)
                     return
                 available = pkgdb.read_available(self.lists_dir)
                 installed = pkgdb.read_installed(self.status)
-                self.queue.put(("loaded", (available, installed)))
+                self.send("loaded", (available, installed))
             except Exception as e:  # any read failure is shown, never fatal
-                self.queue.put(("failed", "Could not read the package lists: %s" % e))
+                self.send("failed", "Could not read the package lists: %s" % e)
         threading.Thread(target=work, daemon=True).start()
 
     def refresh(self):
@@ -185,6 +192,9 @@ class App:
             self.say("%d packages; the first %d shown, type to find others" % (len(rows), MAX_ROWS))
         elif not self.busy:
             self.say("%d packages" % len(rows))
+        if self.result:
+            self.say(self.result)
+            self.result = None
         if keep and self.tree.exists(keep):
             self.tree.selection_set(keep)
             self.tree.see(keep)
@@ -196,8 +206,7 @@ class App:
 
     def show_selected(self):
         name = self.selected()
-        self.info.configure(state="normal")
-        self.info.delete("1.0", "end")
+        text = ""
         if name:
             p = self.available.get(name)
             st = pkgdb.state(name, self.available, self.installed)
@@ -207,9 +216,10 @@ class App:
                     p.version, pkgdb.format_bytes(p.size), pkgdb.format_kib(p.installed_size))
             if name in self.installed:
                 head += "   (installed: %s)" % self.installed[name]
-            self.info.insert("end", head + "\n")
+            text = head
             if p:
-                self.info.insert("end", p.summary + ". " + p.description.replace("\n", " "))
+                # Three lines of about 100 characters fit
+                text += "\n" + (p.summary + ". " + p.description.replace("\n", " "))[:200]
             can_install = st in (pkgdb.AVAILABLE, pkgdb.UPDATE)
             self.install_button.configure(text="Update" if st == pkgdb.UPDATE else "Install")
             self.enable(self.install_button, can_install and not self.busy)
@@ -217,7 +227,7 @@ class App:
         else:
             self.enable(self.install_button, False)
             self.enable(self.remove_button, False)
-        self.info.configure(state="disabled")
+        self.info.configure(text=text)
 
     @staticmethod
     def enable(button, on):
@@ -243,7 +253,7 @@ class App:
                                      text=True, errors="replace").stdout
             except OSError as e:
                 out = "E: %s" % e
-            self.queue.put(("simulated", (name, out)))
+            self.send("simulated", (name, out))
         threading.Thread(target=work, daemon=True).start()
 
     def simulated(self, name, out):
@@ -269,32 +279,48 @@ class App:
         """Runs apt-get, its output into the log and its progress lines into the bar."""
         self.set_busy(True, title + "...")
         self.progress.configure(value=0)
-        self.log.configure(state="normal")
-        self.log.delete("1.0", "end")
-        self.log.configure(state="disabled")
+        self.log.delete(0, "end")
 
         def work():
             try:
                 p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      stdin=subprocess.DEVNULL, text=True, errors="replace", bufsize=1)
             except OSError as e:
-                self.queue.put(("done", (title, 127, str(e), reload_lists)))
+                self.send("done", (title, 127, str(e), reload_lists))
                 return
             for line in p.stdout:
-                self.queue.put(("line", line.rstrip("\n")))
-            self.queue.put(("done", (title, p.wait(), None, reload_lists)))
+                self.send("line", line.rstrip("\n"))
+            self.send("done", (title, p.wait(), None, reload_lists))
         threading.Thread(target=work, daemon=True).start()
 
     # ---- the Tk side of the threads ----
 
-    def poll(self):
+    def send(self, kind, data):
+        """From a worker thread: queues a message and wakes the Tk thread with a virtual event
+        (tkinter hands the call to the Tk thread). One wake covers every message queued before
+        the Tk thread drains, so a burst of lines costs one. Nothing polls: a 100 ms poll alone
+        took most of the 25 MHz CPU."""
+        self.queue.put((kind, data))
+        if self.wake_pending:
+            return
+        self.wake_pending = True
+        while True:
+            try:
+                self.root.event_generate("<<Work>>", when="tail")
+                return
+            except RuntimeError:  # the Tk thread is not in its main loop yet
+                time.sleep(0.2)
+            except tk.TclError:  # the window is gone
+                return
+
+    def drain(self, _event=None):
+        self.wake_pending = False
         try:
             while True:
                 kind, data = self.queue.get_nowait()
                 self.handle(kind, data)
         except queue.Empty:
             pass
-        self.root.after(100, self.poll)
 
     def handle(self, kind, data):
         if kind == "line":
@@ -311,16 +337,15 @@ class App:
             title, code, err, reload_lists = data
             if err:
                 self.append_log(err)
+            # Kept over the package count that refilling the list shows
+            self.result = title + (": done" if code == 0 else ": failed (see the log)")
             if code == 0:
                 self.progress.configure(value=100)
-                self.say(title + ": done")
-            else:
-                self.say(title + ": failed (see the log)")
-                if code == 1 and not err:
-                    self.append_log("sudo did not run apt-get as root (it must not ask the desktop "
-                                    "user for a password).")
-                elif code == 100:
-                    self.append_log("apt-get failed. If it could not fetch a file, try Refresh.")
+            elif code == 1 and not err:
+                self.append_log("sudo did not run apt-get as root (it must not ask the desktop "
+                                "user for a password).")
+            elif code == 100:
+                self.append_log("apt-get failed. If it could not fetch a file, try Refresh.")
             self.busy = False
             if reload_lists:
                 self.load()
@@ -353,10 +378,10 @@ class App:
         self.message.configure(text=text)
 
     def append_log(self, text):
-        self.log.configure(state="normal")
-        self.log.insert("end", text + "\n")
+        self.log.insert("end", text)
+        if self.log.size() > LOG_LINES:
+            self.log.delete(0, self.log.size() - LOG_LINES - 1)
         self.log.see("end")
-        self.log.configure(state="disabled")
 
 
 def main():

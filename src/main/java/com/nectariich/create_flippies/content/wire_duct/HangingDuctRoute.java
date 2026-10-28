@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.foundation.wire.bend.BendGeometry;
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBendService;
@@ -28,7 +29,11 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+*///?}
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -99,15 +104,15 @@ public final class HangingDuctRoute {
 
     /** The terminal the wire in {@code stack} hangs from, or null. */
     public static BlockWireEndpoint start(ItemStack stack) {
-        CompoundTag connection = stack.getTagElement(CONNECTION);
+        CompoundTag connection = DuctRouting.connection(stack);
         IWireEndpoint endpoint = connection == null ? null : WireEndpointType.deserialize(connection);
         return endpoint instanceof BlockWireEndpoint block ? block : null;
     }
 
     /** The way through ducts chosen so far for the wire in {@code stack}: empty unless it belongs to its connection. */
     public static List<Vec3> points(ItemStack stack) {
-        CompoundTag route = stack.getTagElement(KEY);
-        CompoundTag connection = stack.getTagElement(CONNECTION);
+        CompoundTag route = StackData.sub(stack, KEY);
+        CompoundTag connection = DuctRouting.connection(stack);
         if (route == null || connection == null || !connection.equals(route.getCompound(CONNECTION)))
             return List.of();
         return WireBends.read(route);
@@ -115,9 +120,9 @@ public final class HangingDuctRoute {
 
     private static void write(ItemStack stack, List<Vec3> points) {
         CompoundTag route = new CompoundTag();
-        route.put(CONNECTION, stack.getTagElement(CONNECTION).copy());
+        route.put(CONNECTION, DuctRouting.connection(stack).copy());
         WireBends.write(route, points);
-        stack.getOrCreateTag().put(KEY, route);
+        StackData.put(stack, KEY, route);
     }
 
     /** Where the wire being laid has got to: the last point of its way, or its terminal. */
@@ -295,21 +300,28 @@ public final class HangingDuctRoute {
         }
         WireBendService.sync(wire);
         PlayerUtilities.removeItems(player, stack, items);
-        stack.removeTagKey(KEY);
-        stack.removeTagKey(CONNECTION);
+        StackData.remove(stack, KEY);
+        DuctRouting.clearConnection(stack);
     }
 
     /** A way left on a stack after its connection was cleared or replaced would only stop the stack stacking. */
     @SubscribeEvent
+    //? if forge {
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide
                 || event.player.tickCount % CLEAN_EVERY != 0)
             return;
         Inventory inventory = event.player.getInventory();
+    //?} else {
+    /*public static void onPlayerTick(PlayerTickEvent.Post event) {
+        if (event.getEntity().level().isClientSide || event.getEntity().tickCount % CLEAN_EVERY != 0)
+            return;
+        Inventory inventory = event.getEntity().getInventory();
+    *///?}
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
-            if (stack.getTagElement(KEY) != null && points(stack).isEmpty())
-                stack.removeTagKey(KEY);
+            if (StackData.sub(stack, KEY) != null && points(stack).isEmpty())
+                StackData.remove(stack, KEY);
         }
     }
 }

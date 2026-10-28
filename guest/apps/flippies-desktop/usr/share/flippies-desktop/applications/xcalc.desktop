@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Calculator
+Comment=A scientific calculator (xcalc)
+Exec=xcalc
+TryExec=xcalc
+Categories=Utility;Calculator;

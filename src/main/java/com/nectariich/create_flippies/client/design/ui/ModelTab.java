@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import com.nectariich.create_flippies.compat.Checkboxes;
 import com.nectariich.create_flippies.content.design_workbench.DesignKind;
 import com.nectariich.create_flippies.content.design_workbench.DesignOcclusion;
 import com.nectariich.create_flippies.content.indicator.IndicatorAction;
@@ -14,7 +15,6 @@ import com.nectariich.create_flippies.content.indicator.IndicatorRating;
 import dev.nectariich.hypergraphical.api.MeshUnit;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 
@@ -156,14 +156,11 @@ public final class ModelTab {
         DesignOcclusion occlusion = state.occlusion;
         panel.gap(2);
         panel.label(t("ao"), 0xE0E0E0);
-        panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20, t("ao.enabled"), occlusion.enabled()) {
-            @Override
-            public void onPress() {
-                super.onPress();
-                state.occlusion = state.occlusion.withEnabled(selected());
-                host.rebuild();
-            }
-        }).setTooltip(Tooltip.create(t("ao.enabled.tooltip")));
+        panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20, t("ao.enabled"), occlusion.enabled(),
+                selected -> {
+                    state.occlusion = state.occlusion.withEnabled(selected);
+                    host.rebuild();
+                })).setTooltip(Tooltip.create(t("ao.enabled.tooltip")));
         panel.row();
 
         AbstractSliderButton strength = panel.add(new AbstractSliderButton(Panel.X, panel.y, Panel.WIDTH, 20,

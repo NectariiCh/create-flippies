@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.indicator;
 import java.util.EnumMap;
 import java.util.Map;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.IProtrudingHitbox;
 import com.nectariich.create_flippies.foundation.SurfaceMount;
 import com.nectariich.create_flippies.foundation.control.ConfigurableBlock;
@@ -26,8 +27,6 @@ import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 import org.patryk3211.powergrid.electricity.base.ElectricBlock;
 import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
@@ -157,7 +156,7 @@ public class IndicatorBlock extends ElectricBlock
         if (!(level.getBlockEntity(pos) instanceof IndicatorBlockEntity unit))
             return false;
         if (level.isClientSide)
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            ClientOnly.run(
                     () -> () -> com.nectariich.create_flippies.client.IndicatorScreen.open(unit));
         return true;
     }

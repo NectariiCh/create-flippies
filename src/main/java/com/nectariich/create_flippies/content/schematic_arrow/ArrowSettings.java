@@ -1,5 +1,7 @@
 package com.nectariich.create_flippies.content.schematic_arrow;
 
+import com.nectariich.create_flippies.compat.StackData;
+
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -27,14 +29,14 @@ public record ArrowSettings(ArrowStyle style, ArrowAction action, ArrowSnap snap
     }
 
     public static ArrowSettings read(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
+        CompoundTag tag = StackData.peek(stack);
         if (tag == null || !tag.contains(ROOT, Tag.TAG_COMPOUND))
             return DEFAULT;
         return load(tag.getCompound(ROOT));
     }
 
     public void apply(ItemStack stack) {
-        stack.getOrCreateTag().put(ROOT, save());
+        StackData.put(stack, ROOT, save());
     }
 
     public CompoundTag save() {

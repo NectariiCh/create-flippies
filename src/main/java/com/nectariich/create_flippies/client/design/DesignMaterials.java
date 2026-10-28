@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignKind;
 import com.nectariich.create_flippies.content.design_workbench.DesignMaterial;
@@ -134,7 +135,7 @@ public final class DesignMaterials {
      */
     private static ResourceLocation material(HgMaterial base, DesignMaterial edit, boolean lit) {
         String seed = base.id() + "|" + edit.write() + "|" + lit;
-        ResourceLocation id = new ResourceLocation(CreateFlippies.MOD_ID, PREFIX
+        ResourceLocation id = Ids.of(CreateFlippies.MOD_ID, PREFIX
                 + UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8)).toString().replace("-", ""));
         if (REGISTERED.get(id) != base) {
             HypergraphicalAPI.registerMaterial(make(id, base, edit, lit));
@@ -157,7 +158,7 @@ public final class DesignMaterials {
         DesignMaterial surface = edit != null ? edit : of(base).withColor(0xFFFFFF);
         float[] uv = gauge.uvTransform();
         String seed = base.id() + "|dial|" + texture + "|" + surface.write() + "|" + java.util.Arrays.toString(uv);
-        ResourceLocation id = new ResourceLocation(CreateFlippies.MOD_ID, PREFIX
+        ResourceLocation id = Ids.of(CreateFlippies.MOD_ID, PREFIX
                 + UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8)).toString().replace("-", ""));
         if (REGISTERED.get(id) != base) {
             int color = surface.color();

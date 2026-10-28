@@ -15,7 +15,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 import org.patryk3211.powergrid.electricity.wire.BlockWireEntity;
 import org.patryk3211.powergrid.electricity.wire.HangingWireEntity;
@@ -130,7 +130,7 @@ public final class DuctedWires {
 
     /** A wire item's gauge ({@link DuctWires#awgOf}). */
     public static int awg(Item item) {
-        var id = ForgeRegistries.ITEMS.getKey(item);
+        var id = BuiltInRegistries.ITEM.getKey(item);
         return DuctWires.awgOf(id == null ? null : id.toString());
     }
 

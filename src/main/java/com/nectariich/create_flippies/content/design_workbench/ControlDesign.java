@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.content.design_workbench.annunciator.AnnunciatorRack;
 import com.nectariich.create_flippies.content.design_workbench.gauge.GaugeDial;
 import com.nectariich.create_flippies.content.design_workbench.screen.ScreenSurface;
@@ -452,7 +453,7 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
 
     /** The design an item carries, or null for an item with none. */
     public static ControlDesign of(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
+        CompoundTag tag = StackData.peek(stack);
         if (tag == null || !tag.contains(TAG, Tag.TAG_COMPOUND))
             return null;
         ControlDesign design = read(tag.getCompound(TAG));
@@ -460,7 +461,7 @@ public record ControlDesign(DesignKind kind, String model, String name, List<Str
     }
 
     public ItemStack applyTo(ItemStack stack) {
-        stack.getOrCreateTag().put(TAG, write());
+        StackData.put(stack, TAG, write());
         return stack;
     }
 

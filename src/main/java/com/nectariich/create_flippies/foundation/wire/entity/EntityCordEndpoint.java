@@ -2,9 +2,10 @@ package com.nectariich.create_flippies.foundation.wire.entity;
 
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.NbtCompat;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -60,7 +61,7 @@ public final class EntityCordEndpoint implements ICordEndpoint {
     @Override
     public void read(CompoundTag tag) {
         entity = tag.getUUID(EntityWireEndpoint.TAG);
-        anchor = NbtUtils.readBlockPos(tag.getCompound("Position"));
+        anchor = NbtCompat.readBlockPos(tag.getCompound("Position"));
         placement = new Vec3(tag.getDouble("PlacementX"), tag.getDouble("PlacementY"), tag.getDouble("PlacementZ"));
     }
 
@@ -72,7 +73,7 @@ public final class EntityCordEndpoint implements ICordEndpoint {
         tag.putDouble("PlacementY", placement.y);
         tag.putDouble("PlacementZ", placement.z);
         // What an auto-cord endpoint reads, should this mod be gone
-        tag.put("Position", NbtUtils.writeBlockPos(anchor));
+        tag.put("Position", NbtCompat.writeBlockPos(anchor));
         tag.putInt("Terminal1", 0);
         tag.putInt("Terminal2", 1);
         tag.putFloat("X", (float) placement.x);

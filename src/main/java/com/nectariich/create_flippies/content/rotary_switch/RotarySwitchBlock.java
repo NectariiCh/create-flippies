@@ -5,6 +5,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.IProtrudingHitbox;
 import com.nectariich.create_flippies.foundation.control.ConfigurableBlock;
 import com.nectariich.create_flippies.foundation.control.ControlConfig;
@@ -34,8 +35,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 import org.patryk3211.powergrid.electricity.base.ElectricBlock;
 import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
@@ -217,7 +216,7 @@ public class RotarySwitchBlock extends ElectricBlock
         if (!(level.getBlockEntity(pos) instanceof RotarySwitchBlockEntity switchEntity))
             return false;
         if (level.isClientSide)
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            ClientOnly.run(
                     () -> () -> com.nectariich.create_flippies.client.RotarySwitchScreen.open(switchEntity));
         return true;
     }

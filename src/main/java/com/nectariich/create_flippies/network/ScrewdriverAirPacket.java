@@ -1,13 +1,10 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverActions;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * A screwdriver click that hit nothing, which the block interaction events never
@@ -25,7 +22,7 @@ import net.minecraftforge.network.NetworkEvent;
  * standing in the air; a left click on nothing is what fills in a hole while looking
  * through it at the sky, which is the one gesture with no block anywhere to name.
  */
-public class ScrewdriverAirPacket {
+public class ScrewdriverAirPacket implements FlippiesPacket {
 
     private final InteractionHand hand;
     private final boolean removal;
@@ -45,9 +42,9 @@ public class ScrewdriverAirPacket {
         buffer.writeBoolean(removal);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             if (removal)
@@ -55,6 +52,5 @@ public class ScrewdriverAirPacket {
             else
                 ScrewdriverActions.useInAir(player, hand);
         });
-        context.get().setPacketHandled(true);
     }
 }
