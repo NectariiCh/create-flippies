@@ -6145,6 +6145,257 @@ Tests:
 - A preset disk made writable and then write-protected again keeps the plain name.
 - Not covered by tests (they need a Minecraft bootstrap): PcServer's undriven-modem pass, NetworkModemBlockEntity's onLoad and light sync, and FloppyDiskItem.fillFromPreset's ordering.
 
+### 12.18 As built (step 6: content packs, the share folder, the apt archive and apps)
+
+Built for both loaders (Forge 1.20.1 and NeoForge 1.21.1). This supersedes 12.17's bundling of the Debian image into the jar: the jar keeps only the netinstall floppy and tiny built-in pages.
+
+#### 12.18.1 Content packs
+
+The jar
+- The jar holds no OS image or package archive.
+- It keeps the modem code, the netinstall floppy (data/create_flippies/floppies/netinstall.img, 1.4 MB) and a few small built-in pages under data/create_flippies/internet/:
+  - hosts.txt, which lists get.flip
+  - get.flip/index.html
+  - get.flip/index.txt, comments only (no entries)
+- Both jars are about 4.9 MB.
+
+Pack format
+- A content pack is a zip file named *.flippack.
+- pack.json sits at the root: {"format": 1, "id": "...", "version": "...", "title": "...", "hosts": [...]}.
+  - id is [a-z0-9-]+.
+  - Hosts are lower-case DNS names; localfilesys.com is refused.
+  - Unknown keys are ignored.
+- hosts/<host>/<path> is served at http://<host>/<path>.
+- Already compressed data is STORED: chunk folders (<name>.fdi.z/ with size.txt and N.z), and .deb, .gz, .xz and .gpg files. Small text may be deflated.
+- Packs are read with random access (java.util.zip.ZipFile): sizes come from the central directory, and files stream on request.
+- A pack that cannot be used is skipped with one log line naming the reason: not a zip, missing or invalid pack.json, wrong format, bad id or host, or an id already loaded.
+
+Folders and lookup
+- Pack folders, both created at server start:
+  - <world>/flippies_packs/, looked up first
+  - config/create_flippies/packs/
+- Inside a folder, packs are ordered by file name.
+- The first pack that has a path (plain, or as a chunk folder) serves it. A later copy is logged once per pack pair.
+- The jar's built-in pages serve only what no pack has.
+- get.flip/index.txt is every pack's own index lines joined in lookup order, so several OS packs all show in the netinstall menu. When the packs list no entry, the jar's index is served.
+- With an index that has no entries, the netinstall floppy says "No OS is available on this server. Ask the server owner to install an OS pack."
+
+Commands (operator level 2)
+- "/flippies packs" lists the packs in lookup order (id, version, title, hosts, world or server, file), every served host, and the folders.
+- "/flippies packs reload" rescans the folders.
+- On reload the old set is retired, not closed. A response already being served keeps reading its old pack until it ends, and that pack's zip closes when its last reader lets go. New requests see the new set.
+
+Auto-download, server config [packs]
+- Settings:
+  - downloads: a list of "<file name> <sha256> <url>" strings, empty by default
+  - allowHttp: default false
+  - maxPackMiB: default 4096
+- On server start, the listed packs are fetched one after another on a daemon thread, never the server thread, into config/create_flippies/packs/.
+- Each download goes to a .part file, with a 30 s connect timeout, a 60 s read timeout and the size cap.
+- The SHA-256 and pack.json are checked, then the file is moved into place atomically, and a reload is queued on the server thread.
+- A file of the target name already there is never replaced: with the right hash it is not fetched; with another hash it is kept and logged.
+- Failures are logged and the server keeps running. Downloads stop when the server stops.
+- The config is read before the packs load on both Forge 1.20.1 and NeoForge 1.21.1 (seen in the dev server logs).
+
+File share
+- <world>/localfilesys/ is created at server start and served read-only and live at http://localfilesys.com/. The share comes before the packs.
+- Folders get an HTML 3.2 index:
+  - a parent link, then folders, then files, by name
+  - file sizes
+  - percent-encoded UTF-8 links with escaped names
+  - at most 2000 entries
+- Each path must stay under the share's real path, both after normalizing and after resolving symlinks.
+- '..', '.', empty segments, '\' and control characters are refused.
+- Only regular files are served, in 64 KiB blocks.
+
+Headless runner
+- --pack FILE (repeatable, first wins) layers packs over --catalogue or over the jar's built-in pages.
+- --share DIR serves DIR as localfilesys.com.
+
+The two packs
+- guest/packs/build.sh writes them to guest/packs/out/ with guest/packs/mkpack.py. Arguments: os, apps or --test.
+- The zips are deterministic: pack.json first, then the files sorted by name, all with the snapshot's time and mode 0644, and no directory entries.
+- Each pack gets a .sha256 next to it.
+- debian-os.flippack:
+  - serves get.flip: index.txt with "image /debian.fdi 319920352 Debian GNU/Linux m68k desktop (20261025T063552Z)", plus the debian.fdi.z chunks from guest/debian/build.sh --chunks
+  - 110,588,602 bytes, sha256 b53b03aebc4556ab560f9247b8a00824bf8ffdfe1494dfa5546d5cadbf685720
+- debian-apps.flippack:
+  - serves deb.flip from guest/apt/out/archive
+  - 226,554,729 bytes, sha256 ffe6a9d977b4880e720c4c9337b3926b8ee740314c1c51d15b5f9d5253758714
+
+#### 12.18.2 The apt archive and the desktop apps
+
+Building the archive
+- guest/apt/build.sh builds the deb.flip archive. It runs in the toolchain container, and starts it itself when run elsewhere.
+- Packages come from the debian-ports snapshot 20261025T063552Z (unstable and unreleased).
+- The package set is resolved by apt, with Recommends off, against guest/apt/oldest-image.status (the first image served), so it completes every later disk too. --image FILE resolves against a built disk instead.
+- The build fails if the plan would remove or upgrade an installed package, or install systemd, openrc or systemd-sysv.
+- Every .deb is checked against the snapshot's signed indexes.
+- Layout: dists/unstable/main/binary-m68k with Packages, Packages.gz and Packages.xz, plus pool/, pool-m68k/ and pool/local/.
+- Release is signed as InRelease and Release.gpg with our Ed25519 key, dated at the snapshot. The output is identical byte for byte across builds.
+- The private key stays in guest/apt/out/signing/, which is ignored by git and never goes into a pack.
+- The public key is served at http://deb.flip/flippies-archive.gpg. The image has it as /etc/apt/trusted.gpg.d/flippies-archive.gpg.
+
+What the archive offers (188 packages, 217 MB)
+- vim, nedit
+- python3, python3-tk, idle, tk8.6, perl, lua5.4, bc
+- gcc, make, libc6-dev
+- openjdk-17-jdk-headless (Zero VM)
+- x11-apps (xcalc, xclock, xeyes, xload, xmag, xedit)
+- the file manager worker
+- feh, dillo, xpdf
+- GStreamer tools and base plugins, with flippies-video
+- htop, mc, zip, unzip, curl, file, tmux, tree, sqlite3, bzip2, git
+- games: bsdgames, xbill, xjump, xgalaga, xmahjongg, ace-of-penguins, xboard, gnuchess
+- our own packages: flippies-desktop 1.1, flippies-apps 1.2, flippies-sharedfiles 1.2, flippies-sysinfo 1.1, flippies-video 1.0
+
+Left out, and why
+- GTK 3 programs (pcmanfm, gpicview, galculator, mousepad): they pull in dbus, dconf, at-spi and systemd, and start too slowly.
+- xfe: FOX 1.6 on big-endian m68k draws no text on its buttons, menus and column headers, and pink frames, at 256 colours. Fixing its colour settings did not help. worker (its own Xlib toolkit, about 4.5 MB installed, adds avfs and fuse3) is the file manager instead.
+- mpv, mplayer, ffplay, vlc: not installable on m68k at this snapshot.
+- gst-play: cannot draw on the 8-bit PseudoColor display, so flippies-video shows GStreamer's frames through Tk.
+
+Measured on the 68040 at 25 MHz with 128 MiB (emulated / host)
+- apt update: 27 s / 5.5 s
+- Installing vim and python3: 559 s / 126 s
+- Installing worker, feh, x11-apps, flippies-video, dillo and nedit: 2661 s / 581 s
+- openjdk-17-jdk-headless: about 62 min to install. Then java -version takes 19 s, a hello world 43 s, and javac 10 min for one small file.
+
+The desktop apps
+- guest/apps/build.sh runs the host tests, then builds four Architecture: all packages reproducibly.
+- flippies-desktop:
+  - The Start menu's Dynamic "Apps" submenu, built from the .desktop files and grouped by category, with "Install more apps..." at the end.
+  - A dpkg trigger on /usr/share/applications, /usr/bin and /usr/games refreshes it.
+  - On an older disk, its postinst adds the submenu to each user's ~/.jwmrc and restarts JWM.
+- flippies-apps:
+  - A Tk package center with Apps, Installed and All views, search, and one-click Install and Remove through sudo -n apt-get, with a progress bar.
+  - It refuses a removal that would take away a protected package.
+  - Its window is 624x420.
+  - The featured list now names worker under Files.
+- flippies-sharedfiles:
+  - Browses http://localfilesys.com/ and downloads into ~/Downloads.
+  - It opens that folder with xdg-open, pcmanfm or worker, the first one installed.
+- flippies-sysinfo: shows CPU, memory, disk, network and kernel.
+- The first time worker starts, it offers to copy in its example configuration (one click).
+
+The image
+- guest/debian/build.sh adds the archive key, python3 and python3-tk, the four guest/apps packages and /usr/share/man/man1 (which openjdk's postinst needs).
+- Its sources.list stays "deb [check-valid-until=no] http://deb.flip/ unstable main".
+
+A disk installed before this step
+- sudo wget -qO /etc/apt/trusted.gpg.d/flippies-archive.gpg http://deb.flip/flippies-archive.gpg && sudo apt update && sudo apt install -y flippies-desktop flippies-apps
+- Java on such a disk also needs: sudo mkdir -p /usr/share/man/man1
+- A disk that already has the 1.1 apps gets 1.2 with: sudo apt update && sudo apt upgrade -y
+
+#### 12.18.3 Changes after review
+
+Changes after review to 12.18.1 and 12.18.2.
+
+In 12.18.1, under "Auto-download, server config [packs]", replace the bullet "Each download goes to a .part file, with a 30 s connect timeout, a 60 s read timeout and the size cap." with:
+- Each download goes to <file name>.part in the server pack folder, with a 30 s connect timeout, a 60 s read timeout and the size cap. A retry writes over its own .part file, so one pack never has more than one.
+- When the server starts, before any download, every *.flippack*.part file in config/create_flippies/packs/ is deleted and logged with its size. A server stopped or killed mid-download can leave one, because the download thread is a daemon thread and may end before it cleans up. This happens even with an empty download list.
+
+Replace "Downloads stop when the server stops." with:
+- Downloads stop at their next read when the server stops.
+
+In 12.18.1, under "The two packs", replace the two size and hash lines:
+- debian-os.flippack: 110,588,747 bytes, sha256 aab3f84706a8fe0dbd381f3d2f17f0400da108e3e7e53280f9a575a7e5a72fe5
+- debian-apps.flippack: 226,554,779 bytes, sha256 dd3c9156680075ab1b98b89be86b697af451523b718b2834902eedce7905217e
+
+In 12.18.2:
+- In "our own packages", flippies-apps 1.2 becomes flippies-apps 1.3.
+- In the flippies-apps item, replace "It refuses a removal that would take away a protected package." with:
+  - Before a removal it simulates the exact command it will run (apt-get -s --autoremove remove).
+  - The confirmation dialog lists every package that goes, including auto-installed packages that nothing needs any more anywhere on the system, not only the app's own.
+  - It refuses the removal if any of them is protected.
+
+In "A disk installed before this step", replace the last bullet with:
+- A disk that already has the 1.1 or 1.2 apps gets flippies-apps 1.3 with: sudo apt update && sudo apt upgrade -y
+
+### 12.19 As built: PC snapshots and freezing
+
+User decisions (2026-10-28):
+- A snapshot captures one PC case: its parts, the machine state (RAM, CPU, every device) and its
+  hard disk and floppy. Monitors, keyboards, modems and cords are not captured; they are plugged
+  in again after placing.
+- Snapshots are kept on the player's own computer by default (single player and multiplayer),
+  or with an option on the server.
+- A snapshot comes back as a PC case item from a command, placed by hand, and the placed PC is
+  frozen until a command unfreezes it.
+
+#### 12.19.1 Freezing
+
+- `PcCaseBlockEntity` gains `Frozen` (saved NBT and synced). A frozen PC keeps its machine in
+  memory but is out of the scheduler: emulated time stands still, it draws no power, a power cut
+  does not turn it off, keys and mouse input are dropped, and it moves no data on its ports (a
+  running peer's frames wait in its queues; a modem it drives loses power). Its screens keep
+  their last picture. The goggles and case screen say "Frozen".
+- The power and reset buttons and the floppy slot refuse with a message while frozen; other part
+  changes are already refused while a machine exists.
+- Freezing needs a machine (an off PC is refused). Unfreezing needs the supply in its start
+  window and room under the running cap. Frozen machines count towards the total RAM cap, not
+  the running cap.
+- A frozen PC saves and unloads like a running one. On load it restores its state and stays
+  frozen; a state that cannot be loaded leaves it off (never a cold boot behind a freeze).
+
+#### 12.19.2 The snapshot file (`PcSnapshot`, `.flipsnap`)
+
+A zip of:
+- `snapshot.json`: format 1, name, creation time, Minecraft version, loader, whether it holds a
+  state, CPU, usable RAM, and the HDD's and floppy's disk ids at the time.
+- `case.nbt`: the parts list as the case saves it (item NBT differs between game versions, so a
+  snapshot is placed only on the Minecraft version it was taken on).
+- `state.bin`: `Machine.saveState()`, only for a PC that was on.
+- `disks/hdd/<chunk>.bin`, `disks/floppy/<chunk>.bin`: the disk store's chunk files, verbatim.
+
+The disk chunks and state are already compressed and are STORED. A Debian desktop PC is a few
+hundred MiB.
+
+#### 12.19.3 Commands (`PcCommands`, operators only)
+
+- `/flippies pc freeze [<pos>|all]` and `/flippies pc unfreeze [<pos>|all]`. Without a
+  position, the case the player looks at (16 blocks).
+- `/flippies pc snapshot save <name> [server] [<pos>]`: a running PC is frozen while its disks
+  are copied (seconds), then runs on unless it was frozen before. The state is taken on the
+  server thread; the disks are copied after the PC writer has written everything queued
+  (`PcFileWriter.barrier`), on a background thread.
+- `/flippies pc snapshot give <name> [server]`: checks the file, copies it into the world's store
+  `<world>/create_flippies/snapshots/<sha256>.flipsnap`, and gives a PC case item named
+  "PC Case (snapshot <name>)" with tag `Snapshot` {`Sha`, `Name`, `Running`}.
+- `/flippies pc snapshot list [server]`.
+- Names: letters, digits, `_`, `-`, `.`, up to 64, not starting with a dot.
+
+Where files go:
+- "Local" is `<game dir>/create_flippies/snapshots/` on the player's computer. For the host of
+  a single-player or LAN world the server writes and reads it directly. Any other player's copy
+  travels in packets: `SnapshotChunkPacket` (512 KiB pieces down, at most 8 unacknowledged,
+  `SnapshotAckPacket` back), and for give, `SnapshotRequestPacket` then `SnapshotUploadPacket`
+  (30,000-byte pieces up, at most 256 unacknowledged, `SnapshotUploadAckPacket` every 16). The
+  client sends only what the server asked for by transfer number; the server refuses pieces out
+  of order or past `[snapshots] maxSnapshotMiB` (default 2048). A player leaving ends their
+  transfers. Partial files are `.part` and are never used.
+- "Server" is `config/create_flippies/snapshots/`.
+
+#### 12.19.4 Placing
+
+`PcCaseBlock.setPlacedBy` hands a snapshot item to `PcSnapshots.place`:
+- The case NBT is read at once and the parts go in, the HDD and floppy with fresh disk ids, so
+  every placed copy has disks of its own.
+- On the background thread the disk chunks are copied under the new ids, and the state is moved
+  to them (`Machine.withDiskId`: the id's 17 bytes in the HDD or floppy section replaced and the
+  checksum made again) and written as the case's state file at generation 1.
+- The case is frozen with its supply on and waits for the copy before it restores. A failed copy
+  leaves it off and says why.
+- The MAC address is the snapshot's own (1:1), so two copies of one snapshot on the same cable
+  would clash.
+
+#### 12.19.5 Tests and what is not verified
+
+- `PcSnapshotTest` (the file round trip, names, chunk file names) and
+  `BoardE2eTest.aStateMovesToCopiesOfItsDisks` (a running machine's state moved to copied disks
+  loads and saves identically; the old state is refused there).
+- Not run: the commands in a real game, a multiplayer transfer, placing a Debian snapshot.
+
 ## Review decisions
 
 Two reviews (ISA facts, and architecture) were applied. Everything was accepted except what is

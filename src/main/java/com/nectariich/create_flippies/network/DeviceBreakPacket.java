@@ -1,12 +1,9 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.device.DeviceBreaking;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * A player began holding the attack button on a device ({@code finished} false), or
@@ -14,7 +11,7 @@ import net.minecraftforge.network.NetworkEvent;
  * times the hold; the server checks the reach and the time again in
  * {@link DeviceBreaking}.
  */
-public class DeviceBreakPacket {
+public class DeviceBreakPacket implements FlippiesPacket {
 
     private final int entityId;
     private final boolean finished;
@@ -34,12 +31,11 @@ public class DeviceBreakPacket {
         buffer.writeBoolean(finished);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player != null)
                 DeviceBreaking.handle(player, entityId, finished);
         });
-        context.get().setPacketHandled(true);
     }
 }

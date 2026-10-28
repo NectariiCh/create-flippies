@@ -126,7 +126,7 @@ public class ScreenEditorScreen extends Screen implements EditorHost {
     @Override
     public void rotate() {
         if (mount == null)
-            ModPackets.CHANNEL.sendToServer(new ConfigureAlphanumDisplayPacket(pos));
+            ModPackets.sendToServer(new ConfigureAlphanumDisplayPacket(pos));
     }
 
     @Override
@@ -191,9 +191,15 @@ public class ScreenEditorScreen extends Screen implements EditorHost {
     }
 
     @Override
+    //? if forge {
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         return editor.mouseScrolled(mouseX, mouseY, delta);
     }
+    //?} else {
+    /*public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return editor.mouseScrolled(mouseX, mouseY, scrollY);
+    }
+    *///?}
 
     /** Every key goes to the editor first, Esc included: it closes a context menu or a field before the editor. */
     @Override
@@ -244,22 +250,22 @@ public class ScreenEditorScreen extends Screen implements EditorHost {
 
         @Override
         public void remove(int id) {
-            ModPackets.CHANNEL.sendToServer(EditScreenElementPacket.remove(pos, mount, id));
+            ModPackets.sendToServer(EditScreenElementPacket.remove(pos, mount, id));
         }
 
         @Override
         public void set(int id, int mask, ScreenElement.Fields values) {
-            ModPackets.CHANNEL.sendToServer(EditScreenElementPacket.set(pos, mount, id, mask, values));
+            ModPackets.sendToServer(EditScreenElementPacket.set(pos, mount, id, mask, values));
         }
 
         @Override
         public void zTo(int id, int index) {
-            ModPackets.CHANNEL.sendToServer(EditScreenElementPacket.zTo(pos, mount, id, index));
+            ModPackets.sendToServer(EditScreenElementPacket.zTo(pos, mount, id, index));
         }
 
         @Override
         public void put(ScreenElement element, int index, int generation) {
-            ModPackets.CHANNEL.sendToServer(EditScreenElementPacket.put(pos, mount, element, index, generation));
+            ModPackets.sendToServer(EditScreenElementPacket.put(pos, mount, element, index, generation));
         }
 
         @Override

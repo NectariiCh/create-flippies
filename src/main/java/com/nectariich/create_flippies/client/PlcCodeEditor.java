@@ -683,7 +683,11 @@ public class PlcCodeEditor extends AbstractWidget {
     }
 
     @Override
+    //? if forge {
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    //?} else {
+    /*public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
+    *///?}
         if (!visible || !isMouseOver(mouseX, mouseY))
             return false;
         if (Screen.hasShiftDown())

@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.label.PanelLabel;
 import com.nectariich.create_flippies.content.label.PanelLabelControl;
 import com.nectariich.create_flippies.content.label.PanelLabelPrint;
@@ -12,7 +10,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Applies the editor's legend, colour and lettering to one mounted panel label.
@@ -26,7 +23,7 @@ import net.minecraftforge.network.NetworkEvent;
  * megabyte before anything has looked at it, and the sanitising is what stops a
  * client writing formatting codes that its own editor would not have let through.
  */
-public class ConfigurePanelLabelPacket {
+public class ConfigurePanelLabelPacket implements FlippiesPacket {
 
     /**
      * How much text the decoder will read. Twice the stored limit rather than exactly
@@ -71,9 +68,9 @@ public class ConfigurePanelLabelPacket {
         print.encode(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             Level level = player.level();
@@ -85,6 +82,5 @@ public class ConfigurePanelLabelPacket {
             label.configure(PanelLabel.sanitise(text), PanelLabel.sanitiseColour(colour),
                     PanelLabel.sanitiseColour(plateColour), print);
         });
-        context.get().setPacketHandled(true);
     }
 }

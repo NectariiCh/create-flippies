@@ -16,18 +16,21 @@ import net.minecraft.world.level.Level;
  * {@link KeyboardEntity} does, and the player's mouse drives the PC's mouse until
  * the toggle key hands it back to looking around.
  *
- * The model `keyboard_and_mouse.json` is the keyboard's, with the `ps/2 2` cube
- * beside `ps/2`.
+ * The model `keyboard_and_mouse.json` has a keyboard body and a mouse body, each
+ * with its port on its +x side: `ps/2` on the keyboard, `ps/2 2` on the mouse.
  */
 public class KeyboardMouseEntity extends KeyboardEntity {
 
+    /** The model's `ps/2` cube, px. */
+    static final double[] KEYBOARD_PORT = KeyboardGeometry.PAIR_KEYBOARD_PORT;
     /** The model's `ps/2 2` cube, px. */
     static final double[] MOUSE_PORT = KeyboardGeometry.MOUSE_PORT;
 
-    private static final double[][] PORTS = {PORT, MOUSE_PORT};
+    private static final double[][] PORTS = {KEYBOARD_PORT, MOUSE_PORT};
 
-    public static final DeviceShape SHAPE = new DeviceShape(new double[][] {BODY},
-            new double[][] {portBox(PORT), portBox(MOUSE_PORT)}, -1);
+    public static final DeviceShape SHAPE = new DeviceShape(
+            new double[][] {KeyboardGeometry.PAIR_KEYBOARD_BODY, KeyboardGeometry.PAIR_MOUSE_BODY},
+            new double[][] {portBox(KEYBOARD_PORT), portBox(MOUSE_PORT)}, -1);
 
     public KeyboardMouseEntity(EntityType<?> type, Level level) {
         super(type, level);

@@ -39,6 +39,14 @@ public abstract class CameraMixin {
     @Shadow
     protected abstract void setRotation(float yRot, float xRot);
 
+    //? if neoforge {
+    /*@Shadow
+    protected abstract void setRotation(float yRot, float xRot, float roll);
+
+    @Shadow
+    public abstract float getRoll();
+    *///?}
+
     @Shadow
     public abstract Vec3 getPosition();
 
@@ -53,7 +61,13 @@ public abstract class CameraMixin {
             boolean mirrored, float partialTick, CallbackInfo ci) {
         EditorCamera.Pose editor = EditorCamera.pose(getPosition(), getYRot(), getXRot());
         if (editor != null) {
+            //? if forge {
             setRotation(editor.yaw(), editor.pitch());
+            //?} else {
+            /*// NeoForge sets the roll in setup itself, before this, and a two-angle
+            // setRotation clears it, so the display's roll is put back here
+            setRotation(editor.yaw(), editor.pitch(), EditorCamera.roll(getRoll()));
+            *///?}
             setPosition(editor.position());
             this.detached = false;
             return;

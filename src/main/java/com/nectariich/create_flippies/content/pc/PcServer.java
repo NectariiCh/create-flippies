@@ -14,10 +14,10 @@ import java.util.UUID;
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.computer.machine.Machine;
 import com.nectariich.create_flippies.content.computer.net.Catalogue;
-import com.nectariich.create_flippies.content.computer.net.ClasspathContent;
 import com.nectariich.create_flippies.content.computer.net.SharedFolder;
 import com.nectariich.create_flippies.content.data_cord.DataLink;
 import com.nectariich.create_flippies.content.keyboard.KeyboardCaptures;
+import com.nectariich.create_flippies.content.modem.ModemPacks;
 import com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity;
 import com.nectariich.create_flippies.foundation.ServerConfig;
 
@@ -42,7 +42,9 @@ public final class PcServer {
     private final Set<NetworkModemBlockEntity> modems = new HashSet<>();
     private final Map<UUID, PcLinkExchange.ComCable> comCables = new HashMap<>();
     private final KeyboardCaptures captures = new KeyboardCaptures();
+    private final ModemPacks packs;
     private final Catalogue catalogue;
+    private final PcSnapshots snapshots;
     // CRT
     private final com.nectariich.create_flippies.content.crt.CrtSync crts =
             new com.nectariich.create_flippies.content.crt.CrtSync();
@@ -51,17 +53,22 @@ public final class PcServer {
     private PcServer(MinecraftServer server) {
         this.worldDir = server.getWorldPath(LevelResource.ROOT);
         this.disks = new DiskStore(worldDir, writer, ServerConfig.diskCacheChunksPerDisk());
-        this.catalogue = catalogue(worldDir);
+        this.packs = new ModemPacks(server, worldDir);
+        this.catalogue = catalogue(worldDir, packs);
+        this.snapshots = new PcSnapshots(server, this);
     }
 
-    /** The world's file share ({@code <world>/localfilesys/}, made here when missing) before the bundled internet. */
-    private static Catalogue catalogue(Path worldDir) {
+    /**
+     * The world's file share ({@code <world>/localfilesys/}, made here when missing) before the
+     * content packs over the jar's built-in pages.
+     */
+    private static Catalogue catalogue(Path worldDir, ModemPacks packs) {
         try {
-            return new Catalogue(SharedFolder.ofWorld(worldDir), ClasspathContent.bundled());
+            return new Catalogue(SharedFolder.ofWorld(worldDir), packs.registry());
         } catch (IOException e) {
             CreateFlippies.LOGGER.error("Could not make the file share folder in {}; {} is not served",
                     worldDir, SharedFolder.HOST, e);
-            return new Catalogue(ClasspathContent.bundled());
+            return new Catalogue(packs.registry());
         }
     }
 
@@ -71,6 +78,7 @@ public final class PcServer {
 
     static void start(MinecraftServer server) {
         current = new PcServer(server);
+        current.packs.startDownloads();
     }
 
     /** After the final world save: every disk write queued, then waited for. */
@@ -79,6 +87,8 @@ public final class PcServer {
         current = null;
         if (server == null)
             return;
+        server.packs.stop();
+        server.snapshots.stop();
         server.disks.flushAll();
         server.writer.drain();
     }
@@ -103,9 +113,26 @@ public final class PcServer {
         return captures;
     }
 
-    /** What every network modem in this world serves (spec 12.4.3): the world's file share, then the bundled hosts. */
+    /** What every network modem in this world serves (spec 12.4.3): the world's file share, then the content packs. */
     public Catalogue catalogue() {
         return catalogue;
+    }
+
+    /** PC snapshots: taking, storing, sending and placing them (spec 12.19). */
+    public PcSnapshots snapshots() {
+        return snapshots;
+    }
+
+    /** The PC cases loaded now, for commands that act on all of them. */
+    public List<PcCaseBlockEntity> loadedCases() {
+        List<PcCaseBlockEntity> cases = new ArrayList<>(loaded);
+        cases.removeIf(PcCaseBlockEntity::isRemoved);
+        return cases;
+    }
+
+    /** The content packs the modems serve, and their reload. */
+    public ModemPacks packs() {
+        return packs;
     }
 
     // CRT
@@ -132,12 +159,12 @@ public final class PcServer {
         modems.remove(modem);
     }
 
-    /** The usable RAM of every machine held in memory, for the total RAM cap. */
+    /** The usable RAM of every machine held in memory, running or frozen, for the total RAM cap. */
     public long heldRamBytes() {
         long total = 0;
-        for (PcScheduler.Job job : scheduler.jobs())
-            if (job instanceof PcRuntime runtime)
-                total += runtime.ramBytes();
+        for (PcCaseBlockEntity pc : loaded)
+            if (pc.runtime() != null)
+                total += pc.runtime().ramBytes();
         return total;
     }
 
@@ -148,6 +175,7 @@ public final class PcServer {
         // CRT: the pictures, read now that every PC ran this tick
         crts.tick(server.overworld().getGameTime());
         captures.tick(server);
+        snapshots.tick();
     }
 
     /**
@@ -165,7 +193,8 @@ public final class PcServer {
         Set<NetworkModemBlockEntity> driven = new HashSet<>();
         for (PcCaseBlockEntity pc : cases) {
             PcRuntime runtime = pc.runtime();
-            if (runtime == null)
+            // A frozen PC moves no data; what a running peer sends it waits in its queues
+            if (runtime == null || pc.frozen())
                 continue;
             try {
                 exchange(pc, runtime.machine(), liveCables, driven);

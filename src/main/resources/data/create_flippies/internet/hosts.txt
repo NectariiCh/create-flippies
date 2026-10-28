@@ -1,5 +1,4 @@
-# The hosts the network modem's DNS answers (docs/PC_SPEC.md 12.4.1, 12.4.3), one per line.
-# Each is a folder beside this file; get.flip/index.txt is made by the build, and deb.flip (the
-# package archive) is copied from guest/apt/out/archive by the build.
+# The hosts the jar's built-in pages answer (docs/PC_SPEC.md 12.4.1, 12.4.3), one per line, each a
+# folder beside this file. Big content (OS images, the apt archive) is not in the jar: it comes in
+# content packs (*.flippack) that the server loads, served over these pages.
 get.flip
-deb.flip

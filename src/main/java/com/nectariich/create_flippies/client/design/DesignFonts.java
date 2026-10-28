@@ -18,6 +18,7 @@ import java.util.stream.Stream;
 
 import com.mojang.blaze3d.font.TrueTypeGlyphProvider;
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.design_workbench.DesignBundle;
 import com.nectariich.create_flippies.content.design_workbench.DesignText;
 import com.nectariich.create_flippies.content.design_workbench.DesignTransfers;
@@ -30,6 +31,17 @@ import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.stb.STBTTFontinfo;
 import org.lwjgl.stb.STBTruetype;
 import org.lwjgl.system.MemoryUtil;
+//? if neoforge {
+/*import org.lwjgl.PointerBuffer;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.util.freetype.FT_Face;
+import org.lwjgl.util.freetype.FreeType;
+
+import com.mojang.blaze3d.font.GlyphProvider;
+
+import net.minecraft.client.gui.font.FontOption;
+import net.minecraft.client.gui.font.providers.FreeTypeUtil;
+*///?}
 
 /**
  * The fonts text on a designed control can be printed in: the four the game ships,
@@ -80,13 +92,19 @@ public final class DesignFonts {
 
     private static final String FONT_PATH = "designfont/";
 
-    private static final ResourceLocation DEFAULT = new ResourceLocation(DesignText.DEFAULT_FONT);
+    private static final ResourceLocation DEFAULT = Ids.parse(DesignText.DEFAULT_FONT);
 
     /** Bytes of every font file known here: installed from a server, or read from the fonts folder. */
     private static final Map<String, byte[]> BYTES = new HashMap<>();
 
     /** The font sets this class put into the font manager, to tell when a reload has thrown them out. */
     private static final Map<String, FontSet> REGISTERED = new HashMap<>();
+
+    //? if neoforge {
+    /*// The provider behind each registered set. A 1.21.1 font set does not close its
+    // providers when the manager throws it out, so the one a set replaces is closed here
+    private static final Map<String, GlyphProvider> PROVIDERS = new HashMap<>();
+    *///?}
 
     private static final Map<String, Metrics> METRICS = new HashMap<>();
 
@@ -188,7 +206,7 @@ public final class DesignFonts {
         if (designFont == null)
             return DEFAULT;
         if (DesignText.BUILT_IN_FONTS.contains(designFont))
-            return new ResourceLocation(designFont);
+            return Ids.parse(designFont);
         String hash = designFont.startsWith(DesignText.TTF_PREFIX)
                 ? designFont.substring(DesignText.TTF_PREFIX.length())
                 : null;
@@ -265,14 +283,57 @@ public final class DesignFonts {
             return false;
         }
         METRICS.put(hash, measure(info));
+        //? if forge {
         TrueTypeGlyphProvider provider = new TrueTypeGlyphProvider(buffer, info, SIZE, OVERSAMPLE, 0, 0, "");
+        //?} else {
+        /*// 1.21.1 draws through FreeType, so the font info was only needed for measuring
+        info.free();
+        TrueTypeGlyphProvider provider = freeTypeProvider(buffer);
+        if (provider == null) {
+            MemoryUtil.memFree(buffer);
+            CreateFlippies.LOGGER.warn("Design font {} is not a font this client can read", hash);
+            BROKEN.put(hash, true);
+            return false;
+        }
+        *///?}
         ResourceLocation id = id(hash);
         FontSet set = new FontSet(Minecraft.getInstance().getTextureManager(), id);
+        //? if forge {
         set.reload(List.of(provider));
+        //?} else {
+        /*set.reload(List.of(new GlyphProvider.Conditional(provider, FontOption.Filter.ALWAYS_PASS)), Set.of());
+        GlyphProvider replaced = PROVIDERS.put(hash, provider);
+        if (replaced != null)
+            replaced.close();
+        *///?}
         sets.put(id, set);
         REGISTERED.put(hash, set);
         return true;
     }
+
+    //? if neoforge {
+    /*// The game's provider over a FreeType face of the file, opened the way vanilla's
+    // TrueType loader opens one, or null if FreeType cannot read it. The provider owns
+    // the face from here on and frees it, and the buffer, when it is closed.
+    private static TrueTypeGlyphProvider freeTypeProvider(ByteBuffer buffer) {
+        synchronized (FreeTypeUtil.LIBRARY_LOCK) {
+            FT_Face face;
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                PointerBuffer pointer = stack.mallocPointer(1);
+                if (FreeTypeUtil.checkError(FreeType.FT_New_Memory_Face(FreeTypeUtil.getLibrary(), buffer, 0L, pointer),
+                        "Initializing font face"))
+                    return null;
+                face = FT_Face.create(pointer.get());
+            }
+            if (FreeTypeUtil.checkError(FreeType.FT_Select_Charmap(face, FreeType.FT_ENCODING_UNICODE),
+                    "Find unicode charmap")) {
+                FreeType.FT_Done_Face(face);
+                return null;
+            }
+            return new TrueTypeGlyphProvider(buffer, face, SIZE, OVERSAMPLE, 0, 0, "");
+        }
+    }
+    *///?}
 
     /**
      * The capital height and where it starts, in the units the game lays text out

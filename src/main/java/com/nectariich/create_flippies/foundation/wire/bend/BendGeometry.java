@@ -47,8 +47,23 @@ public final class BendGeometry {
 
     /** The curve one leg hangs in. */
     public static CurveParameters curve(Vec3 from, Vec3 to, double horizontal, double vertical, double thickness) {
+        //? if forge {
         return new CurveParameters(from, to, horizontal, vertical, thickness);
+        //?} else {
+        /*return new CurveParameters(from, to, curveLength(from, to, horizontal, vertical), thickness);
+        *///?}
     }
+
+    //? if neoforge {
+    /*// Power Grid for 1.21.1 takes a curve's length where it took the coefficients. This
+    // is the length its 1.20.1 constructor worked out from them, to the bit: the
+    // horizontal span rounded through a float, and a vertical leg as long as its rise.
+    public static double curveLength(Vec3 from, Vec3 to, double horizontal, double vertical) {
+        double dx = (float) new Vec3(to.x - from.x, 0, to.z - from.z).length();
+        double dy = to.y - from.y;
+        return dx > 0 ? Math.sqrt(dx * dx * horizontal + dy * dy * vertical) : dy;
+    }
+    *///?}
 
     /**
      * Walks every leg of a path as straight pieces about {@code step} long, in order.

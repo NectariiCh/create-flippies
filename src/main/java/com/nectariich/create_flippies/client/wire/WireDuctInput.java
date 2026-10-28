@@ -5,6 +5,8 @@ import java.util.List;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.RenderStageCompat;
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.content.wire_duct.DuctIndex;
 import com.nectariich.create_flippies.content.wire_duct.DuctRouting;
@@ -48,12 +50,18 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 
+//? if neoforge {
+/*import org.patryk3211.powergrid.collections.ModdedDataComponents;
+*///?}
 import org.patryk3211.powergrid.electricity.wire.BlockWireEndpoint;
 import org.patryk3211.powergrid.electricity.wire.BlockWireEntity;
 import org.patryk3211.powergrid.electricity.wire.BlockWireEntityEndpoint;
 import org.patryk3211.powergrid.electricity.wire.BlockWireRenderer;
 import org.patryk3211.powergrid.electricity.wire.IWireEndpoint;
 import org.patryk3211.powergrid.electricity.wire.WireEndpointType;
+//? if neoforge {
+/*import org.patryk3211.powergrid.electricity.wire.WireConnection;
+*///?}
 import org.patryk3211.powergrid.electricity.wire.registry.WireItemEntry;
 import org.patryk3211.powergrid.electricity.wire.registry.WireRegistry;
 import org.patryk3211.powergrid.utility.BlockTrace;
@@ -264,7 +272,7 @@ public final class WireDuctInput {
                     && block.getType() == HitResult.Type.BLOCK) {
                 event.setCanceled(true);
                 event.setSwingHand(true);
-                ModPackets.CHANNEL.sendToServer(new DuctActionPacket(DuctActionPacket.Action.EXIT, wire.getId(),
+                ModPackets.sendToServer(new DuctActionPacket(DuctActionPacket.Action.EXIT, wire.getId(),
                         block.getLocation(), block));
             }
         }
@@ -274,7 +282,7 @@ public final class WireDuctInput {
             Entity entity, Vec3 at) {
         event.setCanceled(true);
         event.setSwingHand(true);
-        ModPackets.CHANNEL.sendToServer(new DuctActionPacket(action, entity.getId(), at));
+        ModPackets.sendToServer(new DuctActionPacket(action, entity.getId(), at));
     }
 
     /**
@@ -296,7 +304,7 @@ public final class WireDuctInput {
             return false;
         lastCut = now;
         player.swing(InteractionHand.MAIN_HAND);
-        ModPackets.CHANNEL.sendToServer(new DuctActionPacket(DuctActionPacket.Action.CUT, pick.wire().getId(),
+        ModPackets.sendToServer(new DuctActionPacket(DuctActionPacket.Action.CUT, pick.wire().getId(),
                 pick.at()));
         return true;
     }
@@ -387,8 +395,14 @@ public final class WireDuctInput {
         ClientLevel level = minecraft.level;
         if (level == null || minecraft.player == null)
             return null;
+        //? if forge {
         CompoundTag connection = minecraft.player.getMainHandItem().getTagElement(DuctRouting.CONNECTION_KEY);
         IWireEndpoint endpoint = connection == null ? null : WireEndpointType.deserialize(connection);
+        //?} else {
+        /*// Power Grid keeps the pending connection in a data component of its own here
+        WireConnection connection = minecraft.player.getMainHandItem().get(ModdedDataComponents.CONNECTION_DATA.get());
+        IWireEndpoint endpoint = connection == null ? null : connection.endpoint();
+        *///?}
         if (!(endpoint instanceof BlockWireEntityEndpoint end) || !end.getEnd())
             return null;
         BlockWireEntity wire = end.getEntity(level);
@@ -455,7 +469,7 @@ public final class WireDuctInput {
         boolean dye = held.getItem() instanceof DyeItem;
         boolean tool = player.isShiftKeyDown() && ScrewdriverItem.heldBy(player) != null;
         if (dye || tool) {
-            DuctPick pick = dye ? pickUncovered(minecraft) : pickDuct(minecraft, event.getPartialTick());
+            DuctPick pick = dye ? pickUncovered(minecraft) : pickDuct(minecraft, RenderStageCompat.partialTick(event));
             if (pick != null) {
                 VertexConsumer lines = buffers.getBuffer(RenderType.lines());
                 for (WireDuctEntity piece : dye ? WireDuctService.run(level, pick.duct()) : List.of(pick.duct()))
@@ -588,8 +602,13 @@ public final class WireDuctInput {
         d = d.normalize();
         PoseStack.Pose pose = ms.last();
         for (Vec3 p : new Vec3[] {a, b})
+            //? if forge {
             lines.vertex(pose.pose(), (float) p.x, (float) p.y, (float) p.z).color(color)
                     .normal(pose.normal(), (float) d.x, (float) d.y, (float) d.z).endVertex();
+            //?} else {
+            /*lines.addVertex(pose.pose(), (float) p.x, (float) p.y, (float) p.z).setColor(color)
+                    .setNormal(pose, (float) d.x, (float) d.y, (float) d.z);
+            *///?}
     }
 
     /** Dashes drawn fully lit just above where a wire's strokes lie, plain, in one colour. */
@@ -628,7 +647,7 @@ public final class WireDuctInput {
     /** With the first point of a duct chosen, the duct that clicking here would lay. */
     private static void drawPlacement(Minecraft minecraft, PoseStack ms, MultiBufferSource.BufferSource buffers,
             ClientLevel level, Vec3 camera, ItemStack held, WireDuctItem item) {
-        CompoundTag start = held.getTagElement(WireDuctItem.TAG_START);
+        CompoundTag start = StackData.sub(held, WireDuctItem.TAG_START);
         if (start == null || !(minecraft.hitResult instanceof BlockHitResult hit)
                 || hit.getType() == HitResult.Type.MISS)
             return;

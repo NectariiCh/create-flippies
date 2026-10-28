@@ -17,11 +17,15 @@ import com.nectariich.create_flippies.content.computer.machine.MachineConfig;
 import com.nectariich.create_flippies.content.computer.machine.MachineState;
 import com.nectariich.create_flippies.content.computer.machine.StandardCpus;
 import com.nectariich.create_flippies.content.computer.net.Catalogue;
+import com.nectariich.create_flippies.content.computer.net.ClasspathContent;
 import com.nectariich.create_flippies.content.computer.net.ContentSource;
 import com.nectariich.create_flippies.content.computer.net.DeflatedChunks;
 import com.nectariich.create_flippies.content.computer.net.Fdi;
 import com.nectariich.create_flippies.content.computer.net.MemoryContent;
 import com.nectariich.create_flippies.content.computer.net.Modem;
+import com.nectariich.create_flippies.content.computer.net.PackContent;
+import com.nectariich.create_flippies.content.computer.net.PackFiles;
+import com.nectariich.create_flippies.content.computer.net.PackSet;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -41,6 +45,7 @@ import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The netinstall floppy of spec 12.5 on the 68040 PC, cold-booted from its boot ROM with a modem
@@ -338,6 +343,37 @@ class NetinstallE2eTest {
         int banners = count(rig.com1, "Booting from floppy");
         rig.key(Ps2Key.ENTER);
         rig.until("the restart", () -> count(rig.com1, "Booting from floppy") > banners, 10);
+    }
+
+    /** A server with no OS pack: the jar's built-in index lists nothing, and the floppy says why. */
+    @Test
+    void noOsPackIsExplained() {
+        assumeBuilt();
+        Rig rig = new Rig(new PackSet(List.of(), ClasspathContent.bundled(), w -> fail(w)));
+        int at = rig.untilCom1("No OS is available on this server.", 0, 60);
+        rig.untilCom1("Ask the server owner to install an OS pack.", at, 1);
+    }
+
+    /** The image as an OS pack carries it (spec 12.4.3): deflated chunks stored in a .flippack, over the built-in pages. */
+    @Test
+    void installsFromAPack(@TempDir Path dir) throws IOException {
+        assumeBuilt();
+        byte[] raw = rawImage(64, 5);                   // 4 MiB
+        byte[] fdi = Fdi.write(raw, "Pack image");
+        var files = new java.util.LinkedHashMap<>(DeflatedChunks.store("get.flip/images/pack.fdi", fdi));
+        files.put("get.flip/index.txt", ("image /images/pack.fdi " + fdi.length + " Pack image\n").getBytes(StandardCharsets.UTF_8));
+        Path pack = PackFiles.write(dir.resolve("os.flippack"), "test-os", List.of("get.flip"), files);
+        PackSet packs = new PackSet(List.of(PackContent.open(pack)), ClasspathContent.bundled(), w -> fail(w));
+        Rig rig = new Rig(packs);
+
+        int at = choose(rig, 0, 0);
+        at = rig.untilCom1("Type YES to continue.", at, 10);
+        rig.type("YES");
+        rig.key(Ps2Key.ENTER);
+        rig.untilCom1("netinstall: done", at, 60);
+        assertTrue(rig.com1.indexOf("CRC errors in transit 0, fetched again 0") > 0, rig.tail());
+        checkHdd(rig, raw, false);
+        packs.retire();
     }
 
     @Test

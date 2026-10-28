@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.data_cord;
 import java.util.List;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.SpawnDataEntity;
 import com.nectariich.create_flippies.foundation.wire.bend.BendGeometry;
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBends;
@@ -13,8 +14,9 @@ import com.nectariich.create_flippies.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
+//? if neoforge {
+/*import net.minecraft.network.syncher.SynchedEntityData;
+*///?}
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -24,8 +26,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.entity.IEntityAdditionalSpawnData;
-import net.minecraftforge.network.NetworkHooks;
 
 import org.patryk3211.powergrid.electricity.wire.CurveParameters;
 import org.patryk3211.powergrid.utility.IComplexRaycast;
@@ -48,7 +48,7 @@ import org.patryk3211.powergrid.utility.IComplexRaycast;
  * between bend points then hangs, is hit and is boxed on its own, and it is still
  * the one cord with the one item.
  */
-public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData, IComplexRaycast, BendableWire {
+public class DataCordEntity extends SpawnDataEntity implements IComplexRaycast, BendableWire {
 
     /**
      * Power Grid's copper cord's curve coefficients (wire_types/copper_cord.json),
@@ -139,9 +139,23 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
     /** The curve in coordinates relative to the entity's position, as Power Grid's renderer takes it. */
     public CurveParameters curve() {
         if (curve == null)
+            //? if forge {
             curve = new CurveParameters(endA(), endB(), CURVE_COEFFICIENT, CURVE_COEFFICIENT, THICKNESS);
+            //?} else {
+            /*curve = new CurveParameters(endA(), endB(), curveLength(endA(), endB()), THICKNESS);
+            *///?}
         return curve;
     }
+
+    //? if neoforge {
+    /*// Power Grid 1.21.1 takes the cord's length rather than its coefficients: this is
+    // the length its 1.20.1 constructor worked out from them, a vertical cord included
+    private static double curveLength(Vec3 a, Vec3 b) {
+        double dx = (float) Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.z - a.z) * (b.z - a.z));
+        double dy = b.y - a.y;
+        return dx > 0 ? Math.sqrt(dx * dx * CURVE_COEFFICIENT + dy * dy * CURVE_COEFFICIENT) : dy;
+    }
+    *///?}
 
     /** Positions the entity between the ends, which also rebuilds its box. */
     private void placed() {
@@ -167,7 +181,11 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
     }
 
     @Override
+    //? if forge {
     protected void defineSynchedData() {}
+    //?} else {
+    /*protected void defineSynchedData(SynchedEntityData.Builder builder) {}
+    *///?}
 
     @Override
     public void tick() {
@@ -251,6 +269,15 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         }, 0.25);
         return hit[0];
     }
+
+    //? if neoforge {
+    /*// Power Grid's own wires answer their plain box here outside the Sable mod's
+    // sub-levels, which cords do not follow
+    @Override
+    public AABB getDeSabledBB() {
+        return getBoundingBox();
+    }
+    *///?}
 
     /** Closest approach of a ray (origin, unit direction) and a segment: {ray distance, segment fraction}. */
     private static double[] closest(Vec3 origin, Vec3 unit, Vec3 p, Vec3 q) {
@@ -381,10 +408,5 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         normalB = new Vec3(buffer.readDouble(), buffer.readDouble(), buffer.readDouble());
         bends = WireBends.read(buffer);
         placed();
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
     }
 }

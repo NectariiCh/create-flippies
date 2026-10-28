@@ -4,7 +4,11 @@ import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignText;
 import com.nectariich.create_flippies.content.display.DisplayPrint;
 
+//? if forge {
 import net.minecraft.SharedConstants;
+//?} else {
+/*import net.minecraft.util.StringUtil;
+*///?}
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.Mth;
 
@@ -268,12 +272,20 @@ public record ScreenElement(int id, ElementKind kind, int x, int y, int w, int h
      * 48 belongs to labels.
      */
     public static String sanitiseText(String text) {
+        //? if forge {
         return cut(SharedConstants.filterText(text == null ? "" : text), MAX_TEXT);
+        //?} else {
+        /*return cut(StringUtil.filterText(text == null ? "" : text), MAX_TEXT);
+        *///?}
     }
 
     /** A name as it is safe to keep: filtered as text is, trimmed, and cut to {@link #MAX_NAME}. */
     public static String sanitiseName(String name) {
+        //? if forge {
         return cut(SharedConstants.filterText(name == null ? "" : name).strip(), MAX_NAME);
+        //?} else {
+        /*return cut(StringUtil.filterText(name == null ? "" : name).strip(), MAX_NAME);
+        *///?}
     }
 
     /**

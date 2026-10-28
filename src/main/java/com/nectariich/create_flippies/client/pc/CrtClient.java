@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.crt.CrtEntity;
 import com.nectariich.create_flippies.content.crt.CrtCanvas;
 import com.nectariich.create_flippies.content.crt.CrtFont;
@@ -43,7 +44,7 @@ public final class CrtClient {
 
     /** Text mode's blink half-periods, ms: cursor and blinking characters, about the VGA's rates. */
     private static final long CURSOR_HALF_MS = 266, BLINK_HALF_MS = 533;
-    private static final ResourceLocation FONT_SHEET = new ResourceLocation("minecraft", "textures/font/ascii.png");
+    private static final ResourceLocation FONT_SHEET = Ids.of("minecraft", "textures/font/ascii.png");
 
     private static final Map<Integer, Screen> SCREENS = new HashMap<>();
     private static CrtFont font;

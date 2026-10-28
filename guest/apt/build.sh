@@ -1,13 +1,21 @@
 #!/bin/sh
 # Builds the package archive the network modem serves at http://deb.flip/ (spec 12.4, 12.8): the
-# programs of PACKAGES below with every package they need that the Debian image of guest/debian
-# does not already hold, taken from the debian-ports snapshot the image was built from, plus any
-# local packages in guest/apps/out/. The installed image's /etc/apt/sources.list already reads
+# programs of PACKAGES below with every package they need that a Debian disk of guest/debian
+# does not already hold, taken from the debian-ports snapshot the image was built from, plus our
+# own packages in local/ (flippies-video) and the desktop's packages in guest/apps/out/. Every
+# installed image's /etc/apt/sources.list already reads
 # "deb [check-valid-until=no] http://deb.flip/ unstable main".
 #
-#   guest/apt/build.sh                 out/archive/ (bundled into the mod jar by build.gradle)
-#   build.sh --image FILE              resolve against another disk image's installed packages
-#                                      (default guest/debian/out/debian.img)
+#   guest/apt/build.sh                 out/archive/, which guest/packs/build.sh puts into the
+#                                      debian-apps content pack (hosts/deb.flip/)
+#   build.sh --image FILE              resolve against a disk image's installed packages instead
+#                                      of oldest-image.status
+#
+# What a disk holds already: oldest-image.status is the dpkg status of the first image that was
+# served (October 25, 2026: no python3, no desktop packages), cut to the fields apt resolves
+# with. Images built since hold more (python3-tk and guest/apps), all from the same snapshot, so
+# an archive that completes the oldest disk completes every later one too, and a disk installed
+# from that first image can still install Flippies Apps with its Python and Tk.
 #
 # Output, guest/apt/out/:
 #   archive/pool/..., pool-m68k/...    the .debs, at their debian-ports pool paths; local ones
@@ -49,11 +57,15 @@ KEYRING=/usr/share/keyrings/debian-ports-archive-keyring.gpg
 # Recommends are off, as in the image. Not here, and why:
 #   GTK 3 programs (galculator, mousepad, gpicview, pcmanfm): GTK 3 pulls dbus, dconf and at-spi,
 #     and its dbus-user-session choice pulls systemd and openrc beside sysvinit; about 78 MiB
-#     installed for the toolkit alone, and slow to start at 25 MHz. FOX (xfe), Motif (nedit,
-#     xpdf), FLTK (dillo), Tk and Athena (x11-apps) are used instead. pcmanfm is not installable.
+#     installed for the toolkit alone, and slow to start at 25 MHz. Worker (its own Xlib toolkit),
+#     Motif (nedit, xpdf), FLTK (dillo), Tk and Athena (x11-apps) are used instead. pcmanfm is not
+#     installable.
+#   xfe: FOX 1.6 on big-endian m68k draws no text on its buttons, menus and headers and pink
+#     frames at 256 colours; worker is the file manager instead.
 #   mpv, mplayer, ffmpeg (ffplay), vlc, xine-ui: not installable on m68k at this snapshot
-#     (libsdl2, libbluray and libavdevice are missing). GStreamer's gst-play-1.0 plays Ogg Theora
-#     and Vorbis files instead.
+#     (libsdl2, libbluray and libavdevice are missing). GStreamer decodes Ogg Theora instead, but
+#     its X output (ximagesink, so gst-play-1.0) cannot draw on the 8-bit PseudoColor display:
+#     local/flippies-video shows GStreamer's frames through Tk.
 #   man-db for manual pages: the image leaves manual pages out (dpkg path-exclude). x11-apps pulls
 #     man-db in anyway.
 #   featherpad (Qt 6, libicu76 missing), mupdf (libgumbo2 missing), tcc and leafpad (not built).
@@ -62,8 +74,8 @@ vim nedit
 python3 python3-tk idle perl lua5.4 tk8.6 bc
 gcc make libc6-dev
 openjdk-17-jdk-headless
-x11-apps xfe feh dillo xpdf
-gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-x
+x11-apps worker feh dillo xpdf
+gstreamer1.0-tools gstreamer1.0-plugins-base
 htop mc unzip zip curl file tmux tree sqlite3 bzip2 git
 bsdgames xbill xjump xgalaga xmahjongg ace-of-penguins xboard gnuchess
 "
@@ -77,7 +89,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 OUT=$HERE/out
 WORK=${FLIPPIES_APT_WORK:-/build/apt}
-IMAGE=$REPO/guest/debian/out/debian.img
+IMAGE=
 LOCAL=$REPO/guest/apps/out
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -85,7 +97,7 @@ while [ $# -gt 0 ]; do
         *) echo "usage: build.sh [--image FILE]" >&2; exit 64 ;;
     esac
 done
-[ -f "$IMAGE" ] || { echo "build: no disk image $IMAGE (guest/debian/build.sh)" >&2; exit 1; }
+[ -z "$IMAGE" ] || [ -f "$IMAGE" ] || { echo "build: no disk image $IMAGE" >&2; exit 1; }
 
 APTDIR=$WORK/apt
 CACHE=$WORK/cache
@@ -93,16 +105,22 @@ mkdir -p "$OUT" "$CACHE" "$APTDIR/etc/apt/apt.conf.d" "$APTDIR/etc/apt/preferenc
     "$APTDIR/etc/apt/sources.list.d" "$APTDIR/var/lib/apt/lists/partial" \
     "$APTDIR/var/cache/apt/archives/partial" "$APTDIR/var/lib/dpkg"
 
-# ---- what the image already holds ----
+# ---- what a disk already holds ----
 
-# The root file system is partition 3 (guest/boot/mkdisk.py's layout); debugfs reads its dpkg
-# status in place.
-START=$(sfdisk -d "$IMAGE" | sed -n 's/.*start= *\([0-9]*\),.*type=83.*/\1/p' | head -n 1)
-[ -n "$START" ] || { echo "build: $IMAGE has no Linux partition (type 83)" >&2; exit 1; }
-debugfs -R "cat /var/lib/dpkg/status" "$IMAGE?offset=$(( START * 512 ))" 2>/dev/null > "$APTDIR/var/lib/dpkg/status"
+if [ -n "$IMAGE" ]; then
+    # The root file system is partition 3 (guest/boot/mkdisk.py's layout); debugfs reads its dpkg
+    # status in place.
+    START=$(sfdisk -d "$IMAGE" | sed -n 's/.*start= *\([0-9]*\),.*type=83.*/\1/p' | head -n 1)
+    [ -n "$START" ] || { echo "build: $IMAGE has no Linux partition (type 83)" >&2; exit 1; }
+    debugfs -R "cat /var/lib/dpkg/status" "$IMAGE?offset=$(( START * 512 ))" 2>/dev/null > "$APTDIR/var/lib/dpkg/status"
+    FROM=$IMAGE
+else
+    cp "$HERE/oldest-image.status" "$APTDIR/var/lib/dpkg/status"
+    FROM=$HERE/oldest-image.status
+fi
 INSTALLED=$(grep -c '^Package: ' "$APTDIR/var/lib/dpkg/status" || true)
-[ "$INSTALLED" -gt 0 ] || { echo "build: no dpkg status in $IMAGE's root file system" >&2; exit 1; }
-echo "build: $INSTALLED packages installed in $IMAGE" >&2
+[ "$INSTALLED" -gt 0 ] || { echo "build: no dpkg status in $FROM" >&2; exit 1; }
+echo "build: $INSTALLED packages installed in $FROM" >&2
 
 # ---- the plan: what to add, resolved by apt against that status ----
 
@@ -122,9 +140,28 @@ deb [check-valid-until=no signed-by=$KEYRING] $SNAPSHOT_URL unreleased main
 EOF
 apt-get update -q >&2
 
+# Our own packages in local/ (Architecture: all, no compiler needed), built with the snapshot's
+# time so they come out the same each time
+OWN=$WORK/own
+rm -rf "$OWN"
+mkdir -p "$OWN"
+for dir in "$HERE"/local/*/; do
+    [ -f "$dir/DEBIAN/control" ] || continue
+    name=$(basename "$dir")
+    cp -R "$dir" "$OWN/$name"
+    find "$OWN/$name" -name __pycache__ -prune -exec rm -rf {} + -o -name .DS_Store -exec rm -f {} +
+    find "$OWN/$name" -type d -exec chmod 755 {} +
+    find "$OWN/$name" -type f -exec chmod 644 {} +
+    chmod 755 "$OWN/$name"/usr/bin/*
+    echo "Installed-Size: $(du -sk --exclude=DEBIAN "$OWN/$name" | cut -f1)" >> "$OWN/$name/DEBIAN/control"
+    version=$(sed -n 's/^Version: //p' "$OWN/$name/DEBIAN/control")
+    SOURCE_DATE_EPOCH=$(date -u -d "$SNAPSHOT_TIME" +%s) \
+        dpkg-deb --root-owner-group -Zxz --build "$OWN/$name" "$OWN/${name}_${version}_all.deb" > /dev/null
+done
+
 # Local packages are resolved with the rest, so whatever they depend on is in the archive too.
 set --
-for deb in "$LOCAL"/*.deb; do
+for deb in "$OWN"/*.deb "$LOCAL"/*.deb; do
     [ -f "$deb" ] && set -- "$@" "$deb"
 done
 [ $# -gt 0 ] && echo "build: local packages: $*" >&2
@@ -287,8 +324,16 @@ mkdir -m 700 "$CHECK"
     echo '<p>In a terminal: <code>sudo apt update</code>, then for example <code>sudo apt install vim python3</code>.</p>'
     echo '<p>A disk installed before this archive existed needs its key once:<br>'
     echo '<code>sudo wget -qO /etc/apt/trusted.gpg.d/flippies-archive.gpg http://deb.flip/flippies-archive.gpg</code></p>'
+    echo '<p>Video: <code>sudo apt install flippies-video</code>, then <code>flippies-video FILE.ogv</code> plays'
+    echo 'Ogg Theora, without sound, scaled to 160x120 (<code>-s 320x240</code> for larger, and slower).</p>'
+    echo '<p>Java on a disk installed before this archive existed: run <code>sudo mkdir -p /usr/share/man/man1</code> first.'
+    echo 'Java is the Zero VM (an interpreter): <code>java -version</code> takes about 20 seconds, a hello world'
+    echo 'about 45, and <code>javac</code> about 10 minutes for one small file.</p>'
+    echo '<p>The disk has room for some of these at a time, not all: the whole list needs about 750 MB.</p>'
+    echo '<p>The desktop and Flippies Apps on a disk installed before they came with the image:<br>'
+    echo '<code>sudo apt update && sudo apt install -y flippies-desktop flippies-apps</code></p>'
     echo '<h2>Programs</h2><ul>'
-    for p in $PACKAGES; do
+    for p in $PACKAGES flippies-video; do
         d=$(awk -v p="$p" '/^Package: /{n=$2} /^Description: /{if (n==p) {sub(/^Description: /, ""); print; exit}}' "$BIN/Packages")
         echo "<li><b>$p</b>: $d</li>"
     done

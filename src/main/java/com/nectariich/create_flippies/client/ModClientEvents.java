@@ -1,5 +1,7 @@
 package com.nectariich.create_flippies.client;
 
+import java.util.function.Supplier;
+
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.registry.ModBlockEntities;
 
@@ -103,7 +105,7 @@ public class ModClientEvents {
         event.register((stack, tint) -> tint == 0
                 ? 0xFF000000 | com.nectariich.create_flippies.content.wire_duct.WireDuctItem.color(stack) : -1,
                 com.nectariich.create_flippies.registry.ModItems.WIRE_DUCTS.values().stream()
-                        .map(net.minecraftforge.registries.RegistryObject::get)
+                        .map(Supplier::get)
                         .toArray(net.minecraft.world.item.Item[]::new));
     }
     // WIRE DUCTS 2 end

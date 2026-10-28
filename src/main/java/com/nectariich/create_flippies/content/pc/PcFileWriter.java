@@ -56,6 +56,11 @@ public final class PcFileWriter {
         });
     }
 
+    /** Completes once everything queued before it is on disk (a PC snapshot copies the files after it). */
+    public java.util.concurrent.CompletableFuture<Void> barrier() {
+        return java.util.concurrent.CompletableFuture.runAsync(() -> {}, executor);
+    }
+
     public void delete(Path path) {
         write(path, DELETED);
     }

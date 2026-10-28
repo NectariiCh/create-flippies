@@ -19,7 +19,11 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -142,7 +146,7 @@ public final class RotarySwitchPushInput {
         Vec3 local = hit.getLocation().subtract(Vec3.atLowerCornerOf(pos));
         // The inversion, and the whole of the difference between the two push modes
         RotarySwitchSide turn = mode.invertsPush() ? side.opposite() : side;
-        ModPackets.CHANNEL.sendToServer(new TurnRotarySwitchPacket(pos, local, turn));
+        ModPackets.sendToServer(new TurnRotarySwitchPacket(pos, local, turn));
         if (springs) {
             heldPos = pos;
             heldLocal = local;
@@ -156,8 +160,13 @@ public final class RotarySwitchPushInput {
      * server holds them to, or the switch unloading.
      */
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || heldPos == null)
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+        if (heldPos == null)
+    *///?}
             return;
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
@@ -175,7 +184,7 @@ public final class RotarySwitchPushInput {
      */
     private static void release(Minecraft minecraft) {
         if (minecraft.getConnection() != null)
-            ModPackets.CHANNEL.sendToServer(TurnRotarySwitchPacket.release(heldPos, heldLocal));
+            ModPackets.sendToServer(TurnRotarySwitchPacket.release(heldPos, heldLocal));
         heldPos = null;
         heldLocal = null;
     }

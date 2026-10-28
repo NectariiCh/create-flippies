@@ -1,7 +1,6 @@
 package com.nectariich.create_flippies.network;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.content.design_workbench.blueprint.BlueprintFiles;
 import com.nectariich.create_flippies.content.design_workbench.blueprint.BlueprintOp;
@@ -10,7 +9,6 @@ import com.nectariich.create_flippies.content.design_workbench.blueprint.Bluepri
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One thing a client asks of the world's blueprints: the op, and its arguments as
@@ -21,7 +19,7 @@ import net.minecraftforge.network.NetworkEvent;
  * packed, even a design with every light and text it may have fits. A packet whose
  * op this version does not know, or whose arguments do not unpack, is dropped.
  */
-public class BlueprintOpPacket {
+public class BlueprintOpPacket implements FlippiesPacket {
 
     /** Packed argument bytes a client may send, under the serverbound packet limit. */
     public static final int MAX_ARGS = 30_000;
@@ -52,11 +50,11 @@ public class BlueprintOpPacket {
         buffer.writeByteArray(args);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        ServerPlayer player = context.sender();
         BlueprintOp kind = BlueprintOp.byOrdinal(op);
         if (player != null && kind != null)
-            context.get().enqueueWork(() -> {
+            context.enqueueWork(() -> {
                 CompoundTag tag;
                 try {
                     tag = BlueprintFiles.unpack(args, ARGS_BUDGET);
@@ -65,6 +63,5 @@ public class BlueprintOpPacket {
                 }
                 BlueprintService.handle(player, kind, tag);
             });
-        context.get().setPacketHandled(true);
     }
 }

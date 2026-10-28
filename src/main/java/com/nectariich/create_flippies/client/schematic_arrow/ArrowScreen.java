@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.client.schematic_arrow;
 import java.util.Locale;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.client.decal.ClientDecals;
 import com.nectariich.create_flippies.client.design.DesignImporter;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
@@ -20,7 +21,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -42,7 +42,7 @@ import net.minecraft.world.item.ItemStack;
  * the paint mode uses, imported the same way and kept in the same place on the tool,
  * so a drawing can be painted flat and raised as an arrow without importing it twice.
  */
-public class ArrowScreen extends Screen {
+public class ArrowScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".screwdriver.arrow.";
     private static final String PAINT_PREFIX = "gui." + CreateFlippies.MOD_ID + ".screwdriver.";
@@ -373,15 +373,15 @@ public class ArrowScreen extends Screen {
     }
 
     private void applyAndClose() {
-        ModPackets.CHANNEL.sendToServer(new ConfigureArrowPacket(hand, settings));
+        ModPackets.sendToServer(new ConfigureArrowPacket(hand, settings));
         if (transparent != initialTransparent)
-            ModPackets.CHANNEL.sendToServer(new SelectDecalPacket(hand, "", decalTint, transparent));
+            ModPackets.sendToServer(new SelectDecalPacket(hand, "", decalTint, transparent));
         onClose();
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int cx = width / 2;
         int top = top();
         graphics.drawCenteredString(font, title, cx, top - 16, 0xFFFFFF);

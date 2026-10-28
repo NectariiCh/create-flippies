@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.plc.PlcBoard;
 import com.nectariich.create_flippies.content.plc.PlcSmallControl;
 import com.nectariich.create_flippies.content.plc.PlcStatus;
@@ -28,7 +29,6 @@ import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -65,7 +65,7 @@ import net.minecraft.util.Mth;
  * Opened by a plain right click with a screwdriver; see
  * {@link com.nectariich.create_flippies.foundation.control.ControlConfig}.
  */
-public class PlcScreen extends Screen {
+public class PlcScreen extends FlippiesScreen {
 
     private static final String LANG = "gui." + CreateFlippies.MOD_ID + ".plc.menu.";
 
@@ -259,7 +259,7 @@ public class PlcScreen extends Screen {
             int to = Math.min(bytes.length, from + PlcUploads.CHUNK_BYTES);
             byte[] chunk = new byte[to - from];
             System.arraycopy(bytes, from, chunk, 0, chunk.length);
-            ModPackets.CHANNEL.sendToServer(new PlcUploadPacket(pos, mount, transfer, i, count, flash, chunk));
+            ModPackets.sendToServer(new PlcUploadPacket(pos, mount, transfer, i, count, flash, chunk));
         }
         saved = source;
         if (flash) {
@@ -270,14 +270,14 @@ public class PlcScreen extends Screen {
     }
 
     private void reset() {
-        ModPackets.CHANNEL.sendToServer(new PlcActionPacket(pos, mount, PlcActionPacket.Action.RESET));
+        ModPackets.sendToServer(new PlcActionPacket(pos, mount, PlcActionPacket.Action.RESET));
     }
 
     @Override
     public void tick() {
         super.tick();
         if (ticks++ % POLL_TICKS == 0)
-            ModPackets.CHANNEL.sendToServer(new PlcActionPacket(pos, mount, PlcActionPacket.Action.POLL));
+            ModPackets.sendToServer(new PlcActionPacket(pos, mount, PlcActionPacket.Action.POLL));
         // An upload refused for reach or permission is answered with silence — the
         // server does not explain itself to a client it has decided not to trust —
         // so stop waiting eventually
@@ -356,7 +356,7 @@ public class PlcScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    protected boolean onScroll(double mouseX, double mouseY, double delta) {
         int step = (int) -Math.signum(delta);
         if (insideConsole(mouseX, mouseY)) {
             consoleScroll = Mth.clamp(consoleScroll + step, 0, Math.max(0, console.size() - CONSOLE_LINES));
@@ -366,7 +366,7 @@ public class PlcScreen extends Screen {
             paneScroll = Math.max(0, paneScroll + step * 2);
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.onScroll(mouseX, mouseY, delta);
     }
 
     private boolean insideConsole(double mouseX, double mouseY) {
@@ -378,7 +378,7 @@ public class PlcScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         graphics.drawString(font, font.plainSubstrByWidth(title.getString(), buttonsLeft - MARGIN - 4), MARGIN, 9,
                 0xFFFFFF);
 

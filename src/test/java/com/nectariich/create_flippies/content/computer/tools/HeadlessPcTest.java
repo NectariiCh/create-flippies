@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import javax.imageio.ImageIO;
@@ -413,6 +414,10 @@ class HeadlessPcTest {
         assertEquals(Path.of("files"), s.share());
         assertTrue(s.modem(), "a share means a modem");
         assertNull(d.share());
+        HeadlessPc.Options p = HeadlessPc.Options.parse("--pack", "a.flippack", "--pack=b.flippack");
+        assertEquals(List.of(Path.of("a.flippack"), Path.of("b.flippack")), p.packs(), "in the order given");
+        assertTrue(p.modem(), "a pack means a modem");
+        assertEquals(List.of(), d.packs());
 
         assertThrows(IllegalArgumentException.class, () -> HeadlessPc.Options.parse("--cpu", "8086"));
         assertThrows(IllegalArgumentException.class, () -> HeadlessPc.Options.parse("--ram", "4X"));
@@ -448,6 +453,7 @@ class HeadlessPcTest {
         assertEquals(HeadlessPc.EXIT_USAGE, run("", "--ram", "3M", "--cpu", "68040", "--clock", "1MHz").status);
         assertEquals(HeadlessPc.EXIT_USAGE, run("", "--hdd", dir.resolve("missing.img").toString()).status);
         assertEquals(HeadlessPc.EXIT_USAGE, run("", "--frobnicate").status);
+        assertEquals(HeadlessPc.EXIT_USAGE, run("", "--pack", dir.resolve("missing.flippack").toString()).status);
     }
 
     private record Run(int status, String out, String err) {}

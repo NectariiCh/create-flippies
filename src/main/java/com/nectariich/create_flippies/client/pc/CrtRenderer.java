@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.nectariich.create_flippies.client.ModPartialModels;
 import com.nectariich.create_flippies.client.device.DeviceRenderer;
+import com.nectariich.create_flippies.compat.Verts;
 import com.nectariich.create_flippies.content.crt.CrtEntity;
 import com.nectariich.create_flippies.content.crt.CrtGeometry;
 
@@ -91,8 +92,8 @@ public class CrtRenderer extends DeviceRenderer<CrtEntity> {
 
     private static void vertex(VertexConsumer vertices, Matrix4f pose, double x, double y, double z, int shade,
             float u, float v) {
-        vertices.vertex(pose, (float) x / 16, (float) y / 16, (float) z / 16).color(shade, shade, shade, 255).uv(u, v)
-                .uv2(LightTexture.FULL_BRIGHT).endVertex();
+        Verts.posColorUvLight(vertices, pose, (float) x / 16, (float) y / 16, (float) z / 16, shade, shade, shade,
+                255, u, v, LightTexture.FULL_BRIGHT);
     }
 
     private static void glass(PoseStack ms, MultiBufferSource buffer, int rgb) {
@@ -103,8 +104,8 @@ public class CrtRenderer extends DeviceRenderer<CrtEntity> {
         int r = rgb >> 16 & 0xFF, g = rgb >> 8 & 0xFF, b = rgb & 0xFF;
         double[][] corners = {{s[4], s[5]}, {s[1], s[5]}, {s[1], s[2]}, {s[4], s[2]}};
         for (double[] corner : corners)
-            vertices.vertex(pose, x, (float) corner[0] / 16, (float) corner[1] / 16).color(r, g, b, 255)
-                    .uv2(LightTexture.FULL_BRIGHT).endVertex();
+            Verts.posColorLight(vertices, pose, x, (float) corner[0] / 16, (float) corner[1] / 16, r, g, b, 255,
+                    LightTexture.FULL_BRIGHT);
     }
 
     /** The faint glass and a dim "No signal" in the middle of it. */

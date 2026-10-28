@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.procedural_gauge.SquareProceduralGaugeBlockEntity;
 import com.nectariich.create_flippies.content.procedural_gauge.GaugeFaceDefinition;
 import com.nectariich.create_flippies.content.procedural_gauge.MountedEdgewiseGauge;
@@ -21,7 +22,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -32,7 +32,7 @@ import net.minecraft.util.Mth;
  * on the receiver variant, the rated supply voltage. Applying sends the full
  * face definition to the server; Reset restores the variant's default face.
  */
-public class GaugeCustomizationScreen extends Screen {
+public class GaugeCustomizationScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".gauge_menu.";
 
@@ -143,7 +143,7 @@ public class GaugeCustomizationScreen extends Screen {
 
         int actionY = top + 8 * ROW_HEIGHT;
         addRenderableWidget(Button.builder(Component.translatable(LANG_PREFIX + "reset"), button -> {
-            ModPackets.CHANNEL.sendToServer(new ConfigureProceduralGaugePacket(pos, null, supply, mount));
+            ModPackets.sendToServer(new ConfigureProceduralGaugePacket(pos, null, supply, mount));
             onClose();
         }).bounds(cx - 95, actionY, BOX_WIDTH, 20).build());
         if (isReceiver)
@@ -222,7 +222,7 @@ public class GaugeCustomizationScreen extends Screen {
                 .markingColor(orElse(parseHex(markingColorBox.getValue()), initial.markingColor))
                 .bands(bands.toArray(GaugeFaceDefinition.ColorBand[]::new))
                 .build();
-        ModPackets.CHANNEL.sendToServer(new ConfigureProceduralGaugePacket(pos, face, supply, mount));
+        ModPackets.sendToServer(new ConfigureProceduralGaugePacket(pos, face, supply, mount));
         onClose();
     }
 
@@ -266,7 +266,7 @@ public class GaugeCustomizationScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int cx = width / 2;
         int top = height / 2 - 108;
         graphics.drawCenteredString(font, title, cx, top - 16, 0xFFFFFF);

@@ -1,0 +1,12 @@
+Package: flippies-video
+Version: 1.0
+Architecture: all
+Maintainer: Create Flippies <flippies@deb.flip>
+Section: video
+Priority: optional
+Depends: python3, python3-tk, gstreamer1.0-tools, gstreamer1.0-plugins-base
+Description: Small video player for the Create Flippies desktop
+ Plays a video file in a window on the 256-colour display: GStreamer decodes it
+ (Ogg Theora with the base plugins) and scales it down, and Tk shows the frames.
+ GStreamer's own X output cannot draw on an 8-bit display. No sound: the PC has
+ no sound card.

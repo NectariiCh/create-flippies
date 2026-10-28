@@ -26,12 +26,16 @@ public final class CatalogueFile implements Closeable {
     /** The plain file's stream, positioned at the start of block {@link #streamBlock}. */
     private InputStream stream;
     private long streamBlock;
+    /** Whether this reader holds its source open ({@link ContentSource#retain}). */
+    private boolean held;
 
     CatalogueFile(ContentSource source, String path, long size, boolean deflated) {
         this.source = Objects.requireNonNull(source, "source");
         this.path = path;
         this.size = size;
         this.deflated = deflated;
+        source.retain();
+        held = true;
     }
 
     /** The resource path, {@code host/dir/file}. */
@@ -68,6 +72,10 @@ public final class CatalogueFile implements Closeable {
     private void load(long index) throws IOException {
         if (index == blockIndex)
             return;
+        if (!held) {
+            source.retain();
+            held = true;
+        }
         if (block == null)
             block = new byte[CHUNK];
         blockIndex = -1;
@@ -102,11 +110,21 @@ public final class CatalogueFile implements Closeable {
         stream = null;
     }
 
-    /** Closes the stream and drops the block buffer; the file can still be read again after. */
+    /**
+     * Closes the stream, drops the block buffer and lets the source go; the file can still be
+     * read again after.
+     */
     @Override
     public void close() throws IOException {
         block = null;
         blockIndex = -1;
-        closeStream();
+        try {
+            closeStream();
+        } finally {
+            if (held) {
+                held = false;
+                source.release();
+            }
+        }
     }
 }

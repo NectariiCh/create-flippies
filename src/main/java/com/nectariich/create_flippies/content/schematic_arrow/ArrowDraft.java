@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.content.schematic_arrow;
 
 import java.util.Arrays;
 
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.foundation.panel.PanelDefinition;
 import com.nectariich.create_flippies.foundation.panel.PanelPlane;
 
@@ -46,7 +47,7 @@ public record ArrowDraft(PanelPlane plane, int depth, int[] points) {
     }
 
     public static ArrowDraft read(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
+        CompoundTag tag = StackData.peek(stack);
         if (tag == null || !tag.contains(ROOT, Tag.TAG_COMPOUND))
             return null;
         CompoundTag draft = tag.getCompound(ROOT);
@@ -61,15 +62,19 @@ public record ArrowDraft(PanelPlane plane, int depth, int[] points) {
     /** Records, or with null forgets, the arrow being drawn. */
     public static void write(ItemStack stack, ArrowDraft draft) {
         if (draft == null) {
+            //? if forge {
             CompoundTag tag = stack.getTag();
             if (tag != null)
                 tag.remove(ROOT);
+            //?} else {
+            /*StackData.remove(stack, ROOT);
+            *///?}
             return;
         }
         CompoundTag tag = new CompoundTag();
         draft.plane.save(tag);
         tag.putInt("Depth", draft.depth);
         tag.put("Points", new IntArrayTag(draft.points));
-        stack.getOrCreateTag().put(ROOT, tag);
+        StackData.put(stack, ROOT, tag);
     }
 }

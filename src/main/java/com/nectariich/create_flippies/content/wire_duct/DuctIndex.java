@@ -120,7 +120,11 @@ public final class DuctIndex {
         if (level == null)
             return;
         Indices indices = of(level);
+        //? if forge {
         if (!indices.hanging.contains(wire) && !wire.isAddedToWorld())
+        //?} else {
+        /*if (!indices.hanging.contains(wire) && !wire.isAddedToLevel())
+        *///?}
             return;
         List<Vec3> path = ((BendableWire) wire).bendPoints().isEmpty() ? null : ((BendableWire) wire).bendPath();
         if (path == null)

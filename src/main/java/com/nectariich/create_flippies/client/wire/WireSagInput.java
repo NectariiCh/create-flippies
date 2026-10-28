@@ -3,6 +3,10 @@ package com.nectariich.create_flippies.client.wire;
 import java.util.List;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Ids;
+//? if neoforge {
+/*import com.nectariich.create_flippies.compat.StackData;
+*///?}
 import com.nectariich.create_flippies.content.wire_duct.DuctRouting;
 import com.nectariich.create_flippies.foundation.wire.bend.BendGeometry;
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
@@ -27,11 +31,18 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 
+//? if neoforge {
+/*import org.patryk3211.powergrid.collections.ModdedDataComponents;
+*///?}
 import org.patryk3211.powergrid.electricity.wire.CurveParameters;
 import org.patryk3211.powergrid.electricity.wire.HangingWireEntity;
 import org.patryk3211.powergrid.utility.PlayerUtilities;
@@ -83,7 +94,7 @@ public final class WireSagInput {
     private static final String PPG_CLAMP_TAP = "PPGClampTap";
 
     /** Power Plant Grid's clamp tap on a wire, by registry name, as Flippies has no compile dependency on it. */
-    private static final ResourceLocation PPG_CLAMP = new ResourceLocation(WireGauges.PPG_MOD_ID, "clamp_on_wire");
+    private static final ResourceLocation PPG_CLAMP = Ids.of(WireGauges.PPG_MOD_ID, "clamp_on_wire");
 
     /**
      * How near a clamp tap a click on a wire still counts as a click on the clamp, so
@@ -122,7 +133,12 @@ public final class WireSagInput {
 
     /** Mid-connection (Power Grid) or mid-clamp (Power Plant Grid), a click belongs to that, not to the wire under it. */
     private static boolean busy(ItemStack stack) {
+        //? if forge {
         return stack.getTagElement(DuctRouting.CONNECTION_KEY) != null || stack.getTagElement(PPG_CLAMP_TAP) != null;
+        //?} else {
+        /*// Power Grid keeps the pending connection in a data component of its own here
+        return stack.has(ModdedDataComponents.CONNECTION_DATA.get()) || StackData.sub(stack, PPG_CLAMP_TAP) != null;
+        *///?}
     }
 
     /**
@@ -214,8 +230,13 @@ public final class WireSagInput {
     }
 
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || dragEntity == -1)
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+        if (dragEntity == -1)
+    *///?}
             return;
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
@@ -266,7 +287,7 @@ public final class WireSagInput {
         }
         if (Math.abs(Math.log(k / lastSent)) > SEND_STEP) {
             lastSent = k;
-            ModPackets.CHANNEL.sendToServer(new SetWireLegSagPacket(dragEntity, dragLeg, expectedCount, (float) k));
+            ModPackets.sendToServer(new SetWireLegSagPacket(dragEntity, dragLeg, expectedCount, (float) k));
         }
         double depth = LegSag.depth(LegSag.curve(from, to, h, v, thickness, k), from, to);
         player.displayClientMessage(Component.translatable("gui.create_flippies.wire_sag",
@@ -276,7 +297,7 @@ public final class WireSagInput {
     /** Ends a drag, telling the server the last value if it has not heard it, so both sides settle on the same shape. */
     private static void release(BendableWire wire) {
         if (current != lastSent)
-            ModPackets.CHANNEL.sendToServer(new SetWireLegSagPacket(wire.bendEntity().getId(), dragLeg,
+            ModPackets.sendToServer(new SetWireLegSagPacket(wire.bendEntity().getId(), dragLeg,
                     expectedCount, (float) current));
         forget();
     }
@@ -307,7 +328,7 @@ public final class WireSagInput {
     private static boolean nearPpgClamp(Entity wire, Vec3 at) {
         double snap = PPG_CLAMP_SNAP * PPG_CLAMP_SNAP;
         return !wire.level().getEntities(wire, new AABB(at, at).inflate(PPG_CLAMP_SNAP),
-                e -> PPG_CLAMP.equals(ForgeRegistries.ENTITY_TYPES.getKey(e.getType()))
+                e -> PPG_CLAMP.equals(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()))
                         && e.position().distanceToSqr(at) < snap).isEmpty();
     }
 }

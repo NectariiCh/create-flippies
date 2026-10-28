@@ -36,6 +36,16 @@ public final class PcInteractions {
         Level level = pc.getLevel();
         ItemStack held = player.getItemInHand(hand);
         PcPartItem.Kind kind = PcPartItem.kindOf(held);
+        // A frozen PC is held as it is (spec 12.19): no buttons, no floppy swap
+        if (pc.frozen() && (target.kind() == PcCaseGeometry.Kind.POWER_BUTTON
+                || target.kind() == PcCaseGeometry.Kind.RESET_BUTTON || target.kind() == PcCaseGeometry.Kind.FLOPPY_SLOT)) {
+            if (hand != InteractionHand.MAIN_HAND)
+                return InteractionResult.PASS;
+            if (!level.isClientSide)
+                player.displayClientMessage(Component.translatable("gui.create_flippies.pc.frozen")
+                        .withStyle(ChatFormatting.AQUA), true);
+            return InteractionResult.sidedSuccess(level.isClientSide);
+        }
         switch (target.kind()) {
             case POWER_BUTTON, RESET_BUTTON -> {
                 if (hand != InteractionHand.MAIN_HAND)

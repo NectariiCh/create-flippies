@@ -1,20 +1,17 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.keyboard.KeyboardEvents;
 import com.nectariich.create_flippies.content.pc.PcServer;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One client tick of key events from the typist (spec 11.2.12), each
  * {@code Ps2Key} ordinal << 1 | down, at most {@link KeyboardEvents#MAX_PER_PACKET}.
  * The server checks the sender is the keyboard's typist and still in reach.
  */
-public class KeyboardKeysPacket {
+public class KeyboardKeysPacket implements FlippiesPacket {
 
     private final int id;
     private final short[] events;
@@ -40,13 +37,12 @@ public class KeyboardKeysPacket {
             buffer.writeShort(events[i]);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             PcServer server = PcServer.get();
             if (player != null && server != null)
                 server.captures().keys(player, id, events);
         });
-        context.get().setPacketHandled(true);
     }
 }

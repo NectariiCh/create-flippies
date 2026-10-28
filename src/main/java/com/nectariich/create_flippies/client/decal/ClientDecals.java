@@ -109,7 +109,7 @@ public final class ClientDecals {
             String hash = DesignBundle.hash(blob);
             install(hash, result.art());
             upload(hash, blob);
-            ModPackets.CHANNEL.sendToServer(new SelectDecalPacket(hand, hash, tint, transparent));
+            ModPackets.sendToServer(new SelectDecalPacket(hand, hash, tint, transparent));
             done.accept(new Imported(hash, result.art().name(), result.art().triangleCount(), result.warnings()));
         }, Minecraft.getInstance());
     }
@@ -186,7 +186,7 @@ public final class ClientDecals {
         int total = Math.max(1, (blob.length + chunk - 1) / chunk);
         for (int i = 0; i < total; i++) {
             int from = i * chunk;
-            ModPackets.CHANNEL.sendToServer(new DesignUploadPacket(hash, i, total,
+            ModPackets.sendToServer(new DesignUploadPacket(hash, i, total,
                     Arrays.copyOfRange(blob, from, Math.min(blob.length, from + chunk))));
         }
     }

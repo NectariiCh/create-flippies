@@ -21,6 +21,7 @@ import java.awt.image.BufferedImage;
 
 import com.nectariich.create_flippies.client.design.DesignGeometry;
 import com.nectariich.create_flippies.client.design.DesignImporter;
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.design_workbench.blueprint.Blueprint;
 import com.nectariich.create_flippies.content.indicator.IndicatorAction;
 import com.nectariich.create_flippies.content.indicator.IndicatorRating;
@@ -94,9 +95,9 @@ class DesignImportTest {
         assertArrayEquals(bundle.obj(), decoded.obj());
         assertTrue(ControlDesign.isHash(DesignBundle.hash(blob)));
 
-        ResourceLocation base = new ResourceLocation("create_flippies", "designs/test/");
+        ResourceLocation base = Ids.of("create_flippies", "designs/test/");
         ObjMeshReader.Result result = ObjMeshReader.read(new ByteArrayInputStream(decoded.obj()),
-                new ResourceLocation("create_flippies", "designs/test/" + decoded.objName()),
+                Ids.of("create_flippies", "designs/test/" + decoded.objName()),
                 ObjImportSettings.DEFAULT, mtl -> {
                     byte[] bytes = decoded.files().get(mtl.getPath().substring(base.getPath().length()));
                     return bytes == null ? null : new ByteArrayInputStream(bytes);

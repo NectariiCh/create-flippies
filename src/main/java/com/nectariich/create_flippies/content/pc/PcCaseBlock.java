@@ -13,6 +13,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -31,7 +32,6 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.network.PacketDistributor;
 
 import org.patryk3211.powergrid.electricity.base.ElectricBlock;
 import org.patryk3211.powergrid.electricity.base.IDecoratedTerminal;
@@ -79,6 +79,17 @@ public class PcCaseBlock extends ElectricBlock implements IBE<PcCaseBlockEntity>
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+    }
+
+    /** A case item carrying a snapshot (spec 12.19) places that PC. Server only. */
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (level.isClientSide || !PcSnapshots.isSnapshotItem(stack))
+            return;
+        PcServer server = PcServer.get();
+        if (server != null && level.getBlockEntity(pos) instanceof PcCaseBlockEntity pc)
+            server.snapshots().place(pc, stack, placer instanceof ServerPlayer player ? player : null);
     }
 
     // Shape
@@ -182,7 +193,7 @@ public class PcCaseBlock extends ElectricBlock implements IBE<PcCaseBlockEntity>
             return true;
         }
         if (!level.isClientSide && player instanceof ServerPlayer server)
-            ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> server),
+            ModPackets.sendToPlayer(server,
                     new OpenPcCasePacket(pos, pc.status()));
         return true;
     }

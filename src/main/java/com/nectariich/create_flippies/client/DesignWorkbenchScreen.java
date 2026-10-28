@@ -33,6 +33,7 @@ import com.nectariich.create_flippies.client.display.editor.DisplayEditor;
 import com.nectariich.create_flippies.client.display.editor.EditorHost;
 import com.nectariich.create_flippies.client.display.editor.EditorScale;
 import com.nectariich.create_flippies.client.display.editor.GlassView;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignBundle;
 import com.nectariich.create_flippies.content.design_workbench.annunciator.AnnunciatorMesh;
@@ -47,7 +48,6 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -108,7 +108,7 @@ import org.lwjgl.glfw.GLFW;
  * {@link SaveDialog}, and Blueprints opens the browser, from which a saved blueprint
  * can be made into an item or opened here again ({@link #openWith}).
  */
-public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
+public class DesignWorkbenchScreen extends FlippiesScreen implements WorkbenchHost {
 
     /** What is being made: a control on an imported model, an annunciator rack, a gauge, or a screen. */
     private enum Mode {
@@ -447,14 +447,14 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
     // ----------------------------------------------------------------- input
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    protected boolean onScroll(double mouseX, double mouseY, double delta) {
         if (layoutEditor != null)
             return layoutEditor.mouseScrolled(mouseX, mouseY, delta);
         if (dialog != null)
-            return super.mouseScrolled(mouseX, mouseY, delta);
+            return super.onScroll(mouseX, mouseY, delta);
         if (overPanel(mouseX)) {
             // The layout's element list scrolls itself before the panel does
-            if (tab == Tab.SCREEN && super.mouseScrolled(mouseX, mouseY, delta))
+            if (tab == Tab.SCREEN && super.onScroll(mouseX, mouseY, delta))
                 return true;
             if (maxScroll > 0) {
                 int next = Mth.clamp(scroll - (int) Math.signum(delta) * Panel.ROW, 0, maxScroll);
@@ -465,11 +465,11 @@ public class DesignWorkbenchScreen extends Screen implements WorkbenchHost {
                 return true;
             }
         } else if (materialEditor != null && materialEditor.contains(mouseX, mouseY)) {
-            return super.mouseScrolled(mouseX, mouseY, delta);
+            return super.onScroll(mouseX, mouseY, delta);
         } else if (tab == Tab.TEXT && textEditor.mouseScrolled(mouseX, mouseY, delta, width, height)) {
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.onScroll(mouseX, mouseY, delta);
     }
 
     @Override

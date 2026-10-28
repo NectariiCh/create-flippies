@@ -1,7 +1,6 @@
 package com.nectariich.create_flippies.network;
 
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignStore;
@@ -25,7 +24,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One edit the display editor makes to one display's {@link ScreenElements}: put or
@@ -72,7 +70,7 @@ import net.minecraftforge.network.NetworkEvent;
  * A null mount means the block at {@code pos} is the display; a mount means it is a
  * host and the display is the control there, as with every other control's packet.
  */
-public class EditScreenElementPacket {
+public class EditScreenElementPacket implements FlippiesPacket {
 
     public enum Op {
         REMOVE, SET, Z_TO, PUT;
@@ -371,9 +369,9 @@ public class EditScreenElementPacket {
         }
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null || op == null)
                 return;
             Level level = player.level();
@@ -387,7 +385,6 @@ public class EditScreenElementPacket {
             if (outcome.changed())
                 display.elementsChanged();
         });
-        context.get().setPacketHandled(true);
     }
 
     /**

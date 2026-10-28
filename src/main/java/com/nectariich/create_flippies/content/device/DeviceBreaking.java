@@ -48,7 +48,11 @@ public final class DeviceBreaking {
 
     private static boolean inReach(ServerPlayer player, DeviceEntity device) {
         Vec3 eye = player.getEyePosition();
+        //? if forge {
         double reach = player.getBlockReach() + REACH_SLACK;
+        //?} else {
+        /*double reach = player.blockInteractionRange() + REACH_SLACK;
+        *///?}
         return device.getBoundingBox().distanceToSqr(eye) <= reach * reach;
     }
 }

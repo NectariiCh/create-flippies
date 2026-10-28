@@ -35,8 +35,14 @@ final class PanelArrowQuads {
     static void build(CellArrows arrows, PanelQuadLight light, List<BakedQuad> into) {
         TextureAtlasSprite sprite = Minecraft.getInstance().getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS)
                 .getSprite(PanelPaintQuads.PAINT);
+        // The sprite centre: 1.21 takes the position as 0..1 instead of 0..16
+        //? if forge {
         float spriteU = sprite.getU(8);
         float spriteV = sprite.getV(8);
+        //?} else {
+        /*float spriteU = sprite.getU(0.5f);
+        float spriteV = sprite.getV(0.5f);
+        *///?}
         List<PanelArrow> list = arrows.arrows();
         for (int index = 0; index < list.size(); index++) {
             PanelArrow arrow = list.get(index);

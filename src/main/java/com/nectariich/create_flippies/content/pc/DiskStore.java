@@ -74,8 +74,13 @@ public final class DiskStore {
             flush(entry.image());
     }
 
+    /** The folder of a disk's chunk files; it may not exist (a disk never written). */
+    public Path folder(UUID id) {
+        return root.resolve(id.toString());
+    }
+
     private Path chunkPath(UUID id, int chunk) {
-        return root.resolve(id.toString()).resolve(chunk + ".bin");
+        return folder(id).resolve(chunk + ".bin");
     }
 
     private DiskChunkStore chunks(UUID id) {

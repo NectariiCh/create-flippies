@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.content.decal;
 
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 
 import net.minecraft.nbt.CompoundTag;
@@ -35,7 +36,7 @@ public record DecalSelection(String art, String name, float width, float height,
     }
 
     public static DecalSelection read(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
+        CompoundTag tag = StackData.peek(stack);
         if (tag == null || !tag.contains(ROOT))
             return NONE;
         CompoundTag decal = tag.getCompound(ROOT);
@@ -53,7 +54,7 @@ public record DecalSelection(String art, String name, float width, float height,
         decal.putFloat("Height", height);
         decal.putInt("Tint", tint == PanelDecal.OWN_COLOURS ? PanelDecal.OWN_COLOURS : tint | 0xFF000000);
         decal.putBoolean("Transparent", transparent);
-        stack.getOrCreateTag().put(ROOT, decal);
+        StackData.put(stack, ROOT, decal);
     }
 
     public DecalSelection withArt(String art, DecalArt picture) {

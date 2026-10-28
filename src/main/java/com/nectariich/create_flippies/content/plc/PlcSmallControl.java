@@ -43,7 +43,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 
-import net.minecraftforge.network.PacketDistributor;
 
 import org.patryk3211.powergrid.electricity.sim.ElectricWire;
 import org.patryk3211.powergrid.electricity.sim.SwitchedWire;
@@ -652,7 +651,7 @@ public class PlcSmallControl extends HostedControl {
     /** Tells the player who uploaded how it went. */
     public void reply(ServerPlayer player, PlcUploadResultPacket.Outcome outcome, List<String> lines) {
         if (host() != null)
-            ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+            ModPackets.sendToPlayer(player,
                     new PlcUploadResultPacket(host().pos(), mount(), outcome, lines));
     }
 
@@ -730,7 +729,7 @@ public class PlcSmallControl extends HostedControl {
         // read() already refuses a longer text, but a string the packet cannot carry
         // would throw out of the click on the server thread, every click, and the
         // menu would never open — so it is clipped here too rather than trusted
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+        ModPackets.sendToPlayer(player,
                 new OpenPlcPacket(host().pos(), mount(), clipSource(source), status()));
         return true;
     }

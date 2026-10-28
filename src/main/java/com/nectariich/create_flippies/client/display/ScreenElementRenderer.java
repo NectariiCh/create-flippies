@@ -2,7 +2,6 @@ package com.nectariich.create_flippies.client.display;
 
 import java.util.List;
 
-import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -10,6 +9,7 @@ import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.client.decal.ClientDecals;
 import com.nectariich.create_flippies.client.design.ClientDesigns;
 import com.nectariich.create_flippies.client.design.DesignFonts;
+import com.nectariich.create_flippies.compat.Verts;
 import com.nectariich.create_flippies.content.decal.DecalArt;
 import com.nectariich.create_flippies.content.display.element.BarSettings;
 import com.nectariich.create_flippies.content.display.element.ElementKind;
@@ -103,7 +103,7 @@ public final class ScreenElementRenderer {
      * draws by type, which would sort every fill under every piece of lettering).
      */
     private static final MultiBufferSource.BufferSource IMMEDIATE =
-            MultiBufferSource.immediate(new BufferBuilder(256));
+            Verts.immediate(256);
 
     private ScreenElementRenderer() {}
 
@@ -198,10 +198,10 @@ public final class ScreenElementRenderer {
         Matrix4f pose = ms.last().pose();
         VertexConsumer quad = out.getBuffer(ScreenRenderTypes.VIEWPORT_DEPTH);
         float w = viewport.width() * TENTH, h = viewport.height() * TENTH;
-        quad.vertex(pose, 0, 0, 0).color(0, 0, 0, 0).endVertex();
-        quad.vertex(pose, 0, h, 0).color(0, 0, 0, 0).endVertex();
-        quad.vertex(pose, w, h, 0).color(0, 0, 0, 0).endVertex();
-        quad.vertex(pose, w, 0, 0).color(0, 0, 0, 0).endVertex();
+        Verts.posColor(quad, pose, 0, 0, 0, 0, 0, 0, 0);
+        Verts.posColor(quad, pose, 0, h, 0, 0, 0, 0, 0);
+        Verts.posColor(quad, pose, w, h, 0, 0, 0, 0, 0);
+        Verts.posColor(quad, pose, w, 0, 0, 0, 0, 0, 0);
     }
 
     /** Buffers asked for through this renderer since the game started, for checking dark displays ask for none. */
@@ -506,8 +506,8 @@ public final class ScreenElementRenderer {
     }
 
     private static void vertex(VertexConsumer vertices, Matrix4f pose, float x, float y, int argb, int light) {
-        vertices.vertex(pose, x, y, 0).color((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, argb >>> 24)
-                .uv2(light).endVertex();
+        Verts.posColorLight(vertices, pose, x, y, 0, (argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF,
+                argb >>> 24, light);
     }
 
     /** A hollow rectangle: a bar along the top and the bottom, and the sides between them. */
@@ -531,10 +531,10 @@ public final class ScreenElementRenderer {
         VertexConsumer vertices = out.getBuffer(ScreenRenderTypes.FILL);
         float x0 = x * TENTH, y0 = y * TENTH, x1 = (x + w) * TENTH, y1 = (y + h) * TENTH;
         int a = argb >>> 24, r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
-        vertices.vertex(pose, x0, y0, 0).color(r, g, b, a).uv2(light).endVertex();
-        vertices.vertex(pose, x0, y1, 0).color(r, g, b, a).uv2(light).endVertex();
-        vertices.vertex(pose, x1, y1, 0).color(r, g, b, a).uv2(light).endVertex();
-        vertices.vertex(pose, x1, y0, 0).color(r, g, b, a).uv2(light).endVertex();
+        Verts.posColorLight(vertices, pose, x0, y0, 0, r, g, b, a, light);
+        Verts.posColorLight(vertices, pose, x0, y1, 0, r, g, b, a, light);
+        Verts.posColorLight(vertices, pose, x1, y1, 0, r, g, b, a, light);
+        Verts.posColorLight(vertices, pose, x1, y0, 0, r, g, b, a, light);
     }
 
     /**

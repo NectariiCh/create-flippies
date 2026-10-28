@@ -2,7 +2,12 @@ package com.nectariich.create_flippies.foundation;
 
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchTurnMode;
 
+// The spec class is renamed for 1.21.1 by a Stonecutter replacement (stonecutter.gradle.kts).
+//? if forge {
 import net.minecraftforge.common.ForgeConfigSpec;
+//?} else {
+/*import net.neoforged.neoforge.common.ForgeConfigSpec;
+*///?}
 
 /**
  * The mod's client-side settings, written to

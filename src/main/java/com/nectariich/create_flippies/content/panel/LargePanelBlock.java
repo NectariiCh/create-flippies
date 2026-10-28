@@ -13,6 +13,9 @@ import com.simibubi.create.foundation.blockEntity.SmartBlockEntityTicker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+//? if neoforge {
+/*import net.minecraft.world.ItemInteractionResult;
+*///?}
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
@@ -271,23 +274,55 @@ public class LargePanelBlock extends CopycatBlock implements IProtrudingHitbox {
      * {@code CopycatBlock} and applies a material.
      */
     @Override
+    //? if forge {
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand,
             BlockHitResult hit) {
+    //?} else {
+    /*protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
+            Player player, InteractionHand hand, BlockHitResult hit) {
+    *///?}
         Vec3 local = hit.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ());
 
         IElectric electric = IElectric.getAt(level, pos);
         if (electric != null && electric.terminalAt(state, local) != null)
+            //? if forge {
             return InteractionResult.PASS;
+            //?} else {
+            /*return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+            *///?}
         if (player.isShiftKeyDown() || AllItems.WRENCH.isIn(player.getItemInHand(hand)))
+            //? if forge {
             return super.use(state, level, pos, player, hand, hit);
+            //?} else {
+            /*return super.useItemOn(stack, state, level, pos, player, hand, hit);
+            *///?}
 
         LargePanelBlockEntity cell = LargePanelBlockEntity.cellAt(level, pos);
         HostedControl control = cell == null ? null : cell.controlAt(local);
         if (control == null)
+            //? if forge {
             return super.use(state, level, pos, player, hand, hit);
+            //?} else {
+            /*return super.useItemOn(stack, state, level, pos, player, hand, hit);
+            *///?}
         if (level.isClientSide)
+            //? if forge {
             return InteractionResult.SUCCESS;
+            //?} else {
+            /*return ItemInteractionResult.SUCCESS;
+            *///?}
+        //? if forge {
         return control.use(player, hand, local);
+        //?} else {
+        /*// A pass leaves the click to the item, as a pass from use did
+        return switch (control.use(player, hand, local)) {
+            case SUCCESS, SUCCESS_NO_ITEM_USED -> ItemInteractionResult.SUCCESS;
+            case CONSUME -> ItemInteractionResult.CONSUME;
+            case CONSUME_PARTIAL -> ItemInteractionResult.CONSUME_PARTIAL;
+            case PASS -> ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+            case FAIL -> ItemInteractionResult.FAIL;
+        };
+        *///?}
     }
 
     /**

@@ -1,15 +1,11 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.plc.PlcSmallControl;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * Something a PLC's open menu asks of the server: a fresh status for the live pane,
@@ -21,7 +17,7 @@ import net.minecraftforge.network.PacketDistributor;
  * looking at. A poll needs only that the player could have opened the menu; a reset
  * needs that they may change the world as well.
  */
-public class PlcActionPacket {
+public class PlcActionPacket implements FlippiesPacket {
 
     public enum Action {
         POLL,
@@ -50,17 +46,16 @@ public class PlcActionPacket {
         buffer.writeEnum(action);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             PlcSmallControl plc = PlcSmallControl.reachable(player, pos, mount, action == Action.RESET);
             if (plc == null)
                 return;
             if (action == Action.RESET)
                 plc.pressReset();
-            ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+            ModPackets.sendToPlayer(player,
                     new PlcStatusPacket(pos, mount, plc.status()));
         });
-        context.get().setPacketHandled(true);
     }
 }

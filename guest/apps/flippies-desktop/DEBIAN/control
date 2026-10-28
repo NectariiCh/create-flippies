@@ -1,5 +1,5 @@
 Package: flippies-desktop
-Version: 1.0
+Version: 1.1
 Architecture: all
 Maintainer: Create Flippies <flippies@deb.flip>
 Section: x11
@@ -9,4 +9,6 @@ Description: Start menu of installed apps for the Create Flippies desktop
  flippies-apps-menu makes the "Apps" submenu of the desktop's Start menu (a JWM
  dynamic menu) from the installed programs' .desktop files, grouped into a few
  folders by category, so programs installed with apt appear in the menu on their
- own. A dpkg trigger keeps a cached copy current.
+ own. A dpkg trigger keeps a cached copy current. Programs that come without a
+ menu entry (xcalc and the other x11-apps, Lua) get one. Installed on a disk
+ made before it, it adds the Apps submenu to each user's ~/.jwmrc.

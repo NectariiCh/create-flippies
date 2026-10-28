@@ -15,7 +15,11 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -99,15 +103,21 @@ public final class IndicatorPressInput {
 
         pressedPos = pos;
         pressedLocal = local;
-        ModPackets.CHANNEL.sendToServer(new PressIndicatorPacket(pos, local, true));
+        ModPackets.sendToServer(new PressIndicatorPacket(pos, local, true));
         event.setCanceled(true);
     }
 
     /** Lets go, on the tick the key comes up or the player stops being able to hold it. */
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || pressedPos == null)
             return;
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+        if (pressedPos == null)
+            return;
+    *///?}
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null && minecraft.level != null && minecraft.screen == null
                 && minecraft.options.keyUse.isDown() && minecraft.level.isLoaded(pressedPos))
@@ -116,7 +126,7 @@ public final class IndicatorPressInput {
     }
 
     private static void release() {
-        ModPackets.CHANNEL.sendToServer(new PressIndicatorPacket(pressedPos, pressedLocal, false));
+        ModPackets.sendToServer(new PressIndicatorPacket(pressedPos, pressedLocal, false));
         pressedPos = null;
         pressedLocal = null;
     }
