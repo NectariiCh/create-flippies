@@ -155,6 +155,10 @@ public class ModPackets {
         packets.add(SnapshotUploadPacket.class, SnapshotUploadPacket::new, Flow.TO_SERVER);
         packets.add(SnapshotUploadAckPacket.class, SnapshotUploadAckPacket::new, Flow.TO_CLIENT);
         // PC SNAPSHOTS end
+        // ALARM SPEAKERS
+        packets.add(ConfigureAlarmSpeakerPacket.class, ConfigureAlarmSpeakerPacket::new, Flow.TO_SERVER);
+        packets.add(OpenAlarmSpeakerPacket.class, OpenAlarmSpeakerPacket::new, Flow.TO_CLIENT);
+        // ALARM SPEAKERS end
     }
 
     //? if forge {

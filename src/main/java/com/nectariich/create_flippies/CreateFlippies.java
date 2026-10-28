@@ -120,6 +120,7 @@ public class CreateFlippies {
         RelayMountType.register();
         TerminalBlockType.register();
         AlphanumDisplayControlType.register();
+        com.nectariich.create_flippies.content.speaker.AlarmSpeakerControlType.register();
         DesignedSwitchControlType.register();
         DesignedButtonControlType.register();
         DesignedRackControlType.register();
