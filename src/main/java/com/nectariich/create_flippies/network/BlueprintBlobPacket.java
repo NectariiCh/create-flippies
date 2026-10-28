@@ -1,13 +1,9 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.content.design_workbench.DesignTransfers;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One chunk of a store file a client fetched to keep a blueprint locally: a world
@@ -18,7 +14,7 @@ import net.minecraftforge.network.NetworkEvent;
  * the bytes here go to the blueprint files, and a font has no business being parsed
  * as a model.
  */
-public class BlueprintBlobPacket {
+public class BlueprintBlobPacket implements FlippiesPacket {
 
     private final String hash;
     private final int index;
@@ -46,10 +42,9 @@ public class BlueprintBlobPacket {
         buffer.writeByteArray(bytes);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientOnly.run(
                 () -> () -> com.nectariich.create_flippies.client.blueprint.ClientBlueprints.receiveBlob(hash, index,
                         total, bytes)));
-        context.get().setPacketHandled(true);
     }
 }

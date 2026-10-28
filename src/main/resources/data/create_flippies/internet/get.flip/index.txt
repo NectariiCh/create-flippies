@@ -1,0 +1,3 @@
+# The netinstall floppy's catalogue when the server has no OS pack (docs/PC_SPEC.md 12.4.3).
+# With no entries the floppy says no OS is available and to ask the server owner to install a
+# pack. Every OS pack brings its own lines, and those replace this file.

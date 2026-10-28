@@ -6,6 +6,7 @@ import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.client.decal.ClientDecals;
 import com.nectariich.create_flippies.client.design.DesignImporter;
 import com.nectariich.create_flippies.client.schematic_arrow.ArrowScreen;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowDraft;
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowGrab;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
@@ -28,7 +29,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -50,7 +50,7 @@ import net.minecraft.world.item.ItemStack;
  * a button's own press handler, which is the widget list being iterated at the
  * time.
  */
-public class ScrewdriverScreen extends Screen {
+public class ScrewdriverScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".screwdriver.";
 
@@ -397,13 +397,12 @@ public class ScrewdriverScreen extends Screen {
         }
         if (mode == ScrewdriverMode.EDIT_PANEL)
             step = parseStep(stepBox, step);
-        ModPackets.CHANNEL
-                .sendToServer(new ConfigureScrewdriverPacket(hand, mode, columns, rows, turn, kind, yaw, editKind,
-                        step, clearCorner));
+        ModPackets.sendToServer(new ConfigureScrewdriverPacket(hand, mode, columns, rows, turn, kind, yaw, editKind,
+                step, clearCorner));
         // A blank picture changes only the options, and leaves alone whatever an import
         // still on its way will put on the tool
         if (tint != initialTint || transparent != initialTransparent)
-            ModPackets.CHANNEL.sendToServer(new SelectDecalPacket(hand, "", tint, transparent));
+            ModPackets.sendToServer(new SelectDecalPacket(hand, "", tint, transparent));
         onClose();
     }
 
@@ -426,7 +425,7 @@ public class ScrewdriverScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int cx = width / 2;
         int top = height / 2 - 60;
         graphics.drawCenteredString(font, title, cx, top - 20, 0xFFFFFF);

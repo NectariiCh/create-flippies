@@ -12,7 +12,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
 
 import org.patryk3211.powergrid.electricity.wire.HangingWireEntity;
 import org.patryk3211.powergrid.utility.PlayerUtilities;
@@ -121,7 +120,7 @@ public final class WireBendService {
             ok = legDistanceSqr(player.getEyePosition(), wire, path, leg, sags[leg]) <= range * range;
         }
         if (!ok) {
-            ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), syncPacket(entity, wire));
+            ModPackets.sendToPlayer(player, syncPacket(entity, wire));
             return;
         }
         sags[leg] = (float) LegSag.clamp(wire.bendHorizontalCoefficient(), sag);
@@ -158,7 +157,7 @@ public final class WireBendService {
     }
 
     private static void refuse(ServerPlayer player, BendableWire wire, WireBends.Verdict verdict, boolean settles) {
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), syncPacket(wire.bendEntity(), wire));
+        ModPackets.sendToPlayer(player, syncPacket(wire.bendEntity(), wire));
         if (verdict != null && verdict != WireBends.Verdict.BAD_INDEX && verdict != WireBends.Verdict.NOT_FINITE)
             player.displayClientMessage(Component.translatable(verdict.langKey()).withStyle(ChatFormatting.RED), true);
         // Earlier moves of the same drag were made, so the drag still settles
@@ -170,6 +169,6 @@ public final class WireBendService {
     public static void sync(Entity entity) {
         if (entity.level().isClientSide || !(entity instanceof BendableWire wire))
             return;
-        ModPackets.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> entity), syncPacket(entity, wire));
+        ModPackets.sendToTrackingEntity(entity, syncPacket(entity, wire));
     }
 }

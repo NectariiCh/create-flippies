@@ -2,15 +2,12 @@ package com.nectariich.create_flippies.network;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * How an upload went, sent back to the player who asked for it: whether the server's
@@ -21,7 +18,7 @@ import net.minecraftforge.network.NetworkEvent;
  * An upload the server would not start is answered too, at once and with no lines,
  * so that the menu says so instead of waiting out its timeout.
  */
-public class PlcUploadResultPacket {
+public class PlcUploadResultPacket implements FlippiesPacket {
 
     /** Bounds on what is carried, so a compiler having a bad day cannot make a huge packet. */
     private static final int MAX_LINES = 200;
@@ -76,9 +73,8 @@ public class PlcUploadResultPacket {
         }
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientOnly.run(
                 () -> () -> com.nectariich.create_flippies.client.PlcScreen.uploaded(pos, mount, outcome, lines)));
-        context.get().setPacketHandled(true);
     }
 }

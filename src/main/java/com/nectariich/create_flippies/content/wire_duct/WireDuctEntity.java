@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.content.wire_duct;
 
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.SpawnDataEntity;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctColor;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSegment;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSize;
@@ -11,20 +12,15 @@ import com.nectariich.create_flippies.registry.ModItems;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.entity.IEntityAdditionalSpawnData;
-import net.minecraftforge.network.NetworkHooks;
 
 /**
  * One straight stretch of wire duct lying flat on a face ({@link DuctSegment}). It
@@ -41,7 +37,7 @@ import net.minecraftforge.network.NetworkHooks;
  * from the block it lies on. This mod picks it itself, client side, for running
  * wires through it, dyeing it and taking it off with a screwdriver ({@code WireDuctInput}).
  */
-public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData {
+public class WireDuctEntity extends SpawnDataEntity {
 
     /** How far the box reaches past each end; see {@code DuctNetwork.jointExtensions}. */
     private static final EntityDataAccessor<Float> EXTEND_FROM =
@@ -152,12 +148,21 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         return segment.holdBox(reach, reach);
     }
 
+    //? if forge {
     @Override
     protected void defineSynchedData() {
         entityData.define(EXTEND_FROM, 0f);
         entityData.define(EXTEND_TO, 0f);
         entityData.define(COLOR, DuctColor.WHITE);
     }
+    //?} else {
+    /*@Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(EXTEND_FROM, 0f);
+        builder.define(EXTEND_TO, 0f);
+        builder.define(COLOR, DuctColor.WHITE);
+    }
+    *///?}
 
     /** Whatever changes about a duct after it is placed changes how the wires in it are drawn. */
     @Override
@@ -283,10 +288,5 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         // Forge adds a spawned entity to the client's level before reading this, so
         // it joined with no shape and was not filed then
         DuctIndex.file(this);
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
     }
 }

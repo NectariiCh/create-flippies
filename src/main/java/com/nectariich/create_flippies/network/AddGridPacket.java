@@ -1,12 +1,9 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.foundation.grid.ClientGridStore;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One newly placed grid, sent to everyone watching the chunks it covers.
@@ -17,7 +14,7 @@ import net.minecraftforge.network.NetworkEvent;
  * expose; making the mirror idempotent instead is both cheaper and what the
  * snapshot path needs anyway.
  */
-public class AddGridPacket {
+public class AddGridPacket implements FlippiesPacket {
 
     private final PlacementGrid grid;
 
@@ -33,8 +30,7 @@ public class AddGridPacket {
         grid.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> ClientGridStore.accept(grid));
-        context.get().setPacketHandled(true);
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientGridStore.accept(grid));
     }
 }

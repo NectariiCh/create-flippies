@@ -1,11 +1,11 @@
 package com.nectariich.create_flippies.content.device;
 
+import com.nectariich.create_flippies.compat.SpawnDataEntity;
+
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
@@ -22,8 +22,6 @@ import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.entity.IEntityAdditionalSpawnData;
-import net.minecraftforge.network.NetworkHooks;
 
 /**
  * A device that stands in the world like a block but is an entity, so that it can
@@ -41,7 +39,7 @@ import net.minecraftforge.network.NetworkHooks;
  *
  * It never moves and has no physics: placed once, sent once.
  */
-public abstract class DeviceEntity extends Entity implements IEntityAdditionalSpawnData {
+public abstract class DeviceEntity extends SpawnDataEntity {
 
     private int step;
     /** The collision shape at {@link #shapeAt}, in world space. */
@@ -120,8 +118,13 @@ public abstract class DeviceEntity extends Entity implements IEntityAdditionalSp
 
     // Not a mob, not a target, not moved
 
+    //? if forge {
     @Override
     protected void defineSynchedData() {}
+    //?} else {
+    /*@Override
+    protected void defineSynchedData(net.minecraft.network.syncher.SynchedEntityData.Builder builder) {}
+    *///?}
 
     @Override
     public void tick() {
@@ -156,6 +159,7 @@ public abstract class DeviceEntity extends Entity implements IEntityAdditionalSp
         return false;
     }
 
+    //? if forge {
     @Override
     public boolean ignoreExplosion() {
         return true;
@@ -165,6 +169,17 @@ public abstract class DeviceEntity extends Entity implements IEntityAdditionalSp
     public boolean canChangeDimensions() {
         return false;
     }
+    //?} else {
+    /*@Override
+    public boolean ignoreExplosion(net.minecraft.world.level.Explosion explosion) {
+        return true;
+    }
+
+    @Override
+    public boolean canChangeDimensions(Level from, Level to) {
+        return false;
+    }
+    *///?}
 
     @Override
     public PushReaction getPistonPushReaction() {
@@ -207,9 +222,16 @@ public abstract class DeviceEntity extends Entity implements IEntityAdditionalSp
                 default -> 8.1e-4f;
             };
         }
+        //? if forge {
         if (player.isEyeInFluidType(net.minecraftforge.common.ForgeMod.WATER_TYPE.get())
                 && !EnchantmentHelper.hasAquaAffinity(player))
             speed /= 5;
+        //?} else {
+        /*// As Player.getDigSpeed: aqua affinity is this attribute on 1.21.1, 0.2 by default and 1 with it
+        if (player.isEyeInFluid(net.minecraft.tags.FluidTags.WATER))
+            speed *= (float) player.getAttributeValue(
+                    net.minecraft.world.entity.ai.attributes.Attributes.SUBMERGED_MINING_SPEED);
+        *///?}
         if (!player.onGround())
             speed /= 5;
         float perTick = speed / hardness() / 30;
@@ -238,6 +260,7 @@ public abstract class DeviceEntity extends Entity implements IEntityAdditionalSp
 
     // Lifecycle
 
+    //? if forge {
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
@@ -247,6 +270,17 @@ public abstract class DeviceEntity extends Entity implements IEntityAdditionalSp
     @Override
     public void onRemovedFromWorld() {
         super.onRemovedFromWorld();
+    //?} else {
+    /*@Override
+    public void onAddedToLevel() {
+        super.onAddedToLevel();
+        added();
+    }
+
+    @Override
+    public void onRemovedFromLevel() {
+        super.onRemovedFromLevel();
+    *///?}
         RemovalReason reason = getRemovalReason();
         // A client never destroys one: it only loses sight of it, whatever reason it was given
         removed(!level().isClientSide && reason != null && reason.shouldDestroy());
@@ -282,11 +316,6 @@ public abstract class DeviceEntity extends Entity implements IEntityAdditionalSp
         step = Math.floorMod(buffer.readByte(), DeviceShape.STEPS);
         setYRot(DeviceShape.yaw(step));
         setBoundingBox(makeBoundingBox());
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
     }
 
     /** The device at this entity id in {@code level}, if it is one. */

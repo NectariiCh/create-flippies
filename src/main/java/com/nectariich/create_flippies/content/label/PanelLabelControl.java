@@ -16,7 +16,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * A panel label mounted inside a host block: one line of text on a strip of the
@@ -179,7 +178,7 @@ public class PanelLabelControl extends HostedControl implements LinkDrivenContro
     public boolean openEditor(ServerPlayer player) {
         if (host() == null)
             return false;
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+        ModPackets.sendToPlayer(player,
                 new OpenPanelLabelPacket(host().pos(), mount()));
         return true;
     }

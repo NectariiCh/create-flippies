@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignKind;
 import com.nectariich.create_flippies.content.design_workbench.DesignMotion;
@@ -395,7 +396,7 @@ class DesignedGaugeTest {
     void agreesWithHypergraphicalOnUvs() throws Exception {
         byte[] obj = OBJ.getBytes(StandardCharsets.UTF_8);
         MeshData mesh = ObjMeshReader.read(new ByteArrayInputStream(obj),
-                new ResourceLocation("create_flippies", "designs/test/gauge.obj"), ObjImportSettings.DEFAULT,
+                Ids.of("create_flippies", "designs/test/gauge.obj"), ObjImportSettings.DEFAULT,
                 mtl -> null).mesh();
         int checked = 0;
         for (MeshData.SubMesh sub : mesh.subMeshes()) {

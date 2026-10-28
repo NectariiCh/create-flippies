@@ -16,6 +16,7 @@ import java.util.function.UnaryOperator;
 
 import com.nectariich.create_flippies.client.design.DesignFonts;
 import com.nectariich.create_flippies.client.design.ui.Lang;
+import com.nectariich.create_flippies.compat.EditBoxes;
 import com.nectariich.create_flippies.content.design_workbench.DesignText;
 import com.nectariich.create_flippies.content.display.DisplayPrint;
 import com.nectariich.create_flippies.content.display.element.BarSettings;
@@ -160,7 +161,7 @@ public final class InspectorMenu implements EditorMenu {
     public void tick() {
         ensureBuilt();
         for (Field field : fields)
-            field.box.tick();
+            EditBoxes.tick(field.box);
         refresh(false);
     }
 
@@ -1275,7 +1276,7 @@ public final class InspectorMenu implements EditorMenu {
                 at = i;
         Field next = editable.get(Math.floorMod(at + step, editable.size()));
         setFocus(next.box);
-        next.box.moveCursorToEnd();
+        EditBoxes.cursorToEnd(next.box);
         next.box.setHighlightPos(0);
         for (Placed placed : widgets)
             if (placed.widget() == next.box) {
@@ -1333,7 +1334,7 @@ public final class InspectorMenu implements EditorMenu {
                 return;
             filling = true;
             box.setValue(value);
-            box.moveCursorToStart();
+            EditBoxes.cursorToStart(box);
             filling = false;
         }
     }

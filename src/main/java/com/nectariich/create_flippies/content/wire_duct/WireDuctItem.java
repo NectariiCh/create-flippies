@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.wire_duct;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverSettings;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctColor;
@@ -70,7 +71,7 @@ public class WireDuctItem extends Item {
         if (tool == null)
             return null;
         ItemStack stack = player.getItemInHand(ScrewdriverItem.otherHand(tool));
-        return stack.getItem() instanceof WireDuctItem && stack.getTagElement(TAG_START) != null ? stack : null;
+        return stack.getItem() instanceof WireDuctItem && StackData.sub(stack, TAG_START) != null ? stack : null;
     }
 
     /**
@@ -83,7 +84,7 @@ public class WireDuctItem extends Item {
         ItemStack stack = pending(player);
         if (stack == null)
             return false;
-        stack.removeTagKey(TAG_START);
+        StackData.remove(stack, TAG_START);
         if (!player.level().isClientSide)
             message(player, Component.translatable("gui.create_flippies.wire_duct.cancelled"), false);
         return true;
@@ -96,14 +97,14 @@ public class WireDuctItem extends Item {
     public void click(Player player, ItemStack stack, Direction face, Vec3 hit) {
         Level level = player.level();
         Vec3 point = WireDuctService.snapPoint(level, player.getEyePosition(), hit, face, size);
-        CompoundTag start = stack.getTagElement(TAG_START);
+        CompoundTag start = StackData.sub(stack, TAG_START);
         if (start == null) {
             CompoundTag tag = new CompoundTag();
             tag.putDouble("X", point.x);
             tag.putDouble("Y", point.y);
             tag.putDouble("Z", point.z);
             tag.putInt("Face", face.get3DDataValue());
-            stack.getOrCreateTag().put(TAG_START, tag);
+            StackData.put(stack, TAG_START, tag);
             message(player, Component.translatable("gui.create_flippies.wire_duct.next"), false);
             return;
         }
@@ -120,22 +121,22 @@ public class WireDuctItem extends Item {
 
     /** The colour a duct laid from {@code stack} takes. */
     public static int color(ItemStack stack) {
-        return DuctColor.read(stack.getTag());
+        return DuctColor.read(StackData.peek(stack));
     }
 
     /** {@code stack} given {@code color}; white is no colour at all, so plain stacks still stack together. */
     public static ItemStack withColor(ItemStack stack, int color) {
         if ((color & 0xFFFFFF) == DuctColor.WHITE) {
-            stack.removeTagKey(DuctColor.TAG);
+            StackData.remove(stack, DuctColor.TAG);
         } else {
-            DuctColor.write(stack.getOrCreateTag(), color);
+            StackData.edit(stack, tag -> DuctColor.write(tag, color));
         }
         return stack;
     }
 
     @Override
     public boolean isFoil(ItemStack stack) {
-        return stack.getTagElement(TAG_START) != null;
+        return StackData.sub(stack, TAG_START) != null;
     }
 
     @Override

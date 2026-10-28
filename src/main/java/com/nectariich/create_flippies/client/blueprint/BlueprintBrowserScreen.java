@@ -14,6 +14,8 @@ import org.lwjgl.glfw.GLFW;
 
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.client.DesignWorkbenchScreen;
+import com.nectariich.create_flippies.compat.EditBoxes;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.blueprint.Blueprint;
 import com.nectariich.create_flippies.content.design_workbench.blueprint.BlueprintIndex;
@@ -57,7 +59,7 @@ import net.minecraft.network.chat.Component;
  * World ops go to the server and come back as a sync, which bumps
  * {@link ClientBlueprints#revision()}; the screen lists again whenever that moves.
  */
-public class BlueprintBrowserScreen extends Screen {
+public class BlueprintBrowserScreen extends FlippiesScreen {
 
     private static final String LANG = "gui." + CreateFlippies.MOD_ID + ".blueprints.";
 
@@ -665,7 +667,7 @@ public class BlueprintBrowserScreen extends Screen {
                 value = text;
                 error = null;
             });
-            box.moveCursorToEnd();
+            EditBoxes.cursorToEnd(box);
             box.setHighlightPos(0);
             setFocused(box);
             okCancel(Component.translatable(LANG + "dialog.ok"));
@@ -940,7 +942,7 @@ public class BlueprintBrowserScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    protected boolean onScroll(double mouseX, double mouseY, double delta) {
         if (dialog != null)
             return dialog.mouseScrolled(mouseX, mouseY, delta);
         if (overList(mouseX, mouseY)) {
@@ -948,7 +950,7 @@ public class BlueprintBrowserScreen extends Screen {
             clampScroll();
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.onScroll(mouseX, mouseY, delta);
     }
 
     private boolean overList(double mouseX, double mouseY) {
@@ -961,7 +963,7 @@ public class BlueprintBrowserScreen extends Screen {
             refreshRows();
         for (AbstractWidget widget : dialogWidgets)
             if (widget instanceof EditBox box)
-                box.tick();
+                EditBoxes.tick(box);
     }
 
     @Override
@@ -978,7 +980,7 @@ public class BlueprintBrowserScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTick);
         boolean modal = dialog != null;
         int mx = modal ? -1 : mouseX, my = modal ? -1 : mouseY;
 

@@ -157,7 +157,11 @@ public class KeyboardCaptureScreen extends Screen {
     }
 
     @Override
+    //? if forge {
     public boolean mouseScrolled(double x, double y, double delta) {
+    //?} else {
+    /*public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+    *///?}
         return true;
     }
 
@@ -180,7 +184,7 @@ public class KeyboardCaptureScreen extends Screen {
         int from = 0;
         while (from < pending.size()) {
             int to = Math.min(pending.size(), from + KeyboardEvents.MAX_PER_PACKET);
-            ModPackets.CHANNEL.sendToServer(new KeyboardKeysPacket(id, pending.subList(from, to).toShortArray()));
+            ModPackets.sendToServer(new KeyboardKeysPacket(id, pending.subList(from, to).toShortArray()));
             from = to;
         }
         pending.clear();
@@ -188,7 +192,7 @@ public class KeyboardCaptureScreen extends Screen {
             return;
         int dx = (int) mouseX, dy = (int) mouseY;
         if (dx != 0 || dy != 0 || buttons != sentButtons) {
-            ModPackets.CHANNEL.sendToServer(new KeyboardMousePacket(id, dx, dy, buttons));
+            ModPackets.sendToServer(new KeyboardMousePacket(id, dx, dy, buttons));
             mouseX -= dx;
             mouseY -= dy;
             sentButtons = buttons;
@@ -198,7 +202,7 @@ public class KeyboardCaptureScreen extends Screen {
     private void release() {
         flush();
         released = true;
-        ModPackets.CHANNEL.sendToServer(new KeyboardCapturePacket(id, false));
+        ModPackets.sendToServer(new KeyboardCapturePacket(id, false));
         onClose();
     }
 
@@ -215,7 +219,7 @@ public class KeyboardCaptureScreen extends Screen {
         if (!released) {
             released = true;
             flush();
-            ModPackets.CHANNEL.sendToServer(new KeyboardCapturePacket(id, false));
+            ModPackets.sendToServer(new KeyboardCapturePacket(id, false));
         }
         super.removed();
     }

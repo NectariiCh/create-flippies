@@ -12,7 +12,11 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -45,12 +49,17 @@ public final class DeviceInput {
             return;
         holding = device;
         held = 0;
-        ModPackets.CHANNEL.sendToServer(new DeviceBreakPacket(device.getId(), false));
+        ModPackets.sendToServer(new DeviceBreakPacket(device.getId(), false));
     }
 
     @SubscribeEvent
+    //? if forge {
     public static void onTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || holding == null)
+    //?} else {
+    /*public static void onTick(ClientTickEvent.Post event) {
+        if (holding == null)
+    *///?}
             return;
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
@@ -69,7 +78,7 @@ public final class DeviceInput {
                     SoundSource.BLOCKS, (sound.getVolume() + 1) / 8, sound.getPitch() * 0.5f, false);
         }
         if (held >= holding.breakTicks(player)) {
-            ModPackets.CHANNEL.sendToServer(new DeviceBreakPacket(holding.getId(), true));
+            ModPackets.sendToServer(new DeviceBreakPacket(holding.getId(), true));
             holding = null;
         }
     }

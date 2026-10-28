@@ -477,4 +477,27 @@ class BoardE2eTest {
         assertTrue(e.getMessage().contains(id.toString()), e.getMessage());
         assertEquals(MachineState.OFF, swapped.state(), "left as it was");
     }
+
+    /** A placed PC snapshot gets copies of its disks under new ids; its state is moved to them (spec 12.19). */
+    @Test
+    void aStateMovesToCopiesOfItsDisks() throws StateFormatException {
+        UUID hddId = UUID.randomUUID(), floppyId = UUID.randomUUID();
+        Machine a = new Machine(config(CpuModel.RV32I, new PagedDiskImage(hddId, 1 << 20, chunk -> null, 4), 0),
+                StandardCpus.INSTANCE);
+        a.floppy().insert(new PagedDiskImage(floppyId, PagedDiskImage.FLOPPY_CAPACITY, chunk -> null, 4), false);
+        a.powerOn();
+        runTicks(a, 3);
+        byte[] state = a.saveState();
+        UUID newHdd = UUID.randomUUID(), newFloppy = UUID.randomUUID();
+        byte[] moved = Machine.withDiskId(Machine.withDiskId(state, hddId, newHdd), floppyId, newFloppy);
+        Machine copy = new Machine(config(CpuModel.RV32I, new PagedDiskImage(newHdd, 1 << 20, chunk -> null, 4), 0),
+                StandardCpus.INSTANCE);
+        copy.floppy().insert(new PagedDiskImage(newFloppy, PagedDiskImage.FLOPPY_CAPACITY, chunk -> null, 4), false);
+        copy.loadState(moved);
+        assertArrayEquals(moved, copy.saveState(), "the copy is the same machine on the new disks");
+        assertThrows(StateFormatException.class, () -> new Machine(config(CpuModel.RV32I,
+                new PagedDiskImage(newHdd, 1 << 20, chunk -> null, 4), 0), StandardCpus.INSTANCE).loadState(state));
+        assertThrows(IllegalArgumentException.class, () -> Machine.withDiskId(state, UUID.randomUUID(), newHdd));
+        assertFalse(java.util.Arrays.equals(state, moved));
+    }
 }

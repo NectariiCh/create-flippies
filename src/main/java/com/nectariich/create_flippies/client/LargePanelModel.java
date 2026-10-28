@@ -116,6 +116,7 @@ public class LargePanelModel extends CopycatModel {
         return false;
     }
 
+    //? if forge {
     @Override
     public boolean useAmbientOcclusion(BlockState state) {
         return false;
@@ -125,6 +126,13 @@ public class LargePanelModel extends CopycatModel {
     public boolean useAmbientOcclusion(BlockState state, RenderType renderType) {
         return false;
     }
+    //?} else {
+    /*@Override
+    public net.neoforged.neoforge.common.util.TriState useAmbientOcclusion(BlockState state, ModelData data,
+            RenderType renderType) {
+        return net.neoforged.neoforge.common.util.TriState.FALSE;
+    }
+    *///?}
 
     /**
      * Carries the plate across from the block entity, which the inherited gathering

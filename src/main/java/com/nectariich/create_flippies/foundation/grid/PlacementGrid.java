@@ -15,6 +15,9 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+//? if neoforge {
+/*import net.minecraft.core.UUIDUtil;
+*///?}
 
 /**
  * A rectangle ruled into cells, lying on one flat surface, held in absolute world
@@ -450,7 +453,11 @@ public record PlacementGrid(
      */
     public void write(FriendlyByteBuf buffer) {
         buffer.writeUUID(id);
+        //? if forge {
         buffer.writeNullable(parent, FriendlyByteBuf::writeUUID);
+        //?} else {
+        /*buffer.writeNullable(parent, UUIDUtil.STREAM_CODEC);
+        *///?}
         if (parent != null)
             buffer.writeVarInt(parentCell);
         plane.write(buffer);
@@ -464,7 +471,11 @@ public record PlacementGrid(
 
     public static PlacementGrid read(FriendlyByteBuf buffer) {
         UUID id = buffer.readUUID();
+        //? if forge {
         UUID parent = buffer.readNullable(FriendlyByteBuf::readUUID);
+        //?} else {
+        /*UUID parent = buffer.readNullable(UUIDUtil.STREAM_CODEC);
+        *///?}
         int parentCell = parent == null ? NO_CELL : buffer.readVarInt();
         return new PlacementGrid(id, parent, parentCell, PanelPlane.read(buffer), buffer.readInt(), buffer.readInt(),
                 buffer.readInt(), buffer.readInt(), buffer.readVarInt(), buffer.readVarInt());

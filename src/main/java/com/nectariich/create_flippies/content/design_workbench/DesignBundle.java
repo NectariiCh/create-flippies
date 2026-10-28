@@ -12,8 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+import com.nectariich.create_flippies.compat.NbtCompat;
+
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.Tag;
 
@@ -51,7 +52,7 @@ public record DesignBundle(String objName, Map<String, byte[]> files) {
         // Read with a size budget: an upload is checked by decoding it, and a small
         // blob that inflates to gigabytes must fail rather than take the server down
         CompoundTag tag = NbtIo.read(new DataInputStream(new BufferedInputStream(
-                new GZIPInputStream(new ByteArrayInputStream(bytes)))), new NbtAccounter(MAX_BYTES * 2L));
+                new GZIPInputStream(new ByteArrayInputStream(bytes)))), NbtCompat.accounter(MAX_BYTES * 2L));
         CompoundTag files = tag.getCompound("Files");
         Map<String, byte[]> out = new LinkedHashMap<>();
         for (String name : files.getAllKeys())

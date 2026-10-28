@@ -21,7 +21,7 @@ public final class KeyboardClient {
         com.nectariich.create_flippies.CreateFlippies.LOGGER.info("[kbm-debug] requestCapture id={} screen={}", id, Minecraft.getInstance().screen);  // DEBUG kbm
         if (Minecraft.getInstance().screen instanceof KeyboardCaptureScreen)
             return;
-        ModPackets.CHANNEL.sendToServer(new KeyboardCapturePacket(id, true));
+        ModPackets.sendToServer(new KeyboardCapturePacket(id, true));
     }
 
     /** The server granted, refused or ended a capture; an id of -1 is whichever keyboard is being typed on. */

@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.display.AlphanumDisplayBlock;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayBlockEntity;
 
@@ -10,7 +8,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Turns an alphanumeric display that is a block of its own a quarter turn in its
@@ -25,7 +22,7 @@ import net.minecraftforge.network.NetworkEvent;
  * click, because that is what a wrench turn has always been and it saves the menu
  * tracking a state it does not own.
  */
-public class ConfigureAlphanumDisplayPacket {
+public class ConfigureAlphanumDisplayPacket implements FlippiesPacket {
 
     private final BlockPos pos;
 
@@ -41,9 +38,9 @@ public class ConfigureAlphanumDisplayPacket {
         buffer.writeBlockPos(pos);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             Level level = player.level();
@@ -52,6 +49,5 @@ public class ConfigureAlphanumDisplayPacket {
             if (level.getBlockEntity(pos) instanceof AlphanumDisplayBlockEntity)
                 AlphanumDisplayBlock.turn(level, pos);
         });
-        context.get().setPacketHandled(true);
     }
 }

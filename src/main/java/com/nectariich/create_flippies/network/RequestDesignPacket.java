@@ -1,15 +1,12 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.design_workbench.DesignTransfers;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 /** A client has met a designed control whose model it has not got. */
-public class RequestDesignPacket {
+public class RequestDesignPacket implements FlippiesPacket {
 
     private final String hash;
 
@@ -25,10 +22,9 @@ public class RequestDesignPacket {
         buffer.writeUtf(hash, 32);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        ServerPlayer player = context.sender();
         if (player != null)
-            context.get().enqueueWork(() -> DesignTransfers.send(player, hash));
-        context.get().setPacketHandled(true);
+            context.enqueueWork(() -> DesignTransfers.send(player, hash));
     }
 }

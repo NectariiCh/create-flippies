@@ -1,5 +1,7 @@
 package com.nectariich.create_flippies.content.screwdriver;
 
+import com.nectariich.create_flippies.compat.NbtCompat;
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.content.panel.PanelEditKind;
 import com.nectariich.create_flippies.content.panel.PanelPoint;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid;
@@ -8,7 +10,6 @@ import com.nectariich.create_flippies.foundation.panel.PanelPlane;
 import net.createmod.catnip.nbt.NBTHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
@@ -85,7 +86,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
     }
 
     public static ScrewdriverSettings read(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
+        CompoundTag tag = StackData.peek(stack);
         if (tag == null)
             return defaults();
         ScrewdriverMode mode = NBTHelper.readEnum(tag, MODE, ScrewdriverMode.class);
@@ -96,16 +97,16 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
                 // Typed, because getCompound answers with an empty tag for anything
                 // else and readBlockPos reads that as the origin rather than as nothing
                 tag.contains(AREA_CORNER, Tag.TAG_COMPOUND)
-                        ? NbtUtils.readBlockPos(tag.getCompound(AREA_CORNER))
+                        ? NbtCompat.readBlockPos(tag.getCompound(AREA_CORNER))
                         : null,
                 NBTHelper.readEnum(tag, KIND, DynamicBlockKind.class),
                 Math.floorMod(tag.getByte(YAW), PanelPlane.YAW_STEPS),
                 PanelPoint.load(tag.getCompound(FIRST_POINT)),
-                tag.contains(FIRST_PANEL, Tag.TAG_COMPOUND) ? NbtUtils.readBlockPos(tag.getCompound(FIRST_PANEL))
+                tag.contains(FIRST_PANEL, Tag.TAG_COMPOUND) ? NbtCompat.readBlockPos(tag.getCompound(FIRST_PANEL))
                         : null,
                 NBTHelper.readEnum(tag, EDIT_KIND, PanelEditKind.class),
                 tag.contains(STEP) ? clampStep(tag.getInt(STEP)) : DEFAULT_STEP,
-                tag.contains(EDIT_PANEL, Tag.TAG_COMPOUND) ? NbtUtils.readBlockPos(tag.getCompound(EDIT_PANEL))
+                tag.contains(EDIT_PANEL, Tag.TAG_COMPOUND) ? NbtCompat.readBlockPos(tag.getCompound(EDIT_PANEL))
                         : null);
     }
 
@@ -116,15 +117,16 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
      * the first click had never registered.
      */
     public void apply(ItemStack stack) {
-        CompoundTag tag = stack.getOrCreateTag();
-        NBTHelper.writeEnum(tag, MODE, mode);
-        tag.putInt(COLUMNS, clampTracks(columns));
-        tag.putInt(ROWS, clampTracks(rows));
-        tag.putByte(TURN, (byte) (turn & 3));
-        NBTHelper.writeEnum(tag, KIND, kind);
-        tag.putByte(YAW, (byte) Math.floorMod(yaw, PanelPlane.YAW_STEPS));
-        NBTHelper.writeEnum(tag, EDIT_KIND, editKind);
-        tag.putInt(STEP, clampStep(step));
+        StackData.edit(stack, tag -> {
+            NBTHelper.writeEnum(tag, MODE, mode);
+            tag.putInt(COLUMNS, clampTracks(columns));
+            tag.putInt(ROWS, clampTracks(rows));
+            tag.putByte(TURN, (byte) (turn & 3));
+            NBTHelper.writeEnum(tag, KIND, kind);
+            tag.putByte(YAW, (byte) Math.floorMod(yaw, PanelPlane.YAW_STEPS));
+            NBTHelper.writeEnum(tag, EDIT_KIND, editKind);
+            tag.putInt(STEP, clampStep(step));
+        });
     }
 
     /**
@@ -142,7 +144,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
             forget(stack, EDIT_PANEL);
             return;
         }
-        stack.getOrCreateTag().put(EDIT_PANEL, NbtUtils.writeBlockPos(panel));
+        StackData.put(stack, EDIT_PANEL, NbtCompat.writeBlockPos(panel));
     }
 
     /** Records, or with null forgets, the first corner of a dynamic block. */
@@ -151,7 +153,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
             forget(stack, FIRST_POINT);
             return;
         }
-        stack.getOrCreateTag().put(FIRST_POINT, point.save());
+        StackData.put(stack, FIRST_POINT, point.save());
     }
 
     /**
@@ -167,7 +169,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
             forget(stack, FIRST_PANEL);
             return;
         }
-        stack.getOrCreateTag().put(FIRST_PANEL, NbtUtils.writeBlockPos(panel));
+        StackData.put(stack, FIRST_PANEL, NbtCompat.writeBlockPos(panel));
     }
 
     /** Records, or with null forgets, the first corner of a rectangle. */
@@ -176,7 +178,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
             forget(stack, CORNER);
             return;
         }
-        stack.getOrCreateTag().put(CORNER, corner.save());
+        StackData.put(stack, CORNER, corner.save());
     }
 
     /**
@@ -192,7 +194,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
             forget(stack, AREA_CORNER);
             return;
         }
-        stack.getOrCreateTag().put(AREA_CORNER, NbtUtils.writeBlockPos(corner));
+        StackData.put(stack, AREA_CORNER, NbtCompat.writeBlockPos(corner));
     }
 
     /** Whether either kind of rectangle is half drawn. */
@@ -201,9 +203,13 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
     }
 
     private static void forget(ItemStack stack, String key) {
+        //? if forge {
         CompoundTag tag = stack.getTag();
         if (tag != null)
             tag.remove(key);
+        //?} else {
+        /*StackData.remove(stack, key);
+        *///?}
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.content.keyboard;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.content.computer.device.Ps2DeviceKind;
 import com.nectariich.create_flippies.content.data_cord.DataCordItem;
 import com.nectariich.create_flippies.content.data_cord.DataCords;
@@ -25,8 +26,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 /**
  * A keyboard (spec 11.2.12): one PS/2 port, DEVICE end, and nothing else of its
@@ -133,7 +132,7 @@ public class KeyboardEntity extends DeviceEntity implements DataPortHost {
         if (hand != InteractionHand.MAIN_HAND || !player.getMainHandItem().isEmpty())
             return InteractionResult.PASS;
         if (level().isClientSide)
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            ClientOnly.run(
                     () -> () -> com.nectariich.create_flippies.client.pc.KeyboardClient.requestCapture(getId()));
         return InteractionResult.sidedSuccess(level().isClientSide);
     }

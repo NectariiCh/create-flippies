@@ -1,7 +1,7 @@
 """Shared files: browses the world's file share (http://localfilesys.com/, the localfilesys
 folder of the Minecraft world, served by the network modem) and downloads files to ~/Downloads.
 Double-click a folder to open it, a file to download it. Network work runs in a thread; only the
-Tk thread touches widgets, fed through a queue.
+Tk thread touches widgets, fed through a queue and woken by a virtual event.
 """
 
 import os
@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 from tkinter import ttk
 
@@ -17,7 +18,7 @@ import sharelist
 
 DOWNLOADS = os.path.expanduser("~/Downloads")
 # Tried in order to show the Downloads folder
-FILE_MANAGERS = ("xdg-open", "pcmanfm", "xfe")
+FILE_MANAGERS = ("xdg-open", "pcmanfm", "worker")
 
 
 def setup_tk(root):
@@ -46,6 +47,7 @@ class App:
         self.url = base
         self.entries = {}
         self.queue = queue.Queue()
+        self.wake_pending = False
         self.busy = False
         self.cancel = False
 
@@ -90,7 +92,7 @@ class App:
         self.message = ttk.Label(root, text="", padding=(4, 0, 4, 4))
         self.message.pack(fill="x")
 
-        root.after(100, self.poll)
+        root.bind("<<Work>>", self.drain)
         self.open(self.url)
 
     # ---- browsing ----
@@ -102,9 +104,9 @@ class App:
 
         def work():
             try:
-                self.queue.put(("listed", (url, sharelist.fetch_index(url))))
+                self.send("listed", (url, sharelist.fetch_index(url)))
             except Exception as e:  # network and server errors are shown, never fatal
-                self.queue.put(("failed", "Could not open %s: %s" % (url, e)))
+                self.send("failed", "Could not open %s: %s" % (url, e))
         threading.Thread(target=work, daemon=True).start()
 
     def listed(self, url, entries):
@@ -161,12 +163,12 @@ class App:
                     path = sharelist.free_path(DOWNLOADS, name)
 
                     def progress(got, total, name=name, n=n):
-                        self.queue.put(("progress", (n, len(jobs), name, got, total)))
+                        self.send("progress", (n, len(jobs), name, got, total))
                     sharelist.download(url, path, progress, lambda: self.cancel)
                     done.append(os.path.basename(path))
-                self.queue.put(("downloaded", done))
+                self.send("downloaded", done)
             except Exception as e:  # network, server and disk errors are shown, never fatal
-                self.queue.put(("failed", "Download stopped (%s); %d of %d done" % (e, len(done), len(jobs))))
+                self.send("failed", "Download stopped (%s); %d of %d done" % (e, len(done), len(jobs)))
         threading.Thread(target=work, daemon=True).start()
 
     def stop(self):
@@ -183,7 +185,26 @@ class App:
 
     # ---- the Tk side of the thread ----
 
-    def poll(self):
+    def send(self, kind, data):
+        """From a worker thread: queues a message and wakes the Tk thread with a virtual event
+        (tkinter hands the call to the Tk thread). One wake covers every message queued before
+        the Tk thread drains, so a burst of lines costs one. Nothing polls: a 100 ms poll alone
+        took most of the 25 MHz CPU."""
+        self.queue.put((kind, data))
+        if self.wake_pending:
+            return
+        self.wake_pending = True
+        while True:
+            try:
+                self.root.event_generate("<<Work>>", when="tail")
+                return
+            except RuntimeError:  # the Tk thread is not in its main loop yet
+                time.sleep(0.2)
+            except tk.TclError:  # the window is gone
+                return
+
+    def drain(self, _event=None):
+        self.wake_pending = False
         try:
             while True:
                 kind, data = self.queue.get_nowait()
@@ -194,7 +215,9 @@ class App:
                     n, count, name, got, total = data
                     pct = 100.0 * got / total if total else 0
                     self.progress.configure(value=pct)
-                    what = "%s of %s" % (sharelist.format_size(got), sharelist.format_size(total)) if total else sharelist.format_size(got)
+                    what = sharelist.format_size(got)
+                    if total:
+                        what += " of " + sharelist.format_size(total)
                     self.say("%s%s: %s" % ("(%d/%d) " % (n + 1, count) if count > 1 else "", name, what))
                 elif kind == "downloaded":
                     self.set_busy(False, "Saved in ~/Downloads: " + ", ".join(data))
@@ -203,7 +226,6 @@ class App:
                     self.set_busy(False, data)
         except queue.Empty:
             pass
-        self.root.after(100, self.poll)
 
     def set_busy(self, on, text):
         self.busy = on

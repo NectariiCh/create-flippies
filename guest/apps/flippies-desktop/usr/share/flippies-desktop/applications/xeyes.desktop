@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Eyes
+Comment=Eyes that follow the mouse (xeyes)
+Exec=xeyes
+TryExec=xeyes
+Categories=Game;

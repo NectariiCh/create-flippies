@@ -114,9 +114,15 @@ public class UniversalGaugeBlockEntity extends BlockEntity implements IHaveGoggl
         dialState += (dialTarget - dialState) * .125f;
     }
 
+    //? if forge {
     @Override
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
+    //?} else {
+    /*@Override
+    protected void saveAdditional(CompoundTag tag, net.minecraft.core.HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
+    *///?}
         tag.putFloat("Min", min);
         tag.putFloat("Max", max);
         tag.putString("Theme", theme.getSerializedName());
@@ -127,9 +133,15 @@ public class UniversalGaugeBlockEntity extends BlockEntity implements IHaveGoggl
         tag.putFloat("DialTarget", dialTarget);
     }
 
+    //? if forge {
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
+    //?} else {
+    /*@Override
+    protected void loadAdditional(CompoundTag tag, net.minecraft.core.HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+    *///?}
         min = tag.getFloat("Min");
         max = tag.getFloat("Max");
         theme = GaugeTheme.byName(tag.getString("Theme"));
@@ -161,10 +173,17 @@ public class UniversalGaugeBlockEntity extends BlockEntity implements IHaveGoggl
         return Component.literal("    ").append(component);
     }
 
+    //? if forge {
     @Override
     public CompoundTag getUpdateTag() {
         return saveWithoutMetadata();
     }
+    //?} else {
+    /*@Override
+    public CompoundTag getUpdateTag(net.minecraft.core.HolderLookup.Provider registries) {
+        return saveWithoutMetadata(registries);
+    }
+    *///?}
 
     @Override
     public Packet<ClientGamePacketListener> getUpdatePacket() {

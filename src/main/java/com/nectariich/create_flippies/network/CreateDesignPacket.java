@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignStore;
 import com.nectariich.create_flippies.registry.ModBlocks;
@@ -13,7 +11,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Asks for a designed control to be made at a workbench: what the blueprint
@@ -24,7 +21,7 @@ import net.minecraftforge.network.NetworkEvent;
  * the store does not hold is refused. Making is creative only for now: there is no
  * survival recipe yet, so a survival player is told so and given nothing.
  */
-public class CreateDesignPacket {
+public class CreateDesignPacket implements FlippiesPacket {
 
     private static final double REACH_SQ = 8 * 8;
 
@@ -46,11 +43,10 @@ public class CreateDesignPacket {
         buffer.writeNbt(design);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        ServerPlayer player = context.sender();
         if (player != null)
-            context.get().enqueueWork(() -> create(player));
-        context.get().setPacketHandled(true);
+            context.enqueueWork(() -> create(player));
     }
 
     private void create(ServerPlayer player) {

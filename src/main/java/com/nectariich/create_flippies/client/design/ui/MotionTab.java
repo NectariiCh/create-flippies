@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.client.design.ui;
 
 import static com.nectariich.create_flippies.client.design.ui.Lang.t;
 
+import com.nectariich.create_flippies.compat.Checkboxes;
 import com.nectariich.create_flippies.content.design_workbench.BreakerIndicator;
 import com.nectariich.create_flippies.content.design_workbench.BreakerMode;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
@@ -94,14 +95,10 @@ public final class MotionTab {
 
         if (!button) {
             boolean custom = state.pivot != null;
-            panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom) {
-                @Override
-                public void onPress() {
-                    super.onPress();
-                    state.pivot = selected() ? DesignMotion.DEFAULT_PIVOT.clone() : null;
-                    host.rebuild();
-                }
-            }).setTooltip(Tooltip.create(t("pivot.custom.tooltip")));
+            panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom, on -> {
+                state.pivot = on ? DesignMotion.DEFAULT_PIVOT.clone() : null;
+                host.rebuild();
+            })).setTooltip(Tooltip.create(t("pivot.custom.tooltip")));
             panel.row();
             float[] pivot = custom ? state.pivot : DesignMotion.DEFAULT_PIVOT;
             for (int axis = 0; axis < 3; axis++) {
@@ -210,14 +207,10 @@ public final class MotionTab {
 
         if (pivoted) {
             boolean custom = state.pivot != null;
-            panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom) {
-                @Override
-                public void onPress() {
-                    super.onPress();
-                    state.pivot = selected() ? DesignMotion.DEFAULT_PIVOT.clone() : null;
-                    host.rebuild();
-                }
-            }).setTooltip(Tooltip.create(t("needle.pivot.tooltip")));
+            panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom, on -> {
+                state.pivot = on ? DesignMotion.DEFAULT_PIVOT.clone() : null;
+                host.rebuild();
+            })).setTooltip(Tooltip.create(t("needle.pivot.tooltip")));
             panel.row();
             float[] pivot = custom ? state.pivot : DesignMotion.DEFAULT_PIVOT;
             for (int axis = 0; axis < 3; axis++) {
@@ -271,15 +264,11 @@ public final class MotionTab {
         boolean forced = state.kind.isBreaker();
         for (int position : RotarySwitchSpring.springable(kind)) {
             boolean checked = forced || RotarySwitchSpring.springsFrom(kind, state.springs, position);
-            Checkbox box = panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20,
-                    RotarySwitchSpring.label(kind, position), checked) {
-                @Override
-                public void onPress() {
-                    super.onPress();
-                    state.springs = RotarySwitchSpring.with(kind, state.springs, position, selected());
-                    host.changed();
-                }
-            });
+            Checkbox box = panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20,
+                    RotarySwitchSpring.label(kind, position), checked, on -> {
+                        state.springs = RotarySwitchSpring.with(kind, state.springs, position, on);
+                        host.changed();
+                    }));
             if (forced) {
                 box.active = false;
                 box.setTooltip(Tooltip.create(t("springs.breaker.tooltip")));
@@ -319,14 +308,10 @@ public final class MotionTab {
         }
 
         boolean custom = state.indicatorPivot != null;
-        panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom) {
-            @Override
-            public void onPress() {
-                super.onPress();
-                state.indicatorPivot = selected() ? DesignMotion.DEFAULT_PIVOT.clone() : null;
-                host.rebuild();
-            }
-        }).setTooltip(Tooltip.create(t("indicator.pivot.custom.tooltip")));
+        panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom, on -> {
+            state.indicatorPivot = on ? DesignMotion.DEFAULT_PIVOT.clone() : null;
+            host.rebuild();
+        })).setTooltip(Tooltip.create(t("indicator.pivot.custom.tooltip")));
         panel.row();
         float[] pivot = custom ? state.indicatorPivot : DesignMotion.DEFAULT_PIVOT;
         for (int axis = 0; axis < 3; axis++) {

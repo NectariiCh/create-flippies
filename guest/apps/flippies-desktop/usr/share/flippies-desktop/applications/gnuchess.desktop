@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GNU Chess
+Comment=Chess against the computer, in a terminal
+Exec=gnuchess
+TryExec=gnuchess
+Terminal=true
+Categories=Game;

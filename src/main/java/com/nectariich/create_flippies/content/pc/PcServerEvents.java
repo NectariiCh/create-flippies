@@ -3,7 +3,11 @@ package com.nectariich.create_flippies.content.pc;
 import com.nectariich.create_flippies.CreateFlippies;
 
 import net.minecraft.server.level.ServerPlayer;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.event.tick.ServerTickEvent;
+*///?}
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
@@ -30,9 +34,13 @@ public final class PcServerEvents {
 
     /** After every block entity of the tick: the scheduler (spec 11.2.6). */
     @SubscribeEvent
+    //? if forge {
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END)
             return;
+    //?} else {
+    /*public static void onServerTick(ServerTickEvent.Post event) {
+    *///?}
         PcServer server = PcServer.get();
         if (server != null)
             server.tick(event.getServer());
@@ -49,8 +57,10 @@ public final class PcServerEvents {
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         PcServer server = PcServer.get();
-        if (server != null && event.getEntity() instanceof ServerPlayer player)
+        if (server != null && event.getEntity() instanceof ServerPlayer player) {
             server.captures().endAll(player, "logout");
+            server.snapshots().playerLeft(player);
+        }
     }
 
     @SubscribeEvent

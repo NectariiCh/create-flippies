@@ -1,7 +1,6 @@
 package com.nectariich.create_flippies.network;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.content.plc.PlcSmallControl;
 import com.nectariich.create_flippies.content.plc.PlcUploads;
@@ -10,7 +9,6 @@ import com.nectariich.create_flippies.foundation.control.ControlMount;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One piece of a sketch on its way from a PLC's menu to the server.
@@ -27,7 +25,7 @@ import net.minecraftforge.network.NetworkEvent;
  * {@link PlcUploads#FLASH_COOLDOWN_TICKS} per player, because each one starts a
  * compile; one asked for sooner keeps the text and is answered busy.
  */
-public class PlcUploadPacket {
+public class PlcUploadPacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final ControlMount mount;
@@ -68,9 +66,9 @@ public class PlcUploadPacket {
         buffer.writeByteArray(chunk);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             // Checked per chunk as well as at the end, so nobody can park a buffer
             // here for a PLC they could not have opened
             if (PlcSmallControl.reachable(player, pos, mount, true) == null)
@@ -88,6 +86,5 @@ public class PlcUploadPacket {
             }
             plc.upload(finished.source(), finished.flash(), player);
         });
-        context.get().setPacketHandled(true);
     }
 }

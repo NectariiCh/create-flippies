@@ -1,18 +1,14 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.content.plc.PlcStatus;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
 
 /** A PLC's live status, in answer to a {@link PlcActionPacket}, for the menu that asked. */
-public class PlcStatusPacket {
+public class PlcStatusPacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final ControlMount mount;
@@ -36,9 +32,8 @@ public class PlcStatusPacket {
         status.encode(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientOnly.run(
                 () -> () -> com.nectariich.create_flippies.client.PlcScreen.statusArrived(pos, mount, status)));
-        context.get().setPacketHandled(true);
     }
 }

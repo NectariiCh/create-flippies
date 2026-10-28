@@ -13,7 +13,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-import net.minecraftforge.network.PacketDistributor;
 
 import org.patryk3211.powergrid.electricity.sim.ElectricWire;
 import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
@@ -149,7 +148,7 @@ public class EdgewiseProceduralGaugeControl extends HostedControl
     public boolean openEditor(ServerPlayer player) {
         if (host() == null)
             return false;
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+        ModPackets.sendToPlayer(player,
                 new OpenGaugeMenuPacket(host().pos(), mount()));
         return true;
     }

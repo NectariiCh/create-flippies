@@ -306,7 +306,7 @@ def blocked(removed):
 
 # ---- the commands ----
 
-APT_OPTS = ["-q", "-y", "-o", "APT::Status-Fd=1", "-o", "Dpkg::Use-Pty=0",
+APT_OPTS = ["-q", "-y", "-o", "APT::Status-Fd=3", "-o", "Dpkg::Use-Pty=0",
             "-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold"]
 
 
@@ -319,24 +319,31 @@ def _names(names):
 
 def as_root(argv):
     """sudo without a password prompt (the desktop user has passwordless sudo), apt never asking
-    a question."""
-    return ["sudo", "-n", "env", "DEBIAN_FRONTEND=noninteractive", "LC_ALL=C"] + argv
+    a question. apt's progress lines go to fd 3, which a root shell points at standard output:
+    apt marks its status fd close-on-exec, so with fd 1 dpkg and the maintainer scripts would run
+    with standard output closed; and sudo closes every fd above 2 it is given."""
+    return ["sudo", "-n", "env", "DEBIAN_FRONTEND=noninteractive", "LC_ALL=C",
+            "sh", "-c", 'exec 3>&1; exec "$@"', "sh"] + argv
 
 
 def update_cmd():
-    return as_root(["apt-get", "-q", "-o", "APT::Status-Fd=1", "update"])
+    return as_root(["apt-get", "-q", "-o", "APT::Status-Fd=3", "update"])
 
 
 def install_cmd(names):
     return as_root(["apt-get"] + APT_OPTS + ["install"] + _names(names))
 
 
+# One removal for both the check and the real thing, so the dialog and the protected list see
+# every package apt takes, autoremoved ones (anything no longer needed, not only this app's) too.
+REMOVE = ["--autoremove", "remove"]
+
+
 def remove_cmd(names):
-    """Removes the packages and whatever they alone had pulled in."""
-    return as_root(["apt-get"] + APT_OPTS + ["--autoremove", "remove"] + _names(names))
+    """Removes the packages and whatever is no longer needed."""
+    return as_root(["apt-get"] + APT_OPTS + REMOVE + _names(names))
 
 
 def simulate_remove_cmd(names):
-    """What removing the packages takes along (no root needed, nothing autoremoved: the
-    question is which other programs go)."""
-    return ["env", "LC_ALL=C", "apt-get", "-s", "-q", "remove"] + _names(names)
+    """What remove_cmd would take along (no root needed)."""
+    return ["env", "LC_ALL=C", "apt-get", "-s", "-q"] + REMOVE + _names(names)

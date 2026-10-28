@@ -105,8 +105,13 @@ class WireBendsTest {
     @Test
     void offsetFollowsAStructureMoveTheWayPowerGridShiftsEndpoints() {
         Vec3 p = new Vec3(1, 2, 3);
+        //? if forge {
         CompoundTag saved = NbtUtils.writeBlockPos(new net.minecraft.core.BlockPos(10, 64, 10));
         net.minecraft.core.BlockPos last = NbtUtils.readBlockPos(saved);
+        //?} else {
+        /*CompoundTag saved = com.nectariich.create_flippies.compat.NbtCompat.writeBlockPos(new net.minecraft.core.BlockPos(10, 64, 10));
+        net.minecraft.core.BlockPos last = com.nectariich.create_flippies.compat.NbtCompat.readBlockPos(saved);
+        *///?}
         net.minecraft.core.BlockPos now = new net.minecraft.core.BlockPos(15, 60, 10);
         Vec3 by = Vec3.atLowerCornerOf(now.subtract(last));
         assertEquals(List.of(new Vec3(6, -2, 3)), WireBends.offset(List.of(p), by));

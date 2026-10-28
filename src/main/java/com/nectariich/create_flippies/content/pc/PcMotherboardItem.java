@@ -3,7 +3,10 @@ package com.nectariich.create_flippies.content.pc;
 import java.util.List;
 import java.util.Locale;
 
+import com.nectariich.create_flippies.compat.StackData;
+
 import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
@@ -25,10 +28,11 @@ public class PcMotherboardItem extends PcPartItem {
 
     /** The board's MAC, assigning one first if it has none. */
     public static long macOf(ItemStack stack, RandomSource random) {
-        if (stack.hasTag() && stack.getTag().contains(TAG_MAC))
-            return stack.getTag().getLong(TAG_MAC);
+        CompoundTag tag = stack.isEmpty() ? null : StackData.peek(stack);
+        if (tag != null && tag.contains(TAG_MAC))
+            return tag.getLong(TAG_MAC);
         long mac = randomMac(random.nextLong());
-        stack.getOrCreateTag().putLong(TAG_MAC, mac);
+        StackData.edit(stack, t -> t.putLong(TAG_MAC, mac));
         return mac;
     }
 
@@ -55,8 +59,9 @@ public class PcMotherboardItem extends PcPartItem {
 
     @Override
     public void appendHoverText(ItemStack stack, Level level, List<Component> tooltip, TooltipFlag flag) {
-        if (stack.hasTag() && stack.getTag().contains(TAG_MAC))
+        CompoundTag tag = stack.isEmpty() ? null : StackData.peek(stack);
+        if (tag != null && tag.contains(TAG_MAC))
             tooltip.add(Component.translatable("gui.create_flippies.pc.tooltip.mac",
-                    formatMac(stack.getTag().getLong(TAG_MAC))).withStyle(ChatFormatting.GRAY));
+                    formatMac(tag.getLong(TAG_MAC))).withStyle(ChatFormatting.GRAY));
     }
 }

@@ -61,9 +61,17 @@ public abstract class GameRendererProjectionMixin {
             ci.cancel();
     }
 
+    // 1.21 takes the camera rotation as a matrix in place of the pose stack; the
+    // projection is still the third argument
+    //? if forge {
     @ModifyArg(method = "renderLevel", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/renderer/LevelRenderer;prepareCullFrustum(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/phys/Vec3;Lorg/joml/Matrix4f;)V"),
             index = 2)
+    //?} else {
+    /*@ModifyArg(method = "renderLevel", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/LevelRenderer;prepareCullFrustum(Lnet/minecraft/world/phys/Vec3;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;)V"),
+            index = 2)
+    *///?}
     private Matrix4f create_flippies$designCullProjection(Matrix4f projection) {
         if (EditorCamera.active())
             return EditorCamera.cullProjection(projection, getDepthFar());

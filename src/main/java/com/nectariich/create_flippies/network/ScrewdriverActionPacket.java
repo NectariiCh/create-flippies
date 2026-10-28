@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverActions;
 
 import net.minecraft.core.BlockPos;
@@ -12,7 +10,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One screwdriver click, with where on the face it landed.
@@ -38,7 +35,7 @@ import net.minecraftforge.network.NetworkEvent;
  * cannot say. The server puts the point back on whatever surface it resolves for
  * itself, so nothing here has to be trusted beyond naming a block.
  */
-public class ScrewdriverActionPacket {
+public class ScrewdriverActionPacket implements FlippiesPacket {
 
     /**
      * How far the clicked block may be from the player. Vanilla's own reach is
@@ -94,9 +91,9 @@ public class ScrewdriverActionPacket {
         buffer.writeFloat(localZ);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null || !Float.isFinite(localX) || !Float.isFinite(localY) || !Float.isFinite(localZ))
                 return;
             Level level = player.level();
@@ -108,7 +105,6 @@ public class ScrewdriverActionPacket {
             else
                 ScrewdriverActions.use(player, hand, pos, face, hit);
         });
-        context.get().setPacketHandled(true);
     }
 
     /**

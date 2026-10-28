@@ -46,7 +46,11 @@ class WireSweepTest {
 
     @Test
     void legVerticesFollowPowerGridsCurve() {
+        //? if forge {
         CurveParameters curve = new CurveParameters(A, P, H, V, T);
+        //?} else {
+        /*CurveParameters curve = new CurveParameters(A, P, BendGeometry.curveLength(A, P, H, V), T);
+        *///?}
         Vec3 origin = BendGeometry.curveOrigin(A, P);
         List<Vec3> pg = new ArrayList<>();
         curve.runForSegments((x1, y1, z1, x2, y2, z2, o, l) -> pg.add(origin.add(x2, y2, z2)), 0.5);
@@ -124,7 +128,11 @@ class WireSweepTest {
     @Test
     void itStartsOutTurnedAsPowerGridWouldTurnIt() {
         Vec3 end = new Vec3(8, 70, 0);
+        //? if forge {
         Vec3 pg = new CurveParameters(A, end, H, V, T).cross1;
+        //?} else {
+        /*Vec3 pg = new CurveParameters(A, end, BendGeometry.curveLength(A, end, H, V), T).cross1;
+        *///?}
         WireSweep.Ring first = WireSweep.sweep(List.of(A, new Vec3(4, 70, 0), end), 0, H, V, T, 0.5, pg).get(0)
                 .first();
         // The level first piece leaves Power Grid's cross-section as it was

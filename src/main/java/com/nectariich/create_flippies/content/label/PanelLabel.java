@@ -7,7 +7,11 @@ import com.nectariich.create_flippies.foundation.control.HostedControl;
 import com.nectariich.create_flippies.foundation.control.SpannedControlType;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid;
 
+//? if forge {
 import net.minecraft.SharedConstants;
+//?} else {
+/*import net.minecraft.util.StringUtil;
+*///?}
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
@@ -212,7 +216,11 @@ public final class PanelLabel {
      * than a second one written here.
      */
     public static String sanitise(String text) {
+        //? if forge {
         String filtered = SharedConstants.filterText(text);
+        //?} else {
+        /*String filtered = StringUtil.filterText(text);
+        *///?}
         if (filtered.length() <= MAX_LENGTH)
             return filtered;
         // Cutting between the halves of a surrogate pair leaves a string that is not

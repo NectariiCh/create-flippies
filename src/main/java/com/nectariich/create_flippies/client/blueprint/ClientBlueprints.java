@@ -634,7 +634,7 @@ public final class ClientBlueprints {
             return refuse("too_large");
         if (Minecraft.getInstance().getConnection() == null)
             return refuse("offline");
-        ModPackets.CHANNEL.sendToServer(packet);
+        ModPackets.sendToServer(packet);
         return true;
     }
 
@@ -650,7 +650,7 @@ public final class ClientBlueprints {
             int total = Math.max(1, (bytes.length + chunk - 1) / chunk);
             for (int i = 0; i < total; i++) {
                 int from = i * chunk;
-                ModPackets.CHANNEL.sendToServer(new DesignUploadPacket(hash, i, total,
+                ModPackets.sendToServer(new DesignUploadPacket(hash, i, total,
                         java.util.Arrays.copyOfRange(bytes, from, Math.min(bytes.length, from + chunk))));
             }
             SERVER_HAS.add(hash);

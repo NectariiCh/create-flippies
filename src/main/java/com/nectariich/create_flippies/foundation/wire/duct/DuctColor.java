@@ -28,7 +28,12 @@ public final class DuctColor {
 
     /** A dye's colour, worked out the way Power Grid colours a wire with one. */
     public static int of(DyeColor dye) {
+        //? if forge {
         return of(dye.getTextureDiffuseColors());
+        //?} else {
+        /*// The same value: each 0 to 1 channel above is a byte over 255, and comes back exact
+        return dye.getTextureDiffuseColor() & 0xFFFFFF;
+        *///?}
     }
 
     /** A colour from a dye's diffuse red, green and blue, each 0 to 1. */

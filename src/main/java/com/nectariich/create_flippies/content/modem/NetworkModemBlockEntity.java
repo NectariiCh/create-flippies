@@ -31,8 +31,8 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * A network modem in the world (spec 12.4.5): one ethernet port, powered over its cord by the
- * PC at the other end (PoE), serving the catalogue bundled in the jar and the world's file share
- * ({@code localfilesys.com}, the folder {@code <world>/localfilesys/}).
+ * PC at the other end (PoE), serving the server's content packs ({@link ModemPacks}) and the world's
+ * file share ({@code localfilesys.com}, the folder {@code <world>/localfilesys/}).
  *
  * The modem lives on the server only, in a {@link ModemDriver}: made when first needed and dropped
  * on unload; it keeps nothing worth saving (DHCP leases are asked for again, TCP connections drop,
@@ -70,7 +70,7 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
     @Override
     public void addBehaviours(List<BlockEntityBehaviour> behaviours) {}
 
-    /** The world's catalogue: its file share and the bundled hosts; the bundled ones alone with no server running. */
+    /** The world's catalogue: its file share and the content packs; the jar's built-in pages alone with no server running. */
     private static Catalogue catalogue() {
         PcServer server = PcServer.get();
         return server != null ? server.catalogue() : new Catalogue(ClasspathContent.bundled());

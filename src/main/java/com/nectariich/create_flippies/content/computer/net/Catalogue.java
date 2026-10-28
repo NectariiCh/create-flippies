@@ -10,7 +10,8 @@ import java.util.Objects;
 /**
  * The modem's "internet" (spec 12.4.3): hosts and the files they serve, read through one or more
  * {@link ContentSource}s. A host belongs to the first source that names it: in game the world's
- * {@link SharedFolder}, then the bundled content. A file is plain at its path, or (in a source
+ * {@link SharedFolder}, then the server's packs over the jar's built-in pages ({@link PackRegistry}).
+ * A file is found in the source's {@link ContentSource#snapshot} and read from that to its end. A file is plain at its path, or (in a source
  * that allows it) stored in deflated chunks ({@link DeflatedChunks}); plain wins when both exist.
  * A source that lists folders has them served as HTML index pages ({@link FolderListing}). Paths
  * are checked here so no source sees '..', '.' or empty segments.
@@ -19,6 +20,8 @@ public final class Catalogue {
 
     /** Entries one index page shows at most, so a huge folder costs a bounded tick. */
     static final int MAX_LISTED = 2000;
+    /** The page a folder that its source does not list serves at its path with a trailing '/', when there is one. */
+    static final String INDEX_PAGE = "index.html";
 
     private final List<ContentSource> sources;
 
@@ -64,7 +67,7 @@ public final class Catalogue {
         if (source == null || !safePath(path))
             return null;
         try {
-            return find(source, host.toLowerCase(Locale.ROOT) + "/" + path);
+            return find(source.snapshot(), host.toLowerCase(Locale.ROOT) + "/" + path);
         } catch (RuntimeException e) {
             return null;
         }
@@ -72,8 +75,9 @@ public final class Catalogue {
 
     /**
      * The HTML index page of the folder at {@code path} on {@code host} (decoded, no leading or
-     * trailing '/', empty for the top folder), or null when the host's source lists no such
-     * folder. Its {@link CatalogueFile#path} ends in '/'.
+     * trailing '/', empty for the top folder), its {@link CatalogueFile#path} ending in '/'. Where
+     * the host's source lists no such folder, the folder's {@link #INDEX_PAGE} file instead (the
+     * built-in page at http://get.flip/), or null when there is none.
      */
     public CatalogueFile listing(String host, String path) throws IOException {
         ContentSource source = sourceOf(host);
@@ -82,12 +86,13 @@ public final class Catalogue {
         String h = host.toLowerCase(Locale.ROOT), full = path.isEmpty() ? h : h + "/" + path;
         List<ContentSource.Entry> entries;
         try {
+            source = source.snapshot();
             entries = source.list(full, MAX_LISTED + 1);
+            if (entries == null)
+                return find(source, full + "/" + INDEX_PAGE);
         } catch (RuntimeException e) {
             return null;
         }
-        if (entries == null)
-            return null;
         byte[] html = FolderListing.html(path.isEmpty() ? "/" : "/" + path + "/", entries, MAX_LISTED)
                 .getBytes(StandardCharsets.UTF_8);
         String page = full + "/";
@@ -100,7 +105,7 @@ public final class Catalogue {
         if (source == null || !safePath(path))
             return false;
         try {
-            return source.list(host.toLowerCase(Locale.ROOT) + "/" + path, 0) != null;
+            return source.snapshot().list(host.toLowerCase(Locale.ROOT) + "/" + path, 0) != null;
         } catch (RuntimeException e) {
             return false;
         }

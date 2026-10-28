@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Checkboxes;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchAppearance;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlockEntity;
@@ -19,8 +21,6 @@ import com.nectariich.create_flippies.network.ModPackets;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.Checkbox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
@@ -51,7 +51,7 @@ import net.minecraft.network.chat.Component;
  * offer: a control's facing and quarter turn are fixed when the screwdriver
  * installs it.
  */
-public class RotarySwitchScreen extends Screen {
+public class RotarySwitchScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".rotary_switch_menu.";
 
@@ -130,15 +130,11 @@ public class RotarySwitchScreen extends Screen {
         // The checkbox carries its own label, so the row is left uncaptioned
         for (int position : RotarySwitchSpring.springable(kind)) {
             boolean checked = RotarySwitchSpring.springsFrom(kind, springs, position);
-            addRenderableWidget(new Checkbox(x, rowY(rows.size()), BUTTON_WIDTH, 20,
-                    RotarySwitchSpring.label(kind, position), checked) {
-                @Override
-                public void onPress() {
-                    super.onPress();
-                    springs = RotarySwitchSpring.with(kind, springs, position, selected());
-                    send(false);
-                }
-            });
+            addRenderableWidget(Checkboxes.create(x, rowY(rows.size()), BUTTON_WIDTH, 20,
+                    RotarySwitchSpring.label(kind, position), checked, selected -> {
+                        springs = RotarySwitchSpring.with(kind, springs, position, selected);
+                        send(false);
+                    }));
             rows.add(null);
         }
 
@@ -187,7 +183,7 @@ public class RotarySwitchScreen extends Screen {
     }
 
     private void send(boolean turn) {
-        ModPackets.CHANNEL.sendToServer(new ConfigureRotarySwitchPacket(pos, appearance, springs, turn, mount));
+        ModPackets.sendToServer(new ConfigureRotarySwitchPacket(pos, appearance, springs, turn, mount));
     }
 
     private Component markingLabel() {
@@ -204,7 +200,7 @@ public class RotarySwitchScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int cx = width / 2;
         int top = rowY(0);
         graphics.drawCenteredString(font, title, cx, top - 28, 0xFFFFFF);

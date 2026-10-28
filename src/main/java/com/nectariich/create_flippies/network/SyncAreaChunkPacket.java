@@ -2,14 +2,12 @@ package com.nectariich.create_flippies.network;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.foundation.protection.BreakArea;
 import com.nectariich.create_flippies.foundation.protection.ClientProtectionStore;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Everything the client needs to know about one chunk's protected areas, sent when
@@ -25,7 +23,7 @@ import net.minecraftforge.network.NetworkEvent;
  * so a player who was away while areas came and went is brought back into line by
  * the next one with no replay and no version counter.
  */
-public class SyncAreaChunkPacket {
+public class SyncAreaChunkPacket implements FlippiesPacket {
 
     private final long chunk;
     private final List<BreakArea> areas;
@@ -45,8 +43,7 @@ public class SyncAreaChunkPacket {
         buffer.writeCollection(areas, (target, area) -> area.write(target));
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> ClientProtectionStore.acceptChunk(chunk, areas));
-        context.get().setPacketHandled(true);
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientProtectionStore.acceptChunk(chunk, areas));
     }
 }

@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.screwdriver;
 import java.util.List;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowDraft;
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowSettings;
@@ -21,8 +22,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 /**
  * The tool that rules faces into cells and screws controls into them.
@@ -128,7 +127,7 @@ public class ScrewdriverItem extends Item {
         if (WireDuctItem.cancel(player))
             return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
         if (level.isClientSide)
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            ClientOnly.run(
                     () -> () -> com.nectariich.create_flippies.client.ScrewdriverScreen.open(hand));
         menuOpened(player);
         return InteractionResultHolder.success(stack);
@@ -142,7 +141,7 @@ public class ScrewdriverItem extends Item {
         if (WireDuctItem.cancel(player))
             return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
         if (context.getLevel().isClientSide)
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            ClientOnly.run(
                     () -> () -> com.nectariich.create_flippies.client.ScrewdriverScreen.open(context.getHand()));
         menuOpened(player);
         return InteractionResult.SUCCESS;

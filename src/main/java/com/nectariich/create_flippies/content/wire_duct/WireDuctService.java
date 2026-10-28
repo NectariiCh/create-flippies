@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctColor;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctNetwork;
@@ -148,7 +149,7 @@ public final class WireDuctService {
         }
         for (WireDuctEntity duct : added)
             level.addFreshEntity(duct);
-        stack.removeTagKey(WireDuctItem.TAG_START);
+        StackData.remove(stack, WireDuctItem.TAG_START);
         if (!player.isCreative())
             remove(player, stack, color, cost);
         level.playSound(null, BlockPos.containing(to), SoundEvents.COPPER_PLACE, SoundSource.BLOCKS, 1, 1.2f);

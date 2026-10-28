@@ -47,6 +47,8 @@ for p in $PACKAGES; do
     echo "Installed-Size: $(du -sk --exclude=DEBIAN "$PKG" | cut -f1)" >> "$PKG/DEBIAN/control"
     VERSION=$(sed -n 's/^Version: //p' "$PKG/DEBIAN/control")
     rm -f "$OUT/${p}"_*_all.deb
-    dpkg-deb --root-owner-group -Zxz --build "$PKG" "$OUT/${p}_${VERSION}_all.deb" > /dev/null
+    # File times clamped to the image's snapshot, so the same sources give the same .deb
+    SOURCE_DATE_EPOCH=1792910152 \
+        dpkg-deb --root-owner-group -Zxz --build "$PKG" "$OUT/${p}_${VERSION}_all.deb" > /dev/null
     echo "${p}_${VERSION}_all.deb"
 done

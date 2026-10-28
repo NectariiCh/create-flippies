@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.nectariich.create_flippies.compat.Verts;
 
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -47,12 +48,8 @@ public final class GaugeQuads {
 
     private static void vertex(VertexConsumer vertices, Matrix4f pose, Matrix3f normal, int argb, int light,
             float[] p, float u, float v, float nx, float ny, float nz) {
-        vertices.vertex(pose, p[0], p[1], p[2])
-                .color((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, (argb >>> 24) & 0xFF)
-                .uv(u, v)
-                .overlayCoords(OverlayTexture.NO_OVERLAY)
-                .uv2(light)
-                .normal(normal, nx, ny, nz)
-                .endVertex();
+        Verts.block(vertices, pose, normal, p[0], p[1], p[2],
+                (argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, (argb >>> 24) & 0xFF,
+                u, v, OverlayTexture.NO_OVERLAY, light, nx, ny, nz);
     }
 }

@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.nectariich.create_flippies.client.ModPartialModels;
 import com.nectariich.create_flippies.client.wire.BentWireRenderer;
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.data_cord.DataCordEntity;
 import com.nectariich.create_flippies.foundation.wire.bend.WireSweep;
 import com.nectariich.create_flippies.registry.ModBlocks;
@@ -31,7 +32,7 @@ import org.patryk3211.powergrid.electricity.wire.HangingWireRenderer;
 public class DataCordRenderer extends EntityRenderer<DataCordEntity> {
 
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation("powergrid", "textures/special/insulated_wire.png");
+            Ids.of("powergrid", "textures/special/insulated_wire.png");
 
     public DataCordRenderer(EntityRendererProvider.Context context) {
         super(context);

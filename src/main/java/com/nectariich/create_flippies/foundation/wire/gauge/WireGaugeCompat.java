@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.foundation.wire.gauge;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Ids;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -8,17 +9,24 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
+//? if forge {
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.ForgeRegistry;
 import net.minecraftforge.registries.IdMappingEvent;
 import net.minecraftforge.registries.MissingMappingsEvent;
 import net.minecraftforge.registries.RegistryManager;
+//?} else {
+/*import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.neoforged.neoforge.registries.RegisterEvent;
+*///?}
 
 /**
  * Hands the gauged wires over to Power Plant Grid when it is installed, and takes
@@ -54,7 +62,7 @@ public final class WireGaugeCompat {
     /** The wires for the Flippies creative tab, Power Plant Grid's when it is installed. */
     public static void addToTab(CreativeModeTab.Output output) {
         for (String id : WireGauges.tabOrder(ppgLoaded())) {
-            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
+            Item item = BuiltInRegistries.ITEM.get(Ids.parse(id));
             if (item != null && item != Items.AIR)
                 output.accept(item);
             else
@@ -62,12 +70,13 @@ public final class WireGaugeCompat {
         }
     }
 
+    //? if forge {
     @SubscribeEvent
     public static void onMissingMappings(MissingMappingsEvent event) {
         String namespace = ppgLoaded() ? CreateFlippies.MOD_ID : WireGauges.PPG_MOD_ID;
         for (MissingMappingsEvent.Mapping<Item> mapping : event.getMappings(ForgeRegistries.Keys.ITEMS, namespace)) {
             WireGauges.remapTarget(mapping.getKey().toString(), ppgLoaded()).ifPresent(target -> {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(target));
+                Item item = ForgeRegistries.ITEMS.getValue(Ids.parse(target));
                 if (item != null && item != Items.AIR)
                     mapping.remap(item);
             });
@@ -95,9 +104,25 @@ public final class WireGaugeCompat {
             registry.getKeys().forEach(key -> registered.add(key.toString()));
 
             for (String source : WireGauges.staleAliases(byName, registered))
-                aliases.remove(new ResourceLocation(source));
+                aliases.remove(Ids.parse(source));
         } catch (ReflectiveOperationException | RuntimeException e) {
             CreateFlippies.LOGGER.warn("Could not clear stale wire gauge aliases", e);
         }
     }
+    //?} else {
+    /*// NeoForge has no missing-mappings event, and a save names its items by id with no
+    // id map of its own, so the remap is a registry alias from each wire id that is not
+    // registered this run to the one that is. The aliases are made afresh on every
+    // launch, so none are left behind to clear. A mod bus listener, unlike the Forge pair.
+    public static void onRegister(RegisterEvent event) {
+        Registry<Item> items = event.getRegistry(Registries.ITEM);
+        if (items == null)
+            return;
+        for (WireGauges.Gauge gauge : WireGauges.ALL) {
+            String missing = ppgLoaded() ? gauge.flippiesId() : gauge.ppgId();
+            WireGauges.remapTarget(missing, ppgLoaded())
+                    .ifPresent(target -> items.addAlias(Ids.parse(missing), Ids.parse(target)));
+        }
+    }
+    *///?}
 }

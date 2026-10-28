@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.client;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.label.PanelLabel;
 import com.nectariich.create_flippies.content.label.PanelLabelControl;
 import com.nectariich.create_flippies.content.label.PanelLabelPrint;
@@ -14,7 +15,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
@@ -42,7 +42,7 @@ import net.minecraft.network.chat.Component;
  * only on arrival would leave a player typing a formatting code, seeing it accepted,
  * and watching it vanish.
  */
-public class PanelLabelScreen extends Screen {
+public class PanelLabelScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".panel_label_menu.";
 
@@ -157,7 +157,7 @@ public class PanelLabelScreen extends Screen {
 
     private void applyAndClose() {
         print = print.withSize(parseSize(sizeBox.getValue()));
-        ModPackets.CHANNEL.sendToServer(new ConfigurePanelLabelPacket(pos, mount, textBox.getValue(),
+        ModPackets.sendToServer(new ConfigurePanelLabelPacket(pos, mount, textBox.getValue(),
                 colour(colourBox.getValue(), initialColour), colour(plateColourBox.getValue(), initialPlateColour),
                 print));
         onClose();
@@ -217,7 +217,7 @@ public class PanelLabelScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int cx = width / 2;
         int top = top();
         graphics.drawCenteredString(font, title, cx, top - 20, 0xFFFFFF);

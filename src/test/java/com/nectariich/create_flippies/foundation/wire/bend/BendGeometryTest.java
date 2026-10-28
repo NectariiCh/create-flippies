@@ -53,7 +53,11 @@ class BendGeometryTest {
         // The lowest point of each leg is the lowest point of a lone wire between its ends
         for (int leg = 0; leg < 2; leg++) {
             Vec3 from = path.get(leg), to = path.get(leg + 1);
+            //? if forge {
             CurveParameters lone = new CurveParameters(from, to, H, V, T);
+            //?} else {
+            /*CurveParameters lone = new CurveParameters(from, to, BendGeometry.curveLength(from, to, H, V), T);
+            *///?}
             double[] loneLowest = {Double.MAX_VALUE};
             lone.runForSegments((x1, y1, z1, x2, y2, z2, o, l) -> loneLowest[0] = Math.min(loneLowest[0], y2 + from.y),
                     0.25);
@@ -125,7 +129,11 @@ class BendGeometryTest {
         Vec3 a = new Vec3(0, 70, 0), p = new Vec3(4, 70, 0), b = new Vec3(4, 70, 8);
         List<Vec3> path = List.of(a, p, b);
         // Aim straight down at the middle of the second leg, where it hangs lowest
+        //? if forge {
         CurveParameters leg = new CurveParameters(p, b, H, V, T);
+        //?} else {
+        /*CurveParameters leg = new CurveParameters(p, b, BendGeometry.curveLength(p, b, H, V), T);
+        *///?}
         double sagY = 70 + leg.apply(0);
         Vec3 eye = new Vec3(4, 73, 4);
         BendGeometry.Hit hit = BendGeometry.pick(eye, new Vec3(0, -1, 0), 10, List.of(p), path, H, V, T);

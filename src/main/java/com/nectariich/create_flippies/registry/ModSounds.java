@@ -1,12 +1,13 @@
 package com.nectariich.create_flippies.registry;
 
+import java.util.function.Supplier;
+
 import com.nectariich.create_flippies.CreateFlippies;
 
+import net.minecraft.core.registries.Registries;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
 /**
  * The mod's own sounds.
@@ -24,16 +25,16 @@ import net.minecraftforge.registries.RegistryObject;
  */
 public class ModSounds {
     public static final DeferredRegister<SoundEvent> SOUNDS =
-            DeferredRegister.create(ForgeRegistries.SOUND_EVENTS, CreateFlippies.MOD_ID);
+            DeferredRegister.create(Registries.SOUND_EVENT, CreateFlippies.MOD_ID);
 
     /** A breaker's contacts being made, by hand -- the only way they ever are. */
-    public static final RegistryObject<SoundEvent> CIRCUIT_BREAKER_CLOSE = event("circuit_breaker.close");
+    public static final Supplier<SoundEvent> CIRCUIT_BREAKER_CLOSE = event("circuit_breaker.close");
 
     /**
      * A breaker's contacts coming apart. The same latch lets go whether an element
      * threw it or somebody pushed the lever, so both use this.
      */
-    public static final RegistryObject<SoundEvent> CIRCUIT_BREAKER_TRIP = event("circuit_breaker.trip");
+    public static final Supplier<SoundEvent> CIRCUIT_BREAKER_TRIP = event("circuit_breaker.trip");
 
     /**
      * A switch handle dropping into the next detent. Every rotary switch uses it,
@@ -41,16 +42,16 @@ public class ModSounds {
      * is the same mechanism in all of them, so it is one event rather than one per
      * kind. One take so far -- adding more is a line in sounds.json, not here.
      */
-    public static final RegistryObject<SoundEvent> ROTARY_SWITCH_TURN = event("rotary_switch.turn");
+    public static final Supplier<SoundEvent> ROTARY_SWITCH_TURN = event("rotary_switch.turn");
 
     /**
      * An electromechanical relay's armature pulling in or dropping out. Solid state
      * relays have nothing to move and stay silent. No recording of its own yet:
      * sounds.json plays the rotary switch's detent, small and high.
      */
-    public static final RegistryObject<SoundEvent> RELAY_CLICK = event("relay.click");
+    public static final Supplier<SoundEvent> RELAY_CLICK = event("relay.click");
 
-    private static RegistryObject<SoundEvent> event(String name) {
+    private static Supplier<SoundEvent> event(String name) {
         return SOUNDS.register(name, () -> SoundEvent.createVariableRangeEvent(CreateFlippies.asResource(name)));
     }
 

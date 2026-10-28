@@ -171,7 +171,11 @@ public abstract class CordEntityBendMixin implements BendableWire {
         CordEntity self = create_flippies$self();
         // The same correction Power Grid makes to the endpoints, and on the same side
         if (!points.isEmpty() && !self.level().isClientSide && tag.contains("LastKnownPos")) {
+            //? if forge {
             BlockPos last = NbtUtils.readBlockPos(tag.getCompound("LastKnownPos"));
+            //?} else {
+            /*BlockPos last = NbtUtils.readBlockPos(tag, "LastKnownPos").orElse(self.blockPosition());
+            *///?}
             BlockPos now = self.blockPosition();
             if (!last.equals(now))
                 points = WireBends.offset(points, Vec3.atLowerCornerOf(now.subtract(last)));

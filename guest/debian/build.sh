@@ -15,8 +15,8 @@
 #   build.sh --kernel-deb FILE             the kernel package to install (default the one in
 #                                          guest/linux/out/)
 #   build.sh --cmdline TEXT                slot A's kernel command line (default below)
-#   build.sh --chunks                      also the deflated chunk files for the jar (spec 12.4.3)
-#                                          in out/chunks/debian.fdi.z/
+#   build.sh --chunks                      also the deflated chunk files (spec 12.4.3) in
+#                                          out/chunks/debian.fdi.z/, for guest/packs/build.sh
 #   build.sh --rebootstrap                 run mmdebstrap again even if its cached result fits
 #   build.sh --out DIR                     write the results to DIR (under /build or the repo)
 #
@@ -189,6 +189,10 @@ chown -R 0:0 "$ROOT/etc/hostname" "$ROOT/etc/hosts" "$ROOT/etc/fstab" "$ROOT/etc
 chmod 0440 "$ROOT/etc/sudoers.d/flip"
 chown -R 1000:1000 "$ROOT/home/flip"
 chmod 0755 "$ROOT/home/flip/.xinitrc"
+
+# Manual pages are left out (dpkg path-exclude), but some maintainer scripts still register
+# alternatives with a manual page link (openjdk's postinst fails without /usr/share/man/man1).
+mkdir -p "$ROOT/usr/share/man/man1"
 
 # The key of the deb.flip package archive (guest/apt/build.sh signs it), so apt trusts the archive
 # from the first boot. Without it the image still builds; apt then needs the key added by hand

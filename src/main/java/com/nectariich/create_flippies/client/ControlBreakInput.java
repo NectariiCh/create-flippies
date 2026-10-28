@@ -18,7 +18,11 @@ import net.minecraft.network.chat.Component;
 import com.nectariich.create_flippies.foundation.control.HostedControl;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -72,9 +76,15 @@ public final class ControlBreakInput {
     private ControlBreakInput() {}
 
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.END && !Minecraft.getInstance().options.keyAttack.isDown())
             released = true;
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+        if (!Minecraft.getInstance().options.keyAttack.isDown())
+            released = true;
+    *///?}
     }
 
     @SubscribeEvent
@@ -117,6 +127,6 @@ public final class ControlBreakInput {
         if (!released)
             return;
         released = false;
-        ModPackets.CHANNEL.sendToServer(new BreakControlPacket(block.getBlockPos(), crosshair.getLocation()));
+        ModPackets.sendToServer(new BreakControlPacket(block.getBlockPos(), crosshair.getLocation()));
     }
 }

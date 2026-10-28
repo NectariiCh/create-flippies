@@ -6,6 +6,9 @@ import com.nectariich.create_flippies.foundation.wire.gauge.WireGauges;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+//? if neoforge {
+/*import net.minecraft.core.component.DataComponents;
+*///?}
 
 import org.patryk3211.powergrid.electricity.wire.WireItem;
 import org.spongepowered.asm.mixin.Mixin;
@@ -28,8 +31,13 @@ public class ItemStackWireGaugeMixin {
         ItemStack stack = (ItemStack) (Object) this;
         if (!(stack.getItem() instanceof WireItem) || WireGaugeCompat.ppgLoaded())
             return;
+        //? if forge {
         if (stack.hasCustomHoverName())
             return;
+        //?} else {
+        /*if (stack.has(DataComponents.CUSTOM_NAME))
+            return;
+        *///?}
         if (!WireGauges.isPowerGrid12Awg(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()))
             return;
         Component base = Component.translatable(stack.getItem().getDescriptionId(stack));

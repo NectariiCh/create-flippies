@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=CPU load
+Comment=A graph of the system load (xload)
+Exec=xload
+TryExec=xload
+Categories=System;Monitor;

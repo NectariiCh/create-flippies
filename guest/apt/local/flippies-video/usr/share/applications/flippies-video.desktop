@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Video player
+Comment=Play a small Ogg Theora video
+Exec=flippies-video
+Terminal=false
+Categories=AudioVideo;Video;Player;
+MimeType=video/ogg;video/x-theora+ogg;

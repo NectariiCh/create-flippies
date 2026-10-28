@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.gauge;
 import java.util.Map;
 
 import com.nectariich.create_flippies.client.UniversalGaugeScreen;
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.control.ConfigurableBlock;
 import com.nectariich.create_flippies.foundation.control.ControlConfig;
 import com.nectariich.create_flippies.registry.ModBlockEntities;
@@ -29,8 +30,6 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 public class UniversalGaugeBlock extends Block implements EntityBlock, IWrenchable, ConfigurableBlock {
 
@@ -105,7 +104,7 @@ public class UniversalGaugeBlock extends Block implements EntityBlock, IWrenchab
         if (!(level.getBlockEntity(pos) instanceof UniversalGaugeBlockEntity gauge))
             return false;
         if (level.isClientSide)
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> UniversalGaugeScreen.open(gauge));
+            ClientOnly.run(() -> () -> UniversalGaugeScreen.open(gauge));
         return true;
     }
 

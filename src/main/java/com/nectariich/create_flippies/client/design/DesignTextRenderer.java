@@ -154,7 +154,11 @@ public final class DesignTextRenderer {
         for (DesignText text : design.texts()) {
             ms.pushPose();
             if (text.onMoving())
+                //? if forge {
                 ms.mulPoseMatrix(motion);
+                //?} else {
+                /*ms.last().pose().mul(motion); // the pose only, as mulPoseMatrix did
+                *///?}
             draw(ms, buffer, text, light);
             ms.popPose();
         }

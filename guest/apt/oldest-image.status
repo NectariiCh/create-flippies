@@ -1,0 +1,3000 @@
+Package: apt
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 4208
+Architecture: m68k
+Version: 3.3.4
+Replaces: apt-transport-https (<< 1.5~alpha4~), apt-utils (<< 1.3~exp2~)
+Provides: apt-transport-https (= 3.3.4)
+Depends: base-passwd (>= 3.6.1) | adduser, gpgv, libapt-pkg7.0 (>= 3.3.4), debian-archive-keyring, libc6 (>= 2.38), libgcc-s2 (>= 4.2.1), libssl3t64 (>= 3.0.0), libstdc++6 (>= 13.1), libsystemd0
+Recommends: ca-certificates
+Suggests: apt-doc, aptitude | synaptic | wajig, dpkg-dev (>= 1.17.2), gnupg | gnupg2 | gnupg1, powermgmt-base
+Breaks: apt-transport-https (<< 1.5~alpha4~), apt-utils (<< 1.3~exp2~), aptitude (<< 0.8.10)
+Conflicts: apt-verify, libnettle8 (<< 3.9.1-2.2~)
+
+Package: base-files
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 499
+Architecture: m68k
+Multi-Arch: foreign
+Version: 14.2
+Replaces: base, dpkg (<= 1.15.0), miscutils
+Provides: base, usr-is-merged
+Pre-Depends: awk
+Breaks: debian-security-support (<< 2019.04.25), initscripts (<< 2.88dsf-13.3), sendfile (<< 2.1b.20080616-5.2~)
+
+Package: base-passwd
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 276
+Architecture: m68k
+Multi-Arch: foreign
+Version: 3.6.8
+Replaces: base
+Depends: libc6 (>= 2.34), libdebconfclient0 (>= 0.145), libselinux1 (>= 3.1~)
+Recommends: debconf (>= 0.5) | debconf-2.0
+
+Package: bash
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: shells
+Installed-Size: 6983
+Architecture: m68k
+Multi-Arch: foreign
+Version: 5.3-4
+Depends: base-files (>= 2.1.12), debianutils (>= 5.6-0.1)
+Pre-Depends: libc6 (>= 2.38), libtinfo6 (>= 6)
+Recommends: bash-completion
+Suggests: bash-doc
+
+Package: bsdutils
+Status: install ok installed
+Priority: standard
+Section: utils
+Installed-Size: 277
+Architecture: m68k
+Multi-Arch: foreign
+Source: util-linux (2.42.4-1)
+Version: 1:2.42.4-1
+Depends: libc6 (>= 2.38), libsystemd0 (>= 254)
+Recommends: bsdextrautils
+Commands: renice, script, scriptlive, scriptreplay, wall
+
+Package: busybox
+Status: install ok installed
+Priority: optional
+Section: utils
+Installed-Size: 852
+Architecture: m68k
+Version: 1:1.38.0-3
+Replaces: busybox-static
+Depends: libc6 (>= 2.42)
+Conflicts: busybox-static
+
+Package: coreutils
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 16653
+Architecture: m68k
+Multi-Arch: foreign
+Version: 9.10-1
+Pre-Depends: libacl1 (>= 2.2.23), libattr1 (>= 1:2.4.48), libc6 (>= 2.42), libgmp10 (>= 2:6.3.0+dfsg), libselinux1 (>= 3.1~), libssl3t64 (>= 3.0.0), libsystemd0 (>= 254)
+
+Package: cpp
+Status: install ok installed
+Priority: optional
+Section: interpreters
+Installed-Size: 18
+Architecture: m68k
+Multi-Arch: allowed
+Source: gcc-defaults (1.233)
+Version: 4:16.1.0-3
+Depends: cpp-16 (>= 16.1.0-3~), cpp-m68k-linux-gnu (= 4:16.1.0-3)
+Suggests: cpp-doc
+Conflicts: cpp-doc (<< 1:2.95.3), gcc (<< 4:13.2.0-3)
+
+Package: cpp-16
+Status: install ok installed
+Priority: optional
+Section: interpreters
+Installed-Size: 11
+Architecture: m68k
+Source: gcc-16
+Version: 16.2.0-3
+Depends: gcc-16-base (= 16.2.0-3), cpp-16-m68k-linux-gnu (= 16.2.0-3)
+Suggests: gcc-16-locales (>= 16)
+Breaks: hardening-wrapper (<< 2.8+nmu3), libmagics++-dev (<< 2.28.0-4)
+
+Package: cpp-16-m68k-linux-gnu
+Status: install ok installed
+Priority: optional
+Section: interpreters
+Installed-Size: 32004
+Architecture: m68k
+Multi-Arch: foreign
+Source: gcc-16
+Version: 16.2.0-3
+Depends: gcc-16-base (= 16.2.0-3), libc6 (>= 2.38), libgmp10 (>= 2:6.3.0+dfsg), libisl23 (>= 0.15), libmpc3 (>= 1.1.0), libmpfr6 (>= 4.2.0), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.2.3.4)
+Suggests: gcc-16-locales (>= 16), cpp-16-doc (>= 16)
+Breaks: hardening-wrapper (<< 2.8+nmu3), libmagics++-dev (<< 2.28.0-4)
+
+Package: cpp-m68k-linux-gnu
+Status: install ok installed
+Priority: optional
+Section: interpreters
+Installed-Size: 16
+Architecture: m68k
+Multi-Arch: foreign
+Source: gcc-defaults (1.233)
+Version: 4:16.1.0-3
+Replaces: cpp (<< 4:13.2.0-3)
+Depends: cpp-16-m68k-linux-gnu (>= 16.1.0-3~)
+Suggests: cpp-doc
+Breaks: cpp (<< 4:13.2.0-3)
+
+Package: dash
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: shells
+Installed-Size: 186
+Architecture: m68k
+Multi-Arch: foreign
+Version: 0.5.12-12
+Depends: debianutils (>= 5.6-0.1)
+Pre-Depends: libc6 (>= 2.38)
+
+Package: debconf
+Status: install ok installed
+Priority: important
+Section: admin
+Installed-Size: 508
+Architecture: all
+Multi-Arch: foreign
+Version: 1.5.92
+Replaces: debconf-tiny
+Provides: debconf-2.0
+Recommends: apt (>= 2.9.11~) | apt-utils, debconf-i18n
+Suggests: debconf-doc, debconf-kde-helper, debconf-utils, libgtk3-perl, libnet-ldap-perl, libterm-readline-gnu-perl, perl, whiptail | dialog
+Conflicts: debconf-tiny, whiptail-utf8 (<= 0.50.17-13)
+
+Package: debian-archive-keyring
+Status: install ok installed
+Priority: important
+Section: misc
+Installed-Size: 302
+Architecture: all
+Multi-Arch: foreign
+Version: 2025.1
+
+Package: debian-ports-archive-keyring
+Status: install ok installed
+Priority: optional
+Section: misc
+Installed-Size: 66
+Architecture: all
+Multi-Arch: foreign
+Version: 2026.02.04
+
+Package: debianutils
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 205
+Architecture: m68k
+Multi-Arch: foreign
+Version: 5.24
+Pre-Depends: libc6 (>= 2.38)
+Breaks: ifupdown (<< 0.8.36+nmu1), printer-driver-pnm2ppa (<< 1.13-12), x11-common (<< 1:7.7+23~)
+Commands: add-shell, installkernel, ischroot, remove-shell, run-parts, savelog, tempfile, update-shells, which.debianutils
+
+Package: diffutils
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 1690
+Architecture: m68k
+Version: 1:3.12-1
+Replaces: diff
+Pre-Depends: libc6 (>= 2.38)
+Suggests: diffutils-doc, wdiff, gnulib-l10n
+
+Package: dpkg
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 4536
+Architecture: m68k
+Multi-Arch: foreign
+Version: 1.23.11
+Replaces: bash-completion (<< 1:2.16.0-9)
+Pre-Depends: libbz2-1.0, libc6 (>= 2.38), liblzma5 (>= 5.4.0), libmd0 (>= 0.0.0), libselinux1 (>= 3.1~), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.1.4)
+Suggests: apt, debsig-verify
+Breaks: bash-completion (<< 1:2.12~)
+
+Package: e2fsprogs
+Status: install ok installed
+Priority: important
+Section: admin
+Installed-Size: 1330
+Architecture: m68k
+Multi-Arch: foreign
+Source: e2fsprogs (1.47.4-1)
+Version: 1.47.4-1+b2
+Depends: logsave
+Pre-Depends: libblkid1 (>= 2.36), libc6 (>= 2.38), libcom-err2 (>= 1.43.9), libext2fs2t64 (= 1.47.4-1+b2), libss2 (>= 1.38), libuuid1 (>= 2.16)
+Recommends: e2fsprogs-l10n
+Suggests: gpart, parted, fuse2fs, e2fsck-static, libarchive13t64
+Important: yes
+
+Package: findutils
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 2289
+Architecture: m68k
+Multi-Arch: foreign
+Version: 4.11.0-3
+Pre-Depends: libc6 (>= 2.38), libselinux1 (>= 3.1~)
+Breaks: binstats (<< 1.08-8.1), guilt (<< 0.36-0.2), libpython3.4-minimal (<< 3.4.4-2), libpython3.5-minimal (<< 3.5.1-3), lsat (<< 0.9.7.1-2.1), mc (<< 3:4.8.11-1), switchconf (<< 0.0.9-2.1)
+Commands: find, xargs
+
+Package: flippies-boot
+Status: install ok installed
+Priority: optional
+Section: admin
+Architecture: all
+Version: 1.0
+
+Package: fontconfig
+Status: install ok installed
+Priority: optional
+Section: fonts
+Installed-Size: 366
+Architecture: m68k
+Multi-Arch: foreign
+Version: 2.17.1-5
+Depends: libc6 (>= 2.38), libfontconfig1 (>= 2.17.1), libfreetype6 (>= 2.2.1), fontconfig-config
+
+Package: fontconfig-config
+Status: install ok installed
+Priority: optional
+Section: fonts
+Installed-Size: 283
+Architecture: m68k
+Multi-Arch: foreign
+Source: fontconfig
+Version: 2.17.1-5
+Depends: debconf (>= 0.5) | debconf-2.0, fonts-dejavu-core | fonts-liberation | fonts-croscore | fonts-freefont-otf | fonts-freefont-ttf | fonts-urw-base35 | fonts-texgyre | fonts-noto-core
+Breaks: libfontconfig1 (<< 2.13.0)
+
+Package: fonts-dejavu-core
+Status: install ok installed
+Priority: optional
+Section: fonts
+Installed-Size: 2291
+Architecture: all
+Multi-Arch: foreign
+Source: fonts-dejavu
+Version: 2.37-9
+Depends: fonts-dejavu-mono
+
+Package: fonts-dejavu-mono
+Status: install ok installed
+Priority: optional
+Section: fonts
+Installed-Size: 1280
+Architecture: all
+Multi-Arch: foreign
+Source: fonts-dejavu
+Version: 2.37-9
+Replaces: fonts-dejavu-core (<< 2.37-7~), fonts-dejavu-extra (<< 2.37-7~)
+Breaks: fonts-dejavu-core (<< 2.37-7~), fonts-dejavu-extra (<< 2.37-7~)
+
+Package: gcc-16-base
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 106
+Architecture: m68k
+Multi-Arch: same
+Source: gcc-16
+Version: 16.2.0-3
+Breaks: gnat (<< 7)
+
+Package: gpgv
+Status: install ok installed
+Priority: optional
+Section: utils
+Installed-Size: 454
+Architecture: m68k
+Multi-Arch: foreign
+Source: gnupg2
+Version: 2.4.9-8
+Depends: libbz2-1.0, libc6 (>= 2.38), libgcrypt20 (>= 1.12.0), libgpg-error0 (>= 1.49), zlib1g (>= 1:1.1.4)
+Suggests: gnupg
+Breaks: python-debian (<< 0.1.29)
+
+Package: grep
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 1276
+Architecture: m68k
+Multi-Arch: foreign
+Version: 3.12-1
+Provides: rgrep
+Pre-Depends: libc6 (>= 2.38), libpcre2-8-0 (>= 10.32)
+Conflicts: rgrep
+
+Package: gzip
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 232
+Architecture: m68k
+Version: 1.14-1
+Pre-Depends: libc6 (>= 2.38)
+Suggests: less
+Conflicts: zutils (<< 1.13-2~)
+
+Package: hostname
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 41
+Architecture: m68k
+Version: 3.25
+Replaces: nis (<< 3.17-30)
+Pre-Depends: libc6 (>= 2.34)
+Breaks: nis (<< 3.17-30)
+
+Package: ifupdown
+Status: install ok installed
+Priority: important
+Section: admin
+Installed-Size: 173
+Architecture: m68k
+Multi-Arch: foreign
+Source: ifupdown (0.8.45+nmu1)
+Version: 0.8.45+nmu1+b1
+Depends: libc6 (>= 2.38), systemd | systemd-standalone-sysusers | systemd-sysusers, iproute2
+Recommends: dhcpcd-base | dhcp-client
+Suggests: ppp, rdnssd
+
+Package: init-system-helpers
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 132
+Architecture: all
+Multi-Arch: foreign
+Version: 1.69+nmu3
+
+Package: initscripts
+Status: install ok installed
+Priority: optional
+Section: admin
+Installed-Size: 197
+Architecture: all
+Multi-Arch: foreign
+Source: sysvinit
+Version: 3.18-1
+Replaces: kmod (<< 34.1-1), udev (<< 254.3-1), util-linux-extra (<< 2.39.2-2.1~)
+Depends: sysvinit-utils (>= 3.05-1), sysv-rc | file-rc | openrc
+Recommends: e2fsprogs, psmisc, util-linux-extra
+Breaks: kmod (<< 34.1-1), udev (<< 254.3-1), util-linux-extra (<< 2.39.2-2.1~)
+
+Package: insserv
+Status: install ok installed
+Priority: optional
+Section: misc
+Installed-Size: 127
+Architecture: m68k
+Version: 1.27.0-1
+Depends: libc6 (>= 2.38)
+Breaks: sysv-rc (<< 2.87dsf-3)
+
+Package: iproute2
+Status: install ok installed
+Priority: important
+Section: net
+Installed-Size: 3474
+Architecture: m68k
+Multi-Arch: foreign
+Version: 7.2.0-1
+Replaces: iproute2-doc
+Provides: arpd
+Depends: libcap2-bin, debconf (>= 0.5) | debconf-2.0, libbpf1 (>= 1:0.6.0), libc6 (>= 2.38), libcap2 (>= 1:2.10), libdb5.3t64, libelf1t64 (>= 0.131), libmnl0 (>= 1.0.3-4~), libselinux1 (>= 3.1~), libtirpc3t64 (>= 1.0.2), libxtables12 (>= 1.6.0+snapshot20161117)
+Suggests: python3:any
+Breaks: iproute2-doc
+Conflicts: arpd
+
+Package: iputils-ping
+Status: install ok installed
+Priority: important
+Section: net
+Installed-Size: 178
+Architecture: m68k
+Multi-Arch: foreign
+Source: iputils
+Version: 3:20250605-1
+Provides: ping
+Depends: libc6 (>= 2.38), libcap2 (>= 1:2.10), libidn2-0 (>= 0.6)
+Recommends: linux-sysctl-defaults
+
+Package: jwm
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 424
+Architecture: m68k
+Version: 2.4.6-2.1
+Provides: x-window-manager
+Depends: rxvt-unicode | gnome-terminal | konsole | x-terminal-emulator, libc6 (>= 2.38), libcairo2 (>= 1.6.0), libglib2.0-0t64 (>= 2.12.0), libjpeg62-turbo (>= 1.3.1), libpango-1.0-0 (>= 1.22.0), libpangoft2-1.0-0 (>= 1.14.0), libpangoxft-1.0-0 (>= 1.14.0), libpng16-16t64 (>= 1.6.46), librsvg2-2 (>= 2.14.4), libx11-6, libxext6, libxft2 (>> 2.1.1), libxinerama1 (>= 2:1.1.4), libxmu6 (>= 2:1.1.3), libxpm4, libxrender1 (>= 1:0.9.12)
+Recommends: menu
+Suggests: x11-apps
+
+Package: keyboard-configuration
+Status: install ok installed
+Priority: optional
+Section: utils
+Installed-Size: 2896
+Architecture: all
+Multi-Arch: foreign
+Source: console-setup
+Version: 1.249
+Replaces: console-setup (<< 1.47), console-setup-mini (<< 1.47)
+Depends: debconf (>= 0.5) | debconf-2.0, liblocale-gettext-perl, xkb-data (>= 2.48~), xkb-data (<< 2.48A)
+Pre-Depends: debconf | debconf-2.0
+Breaks: console-setup (<< 1.71), console-setup-mini (<< 1.47)
+
+Package: less
+Status: install ok installed
+Priority: important
+Section: text
+Installed-Size: 305
+Architecture: m68k
+Multi-Arch: foreign
+Version: 710+really668-1
+Depends: libc6 (>= 2.42), libtinfo6 (>= 6)
+
+Package: libacl1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 68
+Architecture: m68k
+Multi-Arch: same
+Source: acl
+Version: 2.4.0-1
+Depends: libc6 (>= 2.38)
+
+Package: libapparmor1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 91
+Architecture: m68k
+Multi-Arch: same
+Source: apparmor
+Version: 4.1.8-3
+Replaces: libapparmor-perl (<< 3.0.3-3)
+Depends: libc6 (>= 2.38)
+Breaks: libapparmor-perl (<< 3.0.3-3)
+
+Package: libapt-pkg7.0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 3991
+Architecture: m68k
+Multi-Arch: same
+Source: apt
+Version: 3.3.4
+Provides: libapt-pkg (= 3.3.4)
+Depends: libbz2-1.0, libc6 (>= 2.38), libgcc-s2 (>= 4.2.1), liblz4-1 (>= 0.0~r127), liblzma5 (>= 5.1.1alpha+20120614), libssl3t64 (>= 3.0.0), libstdc++6 (>= 14), libsystemd0 (>= 221), libudev1 (>= 183), libxxhash0 (>= 0.8), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.2.3.4)
+Recommends: apt (>= 3.3.4)
+Breaks: appstream (<< 0.9.0-3~), apt (<< 1.6~), aptitude (<< 0.8.9), dpkg (<< 1.20.8), libapt-inst1.5 (<< 0.9.9~)
+Conflicts: libnettle8 (<< 3.9.1-2.2~)
+
+Package: libatomic1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 32
+Architecture: m68k
+Multi-Arch: same
+Source: gcc-16
+Version: 16.2.0-3
+Depends: gcc-16-base (= 16.2.0-3), libc6 (>= 2.1.3)
+
+Package: libattr1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 54
+Architecture: m68k
+Multi-Arch: same
+Source: attr
+Version: 1:2.6.0-1
+Depends: libc6 (>= 2.4)
+
+Package: libaudit-common
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 25
+Architecture: all
+Multi-Arch: foreign
+Source: audit
+Version: 1:4.2.1-1
+
+Package: libaudit1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 182
+Architecture: m68k
+Multi-Arch: same
+Source: audit
+Version: 1:4.2.1-1
+Depends: libaudit-common (>= 1:4.2.1-1), libc6 (>= 2.38), libcap-ng0 (>= 0.7.9)
+
+Package: libblkid1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 400
+Architecture: m68k
+Multi-Arch: same
+Source: util-linux
+Version: 2.42.4-1
+Depends: libc6 (>= 2.38)
+
+Package: libbpf1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 431
+Architecture: m68k
+Multi-Arch: same
+Source: libbpf (1.7.0-1)
+Version: 1:1.7.0-1
+Depends: libc6 (>= 2.38), libelf1t64 (>= 0.144), zlib1g (>= 1:1.2.3.4)
+
+Package: libbrotli1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 839
+Architecture: m68k
+Multi-Arch: same
+Source: brotli (1.2.0-4)
+Version: 1.2.0-4+b1
+Depends: libc6 (>= 2.29)
+
+Package: libbsd0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 198
+Architecture: m68k
+Multi-Arch: same
+Source: libbsd
+Version: 0.12.2-3
+Depends: libc6 (>= 2.38), libmd0 (>= 1.0.3-2)
+
+Package: libbz2-1.0
+Status: install ok installed
+Priority: important
+Section: libs
+Installed-Size: 84
+Architecture: m68k
+Multi-Arch: same
+Source: bzip2 (1.0.8-6)
+Version: 1.0.8-6+b2
+Depends: libc6 (>= 2.4)
+
+Package: libc-bin
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: libs
+Installed-Size: 1782
+Architecture: m68k
+Multi-Arch: foreign
+Source: glibc
+Version: 2.43-7
+Depends: libc6 (>> 2.43), libc6 (<< 2.44)
+Recommends: manpages
+
+Package: libc-gconv-modules-extra
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 5962
+Architecture: m68k
+Multi-Arch: same
+Source: glibc
+Version: 2.43-7
+Replaces: libc6 (<< 2.42-1)
+Breaks: libc6 (<< 2.42-1)
+
+Package: libc6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 3245
+Architecture: m68k
+Multi-Arch: same
+Source: glibc
+Version: 2.43-7
+Depends: libgcc-s2, libc-gconv-modules-extra (= 2.43-7)
+Recommends: libidn2-0 (>= 2.0.5~)
+Suggests: glibc-doc, debconf | debconf-2.0, libc-l10n, locales, libnss-nis
+Breaks: base-files (<< 13.3~), dhcpcd (<< 1:10.1.0-7~), libamdhip64-5 (<< 5.7.1-5+b1), libhiprtc-builtins5 (<< 5.7.1-5+b1), librccl1 (<< 5.4.3-3+b1), libswupdate0.1 (<< 2024.12.1+dfsg-1+b3), locales (<< 2.43), locales-all (<< 2.43), lua-swupdate (<< 2024.12.1+dfsg-1+b3), nscd (<< 2.43), pd-scaf (<< 1:0.14.1+darcs20180201-6+b4), postgresql-15-pllua (<< 1:2.0.12-4), postgresql-17-pllua (<< 1:2.0.12-3+b2), python3-mrgingham (<< 1.25-1), python3-onnxruntime (<< 1.20.1+dfsg-2~), sysvinit (<< 3.09-2~), sysvinit-core (<< 3.09-2~), uwsgi-plugin-pypy3 (<< 0.0.2+b1)
+
+Package: libcairo2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1216
+Architecture: m68k
+Multi-Arch: same
+Source: cairo (1.18.4-3)
+Version: 1.18.4-3+b1
+Depends: libc6 (>= 2.38), libfontconfig1 (>= 2.12.6), libfreetype6 (>= 2.11.1), libpixman-1-0 (>= 0.40.0), libpng16-16t64 (>= 1.6.46), libx11-6, libxcb-render0, libxcb-shm0, libxcb1 (>= 1.6), libxext6, libxrender1 (>= 1:0.9.12), zlib1g (>= 1:1.1.4)
+
+Package: libcap-ng0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 58
+Architecture: m68k
+Multi-Arch: same
+Source: libcap-ng (0.9.6-1)
+Version: 0.9.6-1+b1
+Depends: libc6 (>= 2.38)
+
+Package: libcap2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 77
+Architecture: m68k
+Multi-Arch: same
+Source: libcap2 (1:2.78-1)
+Version: 1:2.78-1+b1
+Depends: libc6 (>= 2.38)
+
+Package: libcap2-bin
+Status: install ok installed
+Priority: important
+Section: utils
+Installed-Size: 108
+Architecture: m68k
+Multi-Arch: foreign
+Source: libcap2 (1:2.78-1)
+Version: 1:2.78-1+b1
+Replaces: libcap-bin
+Depends: libc6 (>= 2.38), libcap2 (>= 1:2.63)
+Recommends: libpam-cap
+Breaks: libcap-bin
+
+Package: libcom-err2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 51
+Architecture: m68k
+Multi-Arch: same
+Source: e2fsprogs (1.47.4-1)
+Version: 1.47.4-1+b2
+Replaces: libcom-err2t64, libcomerr2 (<< 1.43.9-1~)
+Provides: libcom-err2t64 (= 1.47.4-1+b2), libcomerr2 (= 1.47.4-1+b2)
+Depends: libc6 (>= 2.38)
+Breaks: libcom-err2t64 (<< 1.47.0-2.4~exp1~), libcomerr2 (<< 1.43.9-1~)
+
+Package: libcroco3
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 320
+Architecture: m68k
+Multi-Arch: same
+Source: libcroco
+Version: 0.6.13-1.0.1
+Depends: libc6 (>= 2.4), libglib2.0-0t64 (>= 2.75.3), libxml2 (>= 2.7.4)
+
+Package: libcrypt1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 281
+Architecture: m68k
+Multi-Arch: same
+Source: libxcrypt
+Version: 1:4.5.2+20251210-1
+Replaces: libc6 (<< 2.29-4)
+Depends: libc6 (>= 2.38)
+Conflicts: libpam0g (<< 1.4.0-10)
+
+Package: libdatrie1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 67
+Architecture: m68k
+Multi-Arch: same
+Source: libdatrie
+Version: 0.2.14-2
+Depends: libc6 (>= 2.4)
+
+Package: libdb5.3t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1680
+Architecture: m68k
+Multi-Arch: same
+Source: db5.3
+Version: 5.3.28+dfsg2-11
+Replaces: libdb5.3
+Depends: libc6 (>= 2.38)
+Breaks: libdb5.3 (<< 5.3.28+dfsg2-11)
+
+Package: libdbus-1-3
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 389
+Architecture: m68k
+Multi-Arch: same
+Source: dbus
+Version: 1.16.2-8
+Depends: libc6 (>= 2.38), libsystemd0
+
+Package: libdebconfclient0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 30
+Architecture: m68k
+Multi-Arch: same
+Source: cdebconf
+Version: 0.283
+Depends: libc6 (>= 2.38)
+
+Package: libdeflate0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 65
+Architecture: m68k
+Multi-Arch: same
+Source: libdeflate
+Version: 1.25-1
+Depends: libc6 (>= 2.4)
+
+Package: libdrm-common
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 41
+Architecture: all
+Multi-Arch: foreign
+Source: libdrm
+Version: 2.4.134-3
+
+Package: libdrm2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 102
+Architecture: m68k
+Multi-Arch: same
+Source: libdrm
+Version: 2.4.134-3
+Depends: libdrm-common (>= 2.4.134-3), libc6 (>= 2.38)
+
+Package: libegl-mesa0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 346
+Architecture: m68k
+Multi-Arch: same
+Source: mesa
+Version: 26.1.6-1
+Provides: libegl-vendor
+Depends: libgbm1 (= 26.1.6-1), mesa-libgallium (= 26.1.6-1), libc6 (>= 2.38), libdrm2 (>= 2.4.134-3~), libexpat1 (>= 2.0.1), libgcc-s2 (>= 4.2.1), libwayland-client0 (>= 1.24.0), libx11-6, libx11-xcb1, libxcb-dri3-0 (>= 1.13), libxcb-present0, libxcb-randr0 (>= 1.3), libxcb-shm0, libxcb-xfixes0, libxcb1 (>= 1.6)
+
+Package: libegl1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 94
+Architecture: m68k
+Multi-Arch: same
+Source: libglvnd (1.7.0-3)
+Version: 1.7.0-3+b1
+Depends: libc6 (>= 2.38), libglvnd0 (= 1.7.0-3+b1), libegl-mesa0
+
+Package: libelf1t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 158
+Architecture: m68k
+Multi-Arch: same
+Source: elfutils
+Version: 0.196-1
+Replaces: libelf1
+Depends: libc6 (>= 2.38), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.1.4)
+Breaks: libelf1 (<< 0.196-1)
+
+Package: libepoxy0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1242
+Architecture: m68k
+Multi-Arch: same
+Source: libepoxy (1.5.10-2)
+Version: 1.5.10-2+b2
+Depends: libc6 (>= 2.34)
+
+Package: libevdev2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 105
+Architecture: m68k
+Multi-Arch: same
+Source: libevdev
+Version: 1.14.0+dfsg-1
+Depends: libc6 (>= 2.34)
+
+Package: libexpat1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 419
+Architecture: m68k
+Multi-Arch: same
+Source: expat
+Version: 2.9.0-1
+Pre-Depends: libc6 (>= 2.38)
+
+Package: libext2fs2t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 501
+Architecture: m68k
+Multi-Arch: same
+Source: e2fsprogs (1.47.4-1)
+Version: 1.47.4-1+b2
+Replaces: e2fslibs (<< 1.43.9-1~), libext2fs2
+Provides: e2fslibs (= 1.47.4-1+b2)
+Depends: libc6 (>= 2.38), libcom-err2 (>= 1.43.9)
+Breaks: e2fslibs (<< 1.43.9-1~), libext2fs2 (<< 1.47.4-1)
+
+Package: libffi8
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 59
+Architecture: m68k
+Multi-Arch: same
+Source: libffi
+Version: 3.8.0-2
+Replaces: libffi8ubuntu1 (<< 3.4.2-1)
+Provides: libffi8ubuntu1 (= 3.8.0-2)
+Depends: libc6 (>= 2.34)
+Breaks: libffi8ubuntu1 (<< 3.4.2-1)
+
+Package: libfontconfig1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 300
+Architecture: m68k
+Multi-Arch: same
+Source: fontconfig
+Version: 2.17.1-5
+Provides: libfontconfig
+Depends: libc6 (>= 2.38), libexpat1 (>= 2.0.1), libfreetype6 (>= 2.9.1), fontconfig-config (>= 2.17.1-5)
+Breaks: xpdf (<= 3.03-11)
+
+Package: libfontenc1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 53
+Architecture: m68k
+Multi-Arch: same
+Source: libfontenc (1:1.1.8-1)
+Version: 1:1.1.8-1+b3
+Depends: libc6 (>= 2.38), zlib1g (>= 1:1.2.3.4)
+
+Package: libfreetype6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 838
+Architecture: m68k
+Multi-Arch: same
+Source: freetype
+Version: 2.14.3+dfsg-3
+Depends: libbrotli1 (>= 0.6.0), libbz2-1.0, libc6 (>= 2.38), libpng16-16t64 (>= 1.6.46), zlib1g (>= 1:1.1.4)
+
+Package: libfribidi0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 141
+Architecture: m68k
+Multi-Arch: same
+Source: fribidi (1.0.16-5)
+Version: 1.0.16-5+b1
+Depends: libc6 (>= 2.4)
+
+Package: libgbm1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 124
+Architecture: m68k
+Multi-Arch: same
+Source: mesa
+Version: 26.1.6-1
+Depends: mesa-libgallium (= 26.1.6-1), libc6 (>= 2.38), libdrm2 (>= 2.4.134-3~), libexpat1 (>= 2.0.1), libgcc-s2 (>= 4.2.1)
+
+Package: libgcc-s2
+Protected: yes
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 91
+Architecture: m68k
+Multi-Arch: same
+Source: gcc-16
+Version: 16.2.0-3
+Replaces: libgcc2 (<< 1:10)
+Provides: libgcc2 (= 1:16.2.0-3)
+Depends: gcc-16-base (= 16.2.0-3), libc6 (>= 2.35)
+Important: yes
+
+Package: libgcrypt20
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1447
+Architecture: m68k
+Multi-Arch: same
+Version: 1.12.4-2
+Depends: libc6 (>= 2.38), libgpg-error0 (>= 1.56)
+Suggests: rng-tools
+
+Package: libgdk-pixbuf-2.0-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 423
+Architecture: m68k
+Multi-Arch: same
+Source: gdk-pixbuf
+Version: 2.44.8+dfsg-1
+Depends: libgdk-pixbuf2.0-common (>= 2.44.8+dfsg-1), shared-mime-info, libc6 (>= 2.34), libglib2.0-0t64 (>= 2.80.0), libjpeg62-turbo (>= 1.3.1), libpng16-16t64 (>= 1.6.46), libtiff6 (>= 4.0.3)
+Recommends: libgdk-pixbuf2.0-bin
+
+Package: libgdk-pixbuf2.0-common
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 2618
+Architecture: all
+Multi-Arch: foreign
+Source: gdk-pixbuf
+Version: 2.44.8+dfsg-1
+
+Package: libgl1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 611
+Architecture: m68k
+Multi-Arch: same
+Source: libglvnd (1.7.0-3)
+Version: 1.7.0-3+b1
+Depends: libc6 (>= 2.12), libglvnd0 (= 1.7.0-3+b1), libglx0 (= 1.7.0-3+b1)
+
+Package: libgl1-mesa-dri
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 217
+Architecture: m68k
+Multi-Arch: same
+Source: mesa
+Version: 26.1.6-1
+Depends: libgbm1 (= 26.1.6-1), libc6 (>= 2.34), libgcc-s2 (>= 4.2.1)
+
+Package: libglib2.0-0t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 4092
+Architecture: m68k
+Multi-Arch: same
+Source: glib2.0
+Version: 2.90.1-2
+Replaces: libglib2.0-0 (<< 2.80.0-7~)
+Provides: libgio-2.0-0 (= 2.90.1-2), libglib-2.0-0 (= 2.90.1-2), libgmodule-2.0-0 (= 2.90.1-2), libgobject-2.0-0 (= 2.90.1-2), libgthread-2.0-0 (= 2.90.1-2)
+Depends: libatomic1 (>= 4.8), libc6 (>= 2.43), libffi8 (>= 3.4), libmount1 (>= 2.40), libpcre2-8-0 (>= 10.47), libselinux1 (>= 3.1~), zlib1g (>= 1:1.2.2)
+Recommends: libglib2.0-data, shared-mime-info, xdg-user-dirs
+Suggests: low-memory-monitor
+Breaks: gnome-shell (<< 44.9-2~), libglib2.0-0 (<< 2.80.0-7~)
+
+Package: libglvnd0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 467
+Architecture: m68k
+Multi-Arch: same
+Source: libglvnd (1.7.0-3)
+Version: 1.7.0-3+b1
+Replaces: libgldispatch0-nvidia
+Depends: libc6 (>= 2.38)
+Breaks: libgldispatch0-nvidia
+
+Package: libglx-mesa0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 289
+Architecture: m68k
+Multi-Arch: same
+Source: mesa
+Version: 26.1.6-1
+Provides: libglx-vendor
+Depends: libgl1-mesa-dri, mesa-libgallium (= 26.1.6-1), libc6 (>= 2.38), libdrm2 (>= 2.4.134-3~), libexpat1 (>= 2.0.1), libgcc-s2 (>= 4.2.1), libx11-6 (>= 2:1.4.99.1), libx11-xcb1, libxcb-dri3-0, libxcb-glx0 (>= 1.8), libxcb-present0, libxcb-shm0, libxcb-xfixes0, libxcb1, libxext6, libxxf86vm1 (>= 1:1.1.4)
+Breaks: glx-diversions (<< 0.8.4~), libopengl-perl (<< 0.6704+dfsg-2)
+
+Package: libglx0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 81
+Architecture: m68k
+Multi-Arch: same
+Source: libglvnd (1.7.0-3)
+Version: 1.7.0-3+b1
+Depends: libc6 (>= 2.38), libglvnd0 (= 1.7.0-3+b1), libx11-6 (>= 2:1.4.99.1), libglx-mesa0
+
+Package: libgmp10
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 741
+Architecture: m68k
+Multi-Arch: same
+Source: gmp (2:6.3.0+dfsg-5)
+Version: 2:6.3.0+dfsg-5+b2
+Depends: libc6 (>= 2.38)
+Breaks: postgresql-pgmp (<< 1.0.3-1)
+
+Package: libgnutls30t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 3426
+Architecture: m68k
+Multi-Arch: same
+Source: gnutls28
+Version: 3.8.13-1
+Replaces: libgnutls30
+Depends: libc6 (>= 2.38), libgmp10 (>= 2:6.3.0+dfsg), libhogweed6t64 (>= 3.10), libidn2-0 (>= 2.0.0), libnettle8t64 (>= 3.10), libp11-kit0 (>= 0.25.1), libtasn1-6 (>= 4.14), libunistring5 (>= 1.1)
+Suggests: gnutls-bin
+Breaks: libgnutls30 (<< 3.8.13-1)
+
+Package: libgpg-error0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 182
+Architecture: m68k
+Multi-Arch: same
+Source: libgpg-error
+Version: 1.61-5
+Depends: libc6 (>= 2.38)
+Recommends: libgpg-error-l10n
+
+Package: libgraphite2-3
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 150
+Architecture: m68k
+Multi-Arch: same
+Source: graphite2
+Version: 1.3.15-2
+Replaces: libgraphite2-2.0.0
+Provides: libgraphite2-2.0.0
+Depends: libc6 (>= 2.4)
+Breaks: libgraphite2-2.0.0 (<< 1.2.0)
+
+Package: libgssapi-krb5-2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 372
+Architecture: m68k
+Multi-Arch: same
+Source: krb5
+Version: 1.22.1-3
+Depends: libkrb5-3 (= 1.22.1-3), libc6 (>= 2.38), libcom-err2 (>= 1.43.9), libk5crypto3 (>= 1.20), libkrb5support0 (= 1.22.1-3)
+Suggests: krb5-doc, krb5-user
+
+Package: libharfbuzz0b
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1358
+Architecture: m68k
+Multi-Arch: same
+Source: harfbuzz (12.3.2-2)
+Version: 12.3.2-2+b2
+Replaces: libharfbuzz0, libharfbuzz0a
+Depends: libc6 (>= 2.38), libfreetype6 (>= 2.11.1), libglib2.0-0t64 (>= 2.32.0), libgraphite2-3 (>= 1.2.2)
+Conflicts: libharfbuzz0, libharfbuzz0a
+
+Package: libhogweed6t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 443
+Architecture: m68k
+Multi-Arch: same
+Source: nettle
+Version: 3.10.2-1
+Replaces: libhogweed6
+Depends: libc6 (>= 2.34), libgmp10 (>= 2:6.3.0+dfsg), libnettle8t64
+Breaks: libhogweed6 (<< 3.10.2-1)
+
+Package: libice6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 131
+Architecture: m68k
+Multi-Arch: same
+Source: libice (2:1.1.1-1)
+Version: 2:1.1.1-1+b2
+Depends: libc6 (>= 2.38), x11-common
+
+Package: libidn2-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 434
+Architecture: m68k
+Multi-Arch: same
+Source: libidn2
+Version: 2.3.8-5
+Depends: libc6 (>= 2.34), libunistring5 (>= 1.1)
+
+Package: libisl23
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1825
+Architecture: m68k
+Multi-Arch: same
+Source: isl
+Version: 0.28-1
+Replaces: libisl-dbg (<< 0.19)
+Depends: libc6 (>= 2.38), libgmp10 (>= 2:6.3.0+dfsg)
+Breaks: libisl-dbg (<< 0.19)
+
+Package: libjbig0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 72
+Architecture: m68k
+Multi-Arch: same
+Source: jbigkit (2.1-6.1)
+Version: 2.1-6.1+b2
+Depends: libc6 (>= 2.4)
+
+Package: libjpeg62-turbo
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 532
+Architecture: m68k
+Multi-Arch: same
+Source: libjpeg-turbo
+Version: 1:3.1.3-4
+Replaces: libjpeg62
+Provides: libjpeg62 (= 1:3.1.3-4)
+Depends: libc6 (>= 2.38)
+Conflicts: libjpeg62
+
+Package: libk5crypto3
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 236
+Architecture: m68k
+Multi-Arch: same
+Source: krb5
+Version: 1.22.1-3
+Depends: libc6 (>= 2.38), libkrb5support0 (= 1.22.1-3)
+Suggests: krb5-doc, krb5-user
+Breaks: libgssapi-krb5-2 (<= 1.18~), libkrb5-3 (<= 1.18~)
+
+Package: libkeyutils1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 37
+Architecture: m68k
+Multi-Arch: same
+Source: keyutils (1.6.3-6)
+Version: 1.6.3-6+b2
+Depends: libc6 (>= 2.38)
+
+Package: libkmod2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 127
+Architecture: m68k
+Multi-Arch: same
+Source: kmod (34.2-2)
+Version: 34.2-2+b2
+Depends: libc6 (>= 2.38), libssl3t64 (>= 3.0.0)
+
+Package: libkrb5-3
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 922
+Architecture: m68k
+Multi-Arch: same
+Source: krb5
+Version: 1.22.1-3
+Depends: libkrb5support0 (= 1.22.1-3), libc6 (>= 2.38), libcom-err2 (>= 1.43.9), libk5crypto3 (>= 1.20), libkeyutils1 (>= 1.5.9), libssl3t64 (>= 3.0.0)
+Recommends: krb5-locales
+Suggests: krb5-doc, krb5-user
+Breaks: libapache2-mod-auth-kerb (<= 5.4-2.4)
+
+Package: libkrb5support0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 127
+Architecture: m68k
+Multi-Arch: same
+Source: krb5
+Version: 1.22.1-3
+Depends: libc6 (>= 2.38)
+Breaks: krb5-admin-server (<< 1.20.1-4~), krb5-kdc (<< 1.20.1-4~), krb5-pkinit (<< 1.20.1-4~), krb5-user (<< 1.20.1-4~), libgssapi-krb5-2 (<< 1.20), libk5crypto3 (<< 1.20.1-4~), libkadm5clnt-mit9 (<< 1.13~alpha1-1), libkadm5srv-mit12 (<< 1.20.1-4~), libkadm5srv-mit9 (<< 1.13~alpha1-1), libkdb5-10t64 (<< 1.20.1-4~), libkdb5-8 (<< 1.16), libkrb5-3 (<< 1.20.1-4~)
+
+Package: liblerc4
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 268
+Architecture: m68k
+Multi-Arch: same
+Source: lerc
+Version: 4.0.0+ds-2
+Depends: libc6 (>= 2.29), libgcc-s2 (>= 4.2.1), libstdc++6 (>= 11)
+
+Package: liblocale-gettext-perl
+Status: install ok installed
+Priority: optional
+Section: perl
+Installed-Size: 52
+Architecture: m68k
+Source: liblocale-gettext-perl (1.07-10)
+Version: 1.07-10+b1
+Depends: libc6 (>= 2.3)
+Pre-Depends: perl-base (>= 5.42.2-3), perlapi-5.42.2
+
+Package: liblz4-1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 136
+Architecture: m68k
+Multi-Arch: same
+Source: lz4
+Version: 1.10.0-10
+Replaces: liblz4-1a
+Depends: libc6 (>= 2.4), libxxhash0 (>= 0.6.5)
+Breaks: liblz4-1a
+
+Package: liblzma5
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 449
+Architecture: m68k
+Multi-Arch: same
+Source: xz-utils
+Version: 5.8.4-1
+Depends: libc6 (>= 2.34)
+Breaks: liblzma2 (<< 5.1.1alpha+20110809-3~)
+
+Package: libmd0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 98
+Architecture: m68k
+Multi-Arch: same
+Source: libmd
+Version: 1.3.0-1
+Depends: libc6 (>= 2.34)
+
+Package: libmnl0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 38
+Architecture: m68k
+Multi-Arch: same
+Source: libmnl (1.0.5-3)
+Version: 1.0.5-3+b2
+Depends: libc6 (>= 2.34)
+
+Package: libmount1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 521
+Architecture: m68k
+Multi-Arch: same
+Source: util-linux
+Version: 2.42.4-1
+Depends: libblkid1 (= 2.42.4-1), libc6 (>= 2.38), libselinux1 (>= 3.1~), libsystemd0 (>= 251)
+Suggests: cryptsetup-bin
+
+Package: libmpc3
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 140
+Architecture: m68k
+Multi-Arch: same
+Source: mpclib3
+Version: 1.3.1-3
+Depends: libc6 (>= 2.4), libgmp10 (>= 2:6.3.0+dfsg), libmpfr6 (>= 4.0.0)
+
+Package: libmpfr6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1035
+Architecture: m68k
+Multi-Arch: same
+Source: mpfr4
+Version: 4.2.2-3
+Depends: libc6 (>= 2.38), libgmp10 (>= 2:6.3.0+dfsg)
+Breaks: libcgal13 (<< 4.11-2+b1), libflint-2.5.2 (<< 2.5.2-17+b2), libgiac0 (<< 1.2.3.57+dfsg1-2+b4), libgmp3 (<< 4.1.4-3), libmpc3 (<< 1.1.0-1~), libnormaliz3 (<< 3.5.1+ds-4), sagemath (<< 8.1-2+b2)
+
+Package: libmtdev1t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 53
+Architecture: m68k
+Multi-Arch: same
+Source: mtdev (1.1.7-1)
+Version: 1.1.7-1+b2
+Replaces: libmtdev1
+Depends: libc6 (>= 2.34)
+Breaks: libmtdev1 (<< 1.1.7-1)
+
+Package: libncursesw6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 349
+Architecture: m68k
+Multi-Arch: same
+Source: ncurses
+Version: 6.6+20260608-2
+Depends: libtinfo6 (= 6.6+20260608-2), libc6 (>= 2.38)
+Recommends: libgpm2
+
+Package: libnettle8t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 510
+Architecture: m68k
+Multi-Arch: same
+Source: nettle
+Version: 3.10.2-1
+Replaces: libnettle8
+Depends: libc6 (>= 2.4)
+Breaks: libnettle8 (<< 3.10.2-1)
+
+Package: libp11-kit0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1721
+Architecture: m68k
+Multi-Arch: same
+Source: p11-kit
+Version: 0.26.5-1
+Depends: libc6 (>= 2.38), libffi8 (>= 3.4)
+
+Package: libpam-modules
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 748
+Architecture: m68k
+Multi-Arch: same
+Source: pam
+Version: 1.7.0-8
+Replaces: libpam-umask, libpam0g-util
+Provides: libpam-mkhomedir, libpam-motd, libpam-umask
+Pre-Depends: libaudit1 (>= 1:2.2.1), libc6 (>= 2.38), libcrypt1 (>= 1:4.3.0), libdb5.3t64, libpam0g (>= 1.4.1), libselinux1 (>= 3.1~), libsystemd0 (>= 254), debconf (>= 0.5) | debconf-2.0, libpam-modules-bin (= 1.7.0-8)
+Conflicts: libpam-mkhomedir, libpam-motd, libpam-umask
+
+Package: libpam-modules-bin
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 165
+Architecture: m68k
+Multi-Arch: foreign
+Source: pam
+Version: 1.7.0-8
+Replaces: libpam-modules (<< 1.5.2-5~)
+Depends: libaudit1 (>= 1:2.2.1), libc6 (>= 2.38), libcrypt1 (>= 1:4.3.0), libpam0g (>= 0.99.7.1), libselinux1 (>= 3.1~), libsystemd0 (>= 254)
+
+Package: libpam-runtime
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 1026
+Architecture: all
+Multi-Arch: foreign
+Source: pam
+Version: 1.7.0-8
+Replaces: libpam-modules (<< 1.7.0), libpam-modules-bin (<< 1.7.0)
+Depends: debconf (>= 0.5) | debconf-2.0, libpam-modules
+Breaks: libpam-modules (<< 1.7.0), libpam-modules-bin (<< 1.7.0)
+
+Package: libpam0g
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 177
+Architecture: m68k
+Multi-Arch: same
+Source: pam
+Version: 1.7.0-8
+Replaces: libpam0g-util, libpam0t64 (<< 1.5.3-5)
+Depends: libaudit1 (>= 1:2.2.1), libc6 (>= 2.34), debconf (>= 0.5) | debconf-2.0
+Suggests: libpam-doc
+Breaks: libpam0t64 (<< 1.5.3-5)
+
+Package: libpango-1.0-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 506
+Architecture: m68k
+Multi-Arch: same
+Source: pango1.0
+Version: 1.58.2-1
+Depends: fontconfig (>= 2.17.0), libc6 (>= 2.38), libfribidi0 (>= 1.0.0), libglib2.0-0t64 (>= 2.88), libharfbuzz0b (>= 11.4.5), libthai0 (>= 0.1.25)
+
+Package: libpangocairo-1.0-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 102
+Architecture: m68k
+Multi-Arch: same
+Source: pango1.0
+Version: 1.58.2-1
+Depends: libc6 (>= 2.35), libcairo2 (>= 1.18.0), libfontconfig1 (>= 2.17.1), libglib2.0-0t64 (>= 2.88), libharfbuzz0b (>= 11.4.5), libpango-1.0-0 (= 1.58.2-1), libpangoft2-1.0-0 (= 1.58.2-1)
+
+Package: libpangoft2-1.0-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 145
+Architecture: m68k
+Multi-Arch: same
+Source: pango1.0
+Version: 1.58.2-1
+Depends: libc6 (>= 2.38), libfontconfig1 (>= 2.17.1), libfreetype6 (>= 2.2.1), libglib2.0-0t64 (>= 2.88), libharfbuzz0b (>= 11.4.5), libpango-1.0-0 (= 1.58.2-1)
+
+Package: libpangoxft-1.0-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 69
+Architecture: m68k
+Multi-Arch: same
+Source: pango1.0
+Version: 1.58.2-1
+Depends: libc6 (>= 2.4), libfontconfig1 (>= 2.17.0), libglib2.0-0t64 (>= 2.88), libpango-1.0-0 (= 1.58.2-1), libpangoft2-1.0-0 (= 1.58.2-1), libx11-6, libxft2 (>> 2.1.1), libxrender1 (>= 1:0.9.12)
+
+Package: libpciaccess0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 55
+Architecture: m68k
+Multi-Arch: same
+Source: libpciaccess
+Version: 0.19-2
+Depends: libc6 (>= 2.38), zlib1g (>= 1:1.2.3.4), pci.ids
+
+Package: libpcre2-8-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 486
+Architecture: m68k
+Multi-Arch: same
+Source: pcre2
+Version: 10.48-3.1
+Depends: libc6 (>= 2.4)
+
+Package: libpixman-1-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 461
+Architecture: m68k
+Multi-Arch: same
+Source: pixman (0.46.4-1)
+Version: 0.46.4-1+b2
+Depends: libc6 (>= 2.29)
+
+Package: libpng16-16t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 405
+Architecture: m68k
+Multi-Arch: same
+Source: libpng1.6
+Version: 1.6.59-1
+Replaces: libpng16-16
+Depends: libc6 (>= 2.34), zlib1g (>= 1:1.2.3.4)
+Breaks: libpng16-16 (<< 1.6.59-1)
+
+Package: libproc2-1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 179
+Architecture: m68k
+Multi-Arch: same
+Source: procps
+Version: 2:4.0.7-1
+Depends: libc6 (>= 2.38), libsystemd0
+
+Package: libpsl5t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 96
+Architecture: m68k
+Multi-Arch: same
+Source: libpsl
+Version: 0.23.3-1
+Replaces: libpsl5
+Depends: libidn2-0 (>= 0.16), libc6 (>= 2.38), libunistring5 (>= 1.1)
+Recommends: publicsuffix (>= 20150507)
+Breaks: libpsl5 (<< 0.23.3-1)
+
+Package: librsvg2-2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 241
+Architecture: m68k
+Multi-Arch: same
+Source: librsvg
+Version: 2.40.20-3+ports
+Depends: libc6 (>= 2.29), libcairo2 (>= 1.10.0), libcroco3 (>= 0.6.2), libfontconfig1 (>= 2.12.6), libgdk-pixbuf-2.0-0 (>= 2.23.5-2), libglib2.0-0t64 (>= 2.80.0), libpango-1.0-0 (>= 1.36.0), libpangocairo-1.0-0 (>= 1.36.0), libpangoft2-1.0-0 (>= 1.37.2), libxml2 (>= 2.8.0)
+Recommends: librsvg2-common
+Suggests: librsvg2-bin
+
+Package: libselinux1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 203
+Architecture: m68k
+Multi-Arch: same
+Source: libselinux
+Version: 3.11-2.1
+Depends: libc6 (>= 2.38), libpcre2-8-0 (>= 10.47)
+Recommends: selinux-utils
+
+Package: libsemanage-common
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 21
+Architecture: all
+Multi-Arch: foreign
+Source: libsemanage
+Version: 3.11-1
+
+Package: libsemanage2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 266
+Architecture: m68k
+Multi-Arch: same
+Source: libsemanage (3.11-1)
+Version: 3.11-1+b1
+Depends: libsemanage-common (>= 3.11-1), libaudit1 (>= 1:2.2.1), libbz2-1.0, libc6 (>= 2.38), libselinux1 (>= 3.11), libsepol2 (>= 3.11)
+
+Package: libsensors-config
+Status: install ok installed
+Priority: optional
+Section: utils
+Installed-Size: 37
+Architecture: all
+Multi-Arch: foreign
+Source: lm-sensors
+Version: 1:3.6.2-2
+Suggests: lm-sensors
+
+Package: libsensors5
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 89
+Architecture: m68k
+Multi-Arch: same
+Source: lm-sensors (1:3.6.2-2)
+Version: 1:3.6.2-2+b2
+Depends: libsensors-config, libc6 (>= 2.38)
+Suggests: lm-sensors
+
+Package: libsepol2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 774
+Architecture: m68k
+Multi-Arch: same
+Source: libsepol
+Version: 3.11-1
+Depends: libc6 (>= 2.38)
+
+Package: libsharpyuv0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 135
+Architecture: m68k
+Multi-Arch: same
+Source: libwebp
+Version: 1.6.0-0.1
+Depends: libc6 (>= 2.29)
+
+Package: libsm6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 70
+Architecture: m68k
+Multi-Arch: same
+Source: libsm (2:1.2.6-1)
+Version: 2:1.2.6-1+b2
+Depends: libc6 (>= 2.4), libice6 (>= 1:1.0.0), libuuid1 (>= 2.16)
+
+Package: libsmartcols1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 332
+Architecture: m68k
+Multi-Arch: same
+Source: util-linux
+Version: 2.42.4-1
+Depends: libc6 (>= 2.38)
+
+Package: libss2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 67
+Architecture: m68k
+Multi-Arch: same
+Source: e2fsprogs (1.47.4-1)
+Version: 1.47.4-1+b2
+Replaces: e2fsprogs (<< 1.34-1), libss2t64
+Provides: libss2t64 (= 1.47.4-1+b2)
+Depends: libc6 (>= 2.34), libcom-err2 (>= 1.43.9)
+Breaks: libss2t64 (<< 1.47.0-2.4~exp1~)
+
+Package: libssl3t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 5350
+Architecture: m68k
+Multi-Arch: same
+Source: openssl
+Version: 3.6.5-1
+Replaces: libssl3
+Depends: libatomic1 (>= 4.8), libc6 (>= 2.38), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.1.4), openssl-provider-legacy
+Breaks: libssl3 (<< 3.6.5-1), openssl-provider-qat (<= 2.0.0-8)
+
+Package: libstdc++6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 3086
+Architecture: m68k
+Multi-Arch: same
+Source: gcc-16
+Version: 16.2.0-3
+Replaces: libstdc++6-16-dbg (<< 4.9.0-3)
+Depends: gcc-16-base (= 16.2.0-3), libc6 (>= 2.38), libgcc-s2 (>= 4.2.1)
+Breaks: gcc-4.3 (<< 4.3.6-1), gcc-4.4 (<< 4.4.6-4), gcc-4.5 (<< 4.5.3-2)
+Conflicts: scim (<< 1.4.2-1)
+
+Package: libsystemd-shared
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 7543
+Architecture: m68k
+Multi-Arch: same
+Source: systemd
+Version: 262.1-1
+Depends: libc6 (>= 2.34)
+Suggests: libacl1, libapparmor1, libarchive13t64, libaudit1, libblkid1, libbz2-1.0, libcrypt1, libcryptsetup12, libcurl4t64, libdw1t64, libelf1t64, libfdisk1, libfido2-1, libidn2-0, libkmod2, liblz4-1, liblzma5, libmicrohttpd12t64, libmount1, libp11-kit0, libpam0g, libpcre2-8-0, libpwquality1, libqrencode4, libselinux1, libssl3t64, libtss2-esys-3.0.2-0t64, libtss2-mu-4.0.1-0t64, libtss2-rc0t64, libtss2-tcti-device0t64, libzstd1, zlib1g
+
+Package: libsystemd0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1155
+Architecture: m68k
+Multi-Arch: same
+Source: systemd
+Version: 262.1-1
+Depends: libc6 (>= 2.34)
+Suggests: liblz4-1, liblzma5, libzstd1
+
+Package: libtasn1-6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 109
+Architecture: m68k
+Multi-Arch: same
+Source: libtasn1-6 (4.21.0-2)
+Version: 4.21.0-2+b1
+Depends: libc6 (>= 2.38)
+
+Package: libthai-data
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 627
+Architecture: all
+Multi-Arch: foreign
+Source: libthai
+Version: 0.1.30-3
+
+Package: libthai0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 87
+Architecture: m68k
+Multi-Arch: same
+Source: libthai
+Version: 0.1.30-3
+Depends: libthai-data, libc6 (>= 2.4), libdatrie1 (>= 0.2.1)
+
+Package: libtiff6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 740
+Architecture: m68k
+Multi-Arch: same
+Source: tiff
+Version: 4.7.2-1
+Depends: libc6 (>= 2.38), libdeflate0 (>= 1.0), libjbig0 (>= 2.0), libjpeg62-turbo (>= 1:3.1.3), liblerc4 (>= 3.0), liblzma5 (>= 5.1.1alpha+20120614), libwebp7 (>= 1.5.0), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.1.4)
+Breaks: libimager-perl (<< 1.022+dfsg)
+
+Package: libtinfo6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 513
+Architecture: m68k
+Multi-Arch: same
+Source: ncurses
+Version: 6.6+20260608-2
+Depends: libc6 (>= 2.42)
+Breaks: tmux (<< 3.3a-4)
+
+Package: libtirpc-common
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 30
+Architecture: all
+Multi-Arch: foreign
+Source: libtirpc
+Version: 1.3.7+ds-1
+Replaces: libtirpc1, libtirpc3t64 (<< 1.1.4-0.1~)
+Breaks: libtirpc1, libtirpc3t64 (<< 1.1.4-0.1~)
+
+Package: libtirpc3t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 205
+Architecture: m68k
+Multi-Arch: same
+Source: libtirpc
+Version: 1.3.7+ds-1
+Replaces: libtirpc3
+Depends: libc6 (>= 2.38), libgssapi-krb5-2 (>= 1.17), libtirpc-common (>= 1.3.7+ds-1)
+Breaks: libtirpc3 (<< 1.3.7+ds-1), nfs-common (<< 1:1.2.8-7), nfs-kernel-server (<< 1:1.2.8-7)
+
+Package: libudev1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 324
+Architecture: m68k
+Multi-Arch: same
+Source: systemd
+Version: 262.1-1
+Depends: libc6 (>= 2.34)
+
+Package: libunistring5
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1969
+Architecture: m68k
+Multi-Arch: same
+Source: libunistring
+Version: 1.4.2-1
+Depends: libc6 (>= 2.34)
+
+Package: libutempter0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 43
+Architecture: m68k
+Multi-Arch: same
+Source: libutempter
+Version: 1.2.1-5
+Depends: libc6 (>= 2.34)
+
+Package: libuuid1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 89
+Architecture: m68k
+Multi-Arch: same
+Source: util-linux
+Version: 2.42.4-1
+Replaces: libuuid1t64
+Depends: libc6 (>= 2.38)
+Suggests: uuid-runtime
+Breaks: libuuid1t64 (<< 2.42.4-1)
+
+Package: libwayland-client0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 78
+Architecture: m68k
+Multi-Arch: same
+Source: wayland
+Version: 1.26.0-1
+Depends: libc6 (>= 2.38), libffi8 (>= 3.4)
+
+Package: libwebp7
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 455
+Architecture: m68k
+Multi-Arch: same
+Source: libwebp
+Version: 1.6.0-0.1
+Depends: libc6 (>= 2.34), libsharpyuv0 (>= 1.6.0)
+
+Package: libx11-6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1458
+Architecture: m68k
+Multi-Arch: same
+Source: libx11
+Version: 2:1.8.13-1
+Depends: libc6 (>= 2.38), libxcb1 (>= 1.11.1), libx11-data
+Breaks: libx11-xcb1 (<< 2:1.7.0-2)
+
+Package: libx11-data
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 1579
+Architecture: all
+Multi-Arch: foreign
+Source: libx11
+Version: 2:1.8.13-1
+
+Package: libx11-xcb1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 305
+Architecture: m68k
+Multi-Arch: same
+Source: libx11
+Version: 2:1.8.13-1
+Depends: libx11-6 (= 2:1.8.13-1)
+
+Package: libxau6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 38
+Architecture: m68k
+Multi-Arch: same
+Source: libxau (1:1.0.11-1)
+Version: 1:1.0.11-1+b2
+Depends: libc6 (>= 2.34)
+
+Package: libxaw7
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 428
+Architecture: m68k
+Multi-Arch: same
+Source: libxaw (2:1.0.16-1)
+Version: 2:1.0.16-1+b2
+Depends: libc6 (>= 2.38), libx11-6, libxext6, libxmu6 (>= 2:1.1.3), libxpm4, libxt6t64
+
+Package: libxcb-dri3-0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 132
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1 (>= 1.12)
+
+Package: libxcb-glx0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 217
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1
+
+Package: libxcb-present0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 123
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1
+
+Package: libxcb-randr0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 176
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1 (>= 1.9.2)
+
+Package: libxcb-render0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 164
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1 (>= 1.8)
+
+Package: libxcb-shape0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 123
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1
+
+Package: libxcb-shm0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 122
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1 (>= 1.12)
+
+Package: libxcb-sync1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 133
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1
+
+Package: libxcb-xfixes0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 143
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.4), libxcb1
+
+Package: libxcb1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 257
+Architecture: m68k
+Multi-Arch: same
+Source: libxcb (1.17.0-2)
+Version: 1.17.0-2+b2
+Depends: libc6 (>= 2.38), libxau6 (>= 1:1.0.11), libxdmcp6 (>= 1:1.1.5)
+
+Package: libxcomposite1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 36
+Architecture: m68k
+Multi-Arch: same
+Source: libxcomposite (1:0.4.6-1)
+Version: 1:0.4.6-1+b2
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.4.99.1)
+
+Package: libxcursor1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 69
+Architecture: m68k
+Multi-Arch: same
+Source: libxcursor (1:1.2.3-1)
+Version: 1:1.2.3-1+b2
+Depends: libc6 (>= 2.38), libx11-6 (>= 2:1.4.99.1), libxfixes3, libxrender1 (>= 1:0.9.12)
+
+Package: libxcvt0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 27
+Architecture: m68k
+Multi-Arch: same
+Source: libxcvt (0.1.3-1)
+Version: 0.1.3-1+b2
+Depends: libc6 (>= 2.1.3)
+
+Package: libxdmcp6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 51
+Architecture: m68k
+Multi-Arch: same
+Source: libxdmcp (1:1.1.5-2)
+Version: 1:1.1.5-2+b1
+Depends: libc6 (>= 2.36)
+
+Package: libxext6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 108
+Architecture: m68k
+Multi-Arch: same
+Source: libxext (2:1.3.4-1)
+Version: 2:1.3.4-1+b4
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0)
+
+Package: libxfixes3
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 46
+Architecture: m68k
+Multi-Arch: same
+Source: libxfixes (1:6.0.0-2)
+Version: 1:6.0.0-2+b4
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0)
+
+Package: libxfont2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 222
+Architecture: m68k
+Multi-Arch: same
+Source: libxfont
+Version: 1:2.0.9-1
+Depends: libbz2-1.0, libc6 (>= 2.38), libfontenc1 (>= 1:1.1.8), libfreetype6 (>= 2.2.1), zlib1g (>= 1:1.1.4)
+Breaks: xfs (<< 1:1.1.4)
+
+Package: libxft2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 110
+Architecture: m68k
+Multi-Arch: same
+Source: xft (2.3.6-1)
+Version: 2.3.6-1+b4
+Depends: libc6 (>= 2.38), libfontconfig1 (>= 2.12.6), libfreetype6 (>= 2.3.5), libx11-6, libxrender1 (>= 1:0.9.12)
+
+Package: libxi6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 132
+Architecture: m68k
+Multi-Arch: same
+Source: libxi
+Version: 2:1.8.3-1
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0), libxext6
+
+Package: libxinerama1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 37
+Architecture: m68k
+Multi-Arch: same
+Source: libxinerama (2:1.1.4-3)
+Version: 2:1.1.4-3+b4
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0), libxext6
+
+Package: libxkbfile1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 175
+Architecture: m68k
+Multi-Arch: same
+Source: libxkbfile (1:1.1.0-1)
+Version: 1:1.1.0-1+b4
+Depends: libc6 (>= 2.38), libx11-6
+
+Package: libxml2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1694
+Architecture: m68k
+Multi-Arch: same
+Source: libxml2.9
+Version: 2.12.7+dfsg+really2.9.14-2.4
+Depends: libc6 (>= 2.38), liblzma5 (>= 5.1.1alpha+20120614), zlib1g (>= 1:1.2.3.4)
+Conflicts: w3c-dtd-xhtml
+
+Package: libxml2-16
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 1417
+Architecture: m68k
+Multi-Arch: same
+Source: libxml2
+Version: 2.15.4+dfsg-1
+Depends: libc6 (>= 2.43), zlib1g (>= 1:1.2.2.3)
+Breaks: libxml-libxml-perl (<< 2.0207+dfsg+really+2.0134-3~)
+Conflicts: w3c-dtd-xhtml
+
+Package: libxmu6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 122
+Architecture: m68k
+Multi-Arch: same
+Source: libxmu (2:1.1.3-4)
+Version: 2:1.1.3-4+b1
+Depends: libc6 (>= 2.38), libx11-6, libxext6, libxt6t64
+
+Package: libxmuu1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 48
+Architecture: m68k
+Multi-Arch: same
+Source: libxmu (2:1.1.3-4)
+Version: 2:1.1.3-4+b1
+Depends: libc6 (>= 2.4), libx11-6
+
+Package: libxpm4
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 99
+Architecture: m68k
+Multi-Arch: same
+Source: libxpm
+Version: 1:3.5.19-1
+Depends: libc6 (>= 2.38), libx11-6
+
+Package: libxrandr2
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 72
+Architecture: m68k
+Multi-Arch: same
+Source: libxrandr (2:1.5.4-1)
+Version: 2:1.5.4-1+b4
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0), libxext6, libxrender1 (>= 1:0.9.12)
+
+Package: libxrender1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 60
+Architecture: m68k
+Multi-Arch: same
+Source: libxrender (1:0.9.12-1)
+Version: 1:0.9.12-1+b2
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0)
+
+Package: libxshmfence1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 32
+Architecture: m68k
+Multi-Arch: same
+Source: libxshmfence (1.3.3-1)
+Version: 1.3.3-1+b2
+Depends: libc6 (>= 2.38)
+
+Package: libxt6t64
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 396
+Architecture: m68k
+Multi-Arch: same
+Source: libxt (1:1.2.1-1.3)
+Version: 1:1.2.1-1.3+b2
+Replaces: libxt6
+Depends: libc6 (>= 2.38), libice6 (>= 1:1.0.0), libsm6 (>= 2:1.2.6), libx11-6
+Breaks: libxt6 (<< 1:1.2.1-1.3)
+
+Package: libxtables12
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 83
+Architecture: m68k
+Multi-Arch: same
+Source: iptables
+Version: 1.8.13-1
+Depends: libc6 (>= 2.38)
+
+Package: libxtst6
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 51
+Architecture: m68k
+Multi-Arch: same
+Source: libxtst (2:1.2.5-1)
+Version: 2:1.2.5-1+b2
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0), libxext6, x11-common
+
+Package: libxv1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 49
+Architecture: m68k
+Multi-Arch: same
+Source: libxv (2:1.0.13-1)
+Version: 2:1.0.13-1+b1
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0), libxext6
+
+Package: libxxf86dga1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 51
+Architecture: m68k
+Multi-Arch: same
+Source: libxxf86dga (2:1.1.5-1)
+Version: 2:1.1.5-1+b3
+Depends: libc6 (>= 2.34), libx11-6 (>= 2:1.6.0), libxext6
+
+Package: libxxf86vm1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 44
+Architecture: m68k
+Multi-Arch: same
+Source: libxxf86vm (1:1.1.4-2)
+Version: 1:1.1.4-2+b1
+Depends: libc6 (>= 2.4), libx11-6 (>= 2:1.6.0), libxext6
+
+Package: libxxhash0
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 80
+Architecture: m68k
+Multi-Arch: same
+Source: xxhash (0.8.3-2)
+Version: 0.8.3-2+b2
+Depends: libc6 (>= 2.4)
+
+Package: libzstd1
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 719
+Architecture: m68k
+Multi-Arch: same
+Source: libzstd
+Version: 1.5.7+dfsg-4
+Depends: libc6 (>= 2.34)
+
+Package: linux-image-6.18.58-flippies
+Status: install ok installed
+Priority: optional
+Section: kernel
+Installed-Size: 6677
+Architecture: m68k
+Source: linux-upstream
+Version: 6.18.58-3
+
+Package: login
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 271
+Architecture: m68k
+Multi-Arch: foreign
+Source: util-linux (2.42.4-1)
+Version: 1:4.16.0-2+really2.42.4-1
+Depends: libpam-modules, libpam-runtime, libaudit1 (>= 1:2.2.1), libc6 (>= 2.38), libpam0g (>= 0.99.7.1)
+Pre-Depends: login.defs (>= 1:4.16.0-1~)
+Recommends: util-linux-extra
+Commands: login, nologin
+
+Package: login.defs
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 252
+Architecture: all
+Multi-Arch: foreign
+Source: shadow
+Version: 1:4.20.3-1
+Replaces: login (<< 1:4.16.0-2~)
+
+Package: logsave
+Status: install ok installed
+Priority: optional
+Section: admin
+Installed-Size: 49
+Architecture: m68k
+Multi-Arch: foreign
+Source: e2fsprogs (1.47.4-1)
+Version: 1.47.4-1+b2
+Replaces: e2fsprogs (<< 1.45.3-1)
+Depends: libc6 (>= 2.34)
+Breaks: e2fsprogs (<< 1.45.3-1)
+
+Package: mawk
+Status: install ok installed
+Priority: required
+Section: interpreters
+Installed-Size: 270
+Architecture: m68k
+Multi-Arch: foreign
+Version: 1.3.4.20260302-2
+Provides: awk
+Depends: libc6 (>= 2.43)
+
+Package: mesa-libgallium
+Status: install ok installed
+Priority: optional
+Section: libs
+Installed-Size: 22367
+Architecture: m68k
+Multi-Arch: same
+Source: mesa
+Version: 26.1.6-1
+Replaces: mesa-va-drivers (<< 25.2.8-3), mesa-vdpau-drivers (<< 25.2.8-3)
+Provides: libglapi-mesa, mesa-va-drivers, mesa-vdpau-drivers, va-driver
+Depends: libatomic1 (>= 4.8), libc6 (>= 2.38), libdrm2 (>= 2.4.134-3~), libexpat1 (>= 2.0.1), libgcc-s2 (>= 4.2.1), libsensors5 (>= 1:3.5.0), libstdc++6 (>= 11), libx11-xcb1, libxcb-dri3-0 (>= 1.13), libxcb-present0, libxcb-randr0, libxcb-sync1, libxcb-xfixes0, libxcb1 (>= 1.9.2), libxshmfence1, libzstd1 (>= 1.5.5), zlib1g (>= 1:1.1.4)
+Breaks: mesa-va-drivers (<< 25.2.8-3), mesa-vdpau-drivers (<< 25.2.8-3)
+Enhances: libva2
+
+Package: mount
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 451
+Architecture: m68k
+Multi-Arch: foreign
+Source: util-linux
+Version: 2.42.4-1
+Pre-Depends: libblkid1 (= 2.42.4-1), libc6 (>= 2.38), libmount1 (= 2.42.4-1), libselinux1 (>= 3.1~), libsmartcols1 (= 2.42.4-1)
+Suggests: nfs-common
+Commands: losetup, mount, swapoff, swapon, umount
+
+Package: nano
+Status: install ok installed
+Priority: important
+Section: editors
+Installed-Size: 3075
+Architecture: m68k
+Version: 9.3-1
+Replaces: nano-tiny (<< 2.8.6-2), pico
+Depends: libc6 (>= 2.38), libncursesw6 (>= 6), libtinfo6 (>= 6)
+Suggests: hunspell
+Breaks: nano-tiny (<< 2.8.6-2)
+Conflicts: pico
+Commands: nano, rnano
+
+Package: ncurses-base
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: misc
+Installed-Size: 393
+Architecture: all
+Multi-Arch: foreign
+Source: ncurses
+Version: 6.6+20260608-2
+Replaces: ncurses-term (<< 6.4+20230603)
+Provides: ncurses-runtime
+Breaks: cryptsetup-initramfs (<< 2:2.6.1), ncurses-term (<< 6.4+20230625), neovim (<< 0.6.0), vim-common (<< 2:9.0.1000-2)
+
+Package: ncurses-bin
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 619
+Architecture: m68k
+Multi-Arch: foreign
+Source: ncurses
+Version: 6.6+20260608-2
+Pre-Depends: libc6 (>= 2.42), libtinfo6 (>= 6.6)
+
+Package: netbase
+Status: install ok installed
+Priority: important
+Section: admin
+Installed-Size: 32
+Architecture: all
+Multi-Arch: foreign
+Version: 6.6
+
+Package: openssl-provider-legacy
+Status: install ok installed
+Priority: optional
+Section: utils
+Installed-Size: 390
+Architecture: m68k
+Multi-Arch: foreign
+Source: openssl
+Version: 3.6.5-1
+Depends: libc6 (>= 2.4), libssl3t64 (>= 3.6.0)
+
+Package: passwd
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 4225
+Architecture: m68k
+Multi-Arch: foreign
+Source: shadow
+Version: 1:4.20.3-1
+Replaces: login (<< 1:4.16.0-2~)
+Depends: base-passwd (>= 3.6.4), libpam-modules, login.defs, libacl1 (>= 2.2.23), libaudit1 (>= 1:2.2.1), libbsd0 (>= 0.11.0), libc6 (>= 2.43), libcrypt1 (>= 1:4.1.0), libpam0g (>= 0.99.7.1), libselinux1 (>= 3.1~), libsemanage2 (>= 2.0.32)
+Recommends: sensible-utils
+
+Package: pci.ids
+Status: install ok installed
+Priority: optional
+Section: admin
+Installed-Size: 1650
+Architecture: all
+Multi-Arch: foreign
+Version: 0.0~2026.10.24-1
+
+Package: perl-base
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: perl
+Installed-Size: 9022
+Architecture: m68k
+Source: perl
+Version: 5.42.3-1
+Replaces: libfile-path-perl (<< 2.18), libfile-temp-perl (<< 0.2311), libio-socket-ip-perl (<< 0.43), libscalar-list-utils-perl (<< 1:1.68.01), libsocket-perl (<< 2.041), libxsloader-perl (<< 0.32), perl (<< 5.10.1-12), perl-modules (<< 5.20.1-3)
+Provides: libfile-path-perl (= 2.18), libfile-temp-perl (= 0.2311), libio-socket-ip-perl (= 0.43), libscalar-list-utils-perl (= 1:1.68.01), libsocket-perl (= 2.041), libxsloader-perl (= 0.32), perlapi-5.42.2, perlapi-5.42.3
+Pre-Depends: libc6 (>= 2.43), libcrypt1 (>= 1:4.1.0)
+Suggests: perl, sensible-utils
+Breaks: amanda-common (<< 1:3.3.9-2), backuppc (<< 4.4.0-7~), bucardo (<< 5.5.0-1.1), debconf (<< 1.5.61), dh-haskell (<< 0.3), duck (<< 0.14.1), intltool (<< 0.51.0-4), kio-perldoc (<< 20.04.1-1), latexml (<< 0.8.4-2), libdevel-mat-dumper-perl (<< 0.42-3), libencode-arabic-perl (<< 14.2-2), libexception-class-perl (<< 1.42), libfile-path-perl (<< 2.18), libfile-spec-perl (<< 3.9400), libfile-temp-perl (<< 0.2311), libgnupg-interface-perl (<< 1.02-4), libio-socket-ip-perl (<< 0.43), liblexical-failure-perl (<< 0.001000), libmp3-tag-perl (<< 1.13-1.2), libnumber-format-perl (<< 1.76), libsbuild-perl (<< 0.67.0-1), libscalar-list-utils-perl (<< 1:1.68.01), libsocket-perl (<< 2.041), libur-perl (<< 0.470+ds-3), libxsloader-perl (<< 0.32), mailagent (<< 1:3.1-81-2), perl (<< 5.42.3~), perl-modules (<< 5.42.3~), pod2pdf (<< 0.42-5.1), slic3r (<< 1.2.9+dfsg-6.1), slic3r-prusa (<< 1.37.0+dfsg-1.1), texinfo (<< 6.1.0.dfsg.1-8)
+Conflicts: defoma (<< 0.11.12), doc-base (<< 0.10.3), mono-gac (<< 2.10.8.1-3), safe-rm (<< 0.8), update-inetd (<< 4.41)
+
+Package: procps
+Status: install ok installed
+Priority: important
+Section: admin
+Installed-Size: 2483
+Architecture: m68k
+Multi-Arch: foreign
+Version: 2:4.0.7-1
+Replaces: manpages-zh (<< 1.6.4.4~)
+Provides: watch
+Depends: libc6 (>= 2.38), libncursesw6 (>= 6.1), libproc2-1 (>= 2:4.0.7), libsystemd0 (>= 254), libtinfo6 (>= 6)
+Recommends: psmisc, linux-sysctl-defaults
+Breaks: manpages-zh (<< 1.6.4.4~)
+
+Package: sed
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 961
+Architecture: m68k
+Multi-Arch: foreign
+Version: 4.9-3
+Pre-Depends: libacl1 (>= 2.2.23), libc6 (>= 2.38), libselinux1 (>= 3.1~)
+
+Package: shared-mime-info
+Status: install ok installed
+Priority: optional
+Section: misc
+Installed-Size: 5137
+Architecture: m68k
+Multi-Arch: foreign
+Source: shared-mime-info (2.4-5)
+Version: 2.4-5+b3
+Depends: libc6 (>= 2.38), libgcc-s2 (>= 4.2.1), libglib2.0-0t64 (>= 2.76.0), libstdc++6 (>= 12), libxml2-16 (>= 2.14.1)
+
+Package: startpar
+Status: install ok installed
+Priority: optional
+Section: admin
+Installed-Size: 51
+Architecture: m68k
+Multi-Arch: foreign
+Version: 0.67-1
+Depends: libc6 (>= 2.38)
+Suggests: insserv, sysv-rc
+
+Package: sudo
+Status: install ok installed
+Priority: optional
+Section: admin
+Installed-Size: 6469
+Architecture: m68k
+Multi-Arch: foreign
+Version: 1.9.17p2-9
+Replaces: sudo-ldap (<< 1.9.17p2-1exp1)
+Depends: libpam-modules, libapparmor1 (>= 2.7.0~beta1+bzr1772), libaudit1 (>= 1:2.2.1), libc6 (>= 2.42), libpam0g (>= 0.99.7.1), libselinux1 (>= 3.1~), libssl3t64 (>= 3.0.0), zlib1g (>= 1:1.2.3.4)
+Breaks: sudo-ldap (<< 1.9.17p2-1exp1)
+
+Package: systemd-standalone-sysusers
+Status: install ok installed
+Priority: optional
+Section: admin
+Installed-Size: 765
+Architecture: m68k
+Source: systemd
+Version: 262.1-1
+Replaces: systemd-sysusers
+Provides: systemd-sysusers (= 262.1-1)
+Depends: libc6 (>= 2.34)
+Recommends: libaudit1, libblkid1, libcrypt1, libmount1, libselinux1
+Suggests: libcryptsetup12, libssl3t64
+Conflicts: systemd-sysusers
+
+Package: sysv-rc
+Status: install ok installed
+Priority: optional
+Section: admin
+Installed-Size: 85
+Architecture: all
+Multi-Arch: foreign
+Source: sysvinit
+Version: 3.18-1
+Depends: insserv, startpar (>= 0.62-1~), sysvinit-utils (>= 3.05-1)
+
+Package: sysvinit-core
+Protected: yes
+Status: install ok installed
+Priority: optional
+Section: admin
+Installed-Size: 340
+Architecture: m68k
+Source: sysvinit
+Version: 3.18-1
+Replaces: manpages-de (<< 4.15.0-9~), manpages-es (<< 4.15.0-9~), manpages-fr (<< 4.15.0-9~), manpages-hu (<< 1:4.15.0-9~), manpages-pl (<< 1:4.15.0-9~), runit-init, systemd-sysv, sysvinit (<< 2.88dsf-44~)
+Depends: initscripts, sysv-rc | file-rc | openrc, sysvinit-utils (>= 2.86.ds1-66), mount, login, libc6 (>= 2.38), libselinux1 (>= 3.1~)
+Recommends: orphan-sysvinit-scripts
+Suggests: bootlogd
+Breaks: manpages-de (<< 4.15.0-9~), manpages-es (<< 4.15.0-9~), manpages-fr (<< 4.15.0-9~), manpages-hu (<< 1:4.15.0-9~), manpages-pl (<< 1:4.15.0-9~)
+Conflicts: bfh-container (<< 20211009-24~), molly-guard (<< 0.8.3~), progress-linux-container (<< 20221002-12~), runit-init, systemd-sysv
+
+Package: sysvinit-utils
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: admin
+Installed-Size: 86
+Architecture: m68k
+Multi-Arch: foreign
+Source: sysvinit
+Version: 3.18-1
+Replaces: lsb-base
+Provides: lsb-base (= 11.1.0)
+Depends: libc6 (>= 2.38)
+Conflicts: lsb-base (<< 11.3~)
+
+Package: tar
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 2984
+Architecture: m68k
+Multi-Arch: foreign
+Version: 1.35+dfsg-6
+Replaces: cpio (<< 2.4.2-39)
+Pre-Depends: libacl1 (>= 2.2.23), libc6 (>= 2.38), libselinux1 (>= 3.1~)
+Suggests: bzip2, ncompress, xz-utils, tar-scripts, tar-doc
+Breaks: dpkg-dev (<< 1.14.26)
+Conflicts: cpio (<= 2.4.2-38)
+
+Package: tzdata
+Status: install ok installed
+Priority: required
+Section: localization
+Installed-Size: 1353
+Architecture: all
+Multi-Arch: foreign
+Version: 2026e-1
+Replaces: tzdata-legacy (= 2023c-8), tzdata-legacy (= 2023c-9)
+Provides: tzdata-forky
+Depends: debconf (>= 0.5) | debconf-2.0
+Breaks: tzdata-legacy (= 2023c-8), tzdata-legacy (= 2023c-9)
+
+Package: udev
+Status: install ok installed
+Priority: important
+Section: admin
+Installed-Size: 10493
+Architecture: m68k
+Multi-Arch: foreign
+Source: systemd
+Version: 262.1-1
+Replaces: systemd (<< 261.1-3~)
+Depends: libc6 (>= 2.34), libsystemd-shared (= 262.1-1), systemd | systemd-standalone-sysusers | systemd-sysusers, libkmod2, libudev1 (= 262.1-1)
+Recommends: libacl1, libblkid1, libmount1, libselinux1, libtss2-esys-3.0.2-0t64, libtss2-mu-4.0.1-0t64, libtss2-rc0t64, libtss2-tcti-device0t64
+Breaks: systemd (<< 262.1-1)
+Conflicts: systemd (<< 261.1-3~)
+
+Package: udhcpc
+Status: install ok installed
+Priority: optional
+Section: net
+Installed-Size: 21
+Architecture: all
+Source: busybox
+Version: 1:1.38.0-3
+Depends: busybox (>> 1:1.38.0) | busybox-static (>> 1:1.38.0)
+
+Package: util-linux
+Essential: yes
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 3794
+Architecture: m68k
+Multi-Arch: foreign
+Version: 2.42.4-1
+Replaces: bsdutils (<< 1:2.42-1~), hardlink
+Provides: hardlink
+Pre-Depends: libpam-modules, libpam-runtime, libblkid1 (= 2.42.4-1), libc6 (>= 2.42), libcap-ng0 (>= 0.7.9), libcrypt1 (>= 1:4.1.0), libmount1 (= 2.42.4-1), libpam0g (>= 0.99.7.1), libselinux1 (>= 3.1~), libsmartcols1 (= 2.42.4-1), libsystemd0 (>= 251), libtinfo6 (>= 6), libudev1 (>= 183), libuuid1 (= 2.42.4-1)
+Recommends: sensible-utils
+Suggests: dosfstools, kbd, util-linux-extra, util-linux-locales, wtmpdb
+Breaks: bsdutils (<< 1:2.42-1~), dracut (<< 108-6~)
+Conflicts: hardlink
+Commands: agetty, blkdiscard, blkid, blockdev, choom, chrt, dmesg, fallocate, findfs, findmnt, flock, fsck, fsfreeze, fstrim, getopt, getty, hardlink, ionice, ipcmk, ipcrm, ipcs, linux32, linux64, logger, lsblk, lscpu, lsipc, lslocks, lsns, mcookie, mkfs, mkswap, more, mountpoint, namei, nsenter, partx, prlimit, readprofile, rtcwake, runuser, setarch, setpriv, setsid, setterm, su, sulogin, swaplabel, taskset, uclampset, unshare, whereis, wipefs, zramctl
+
+Package: wget
+Status: install ok installed
+Priority: standard
+Section: web
+Installed-Size: 3705
+Architecture: m68k
+Multi-Arch: foreign
+Version: 1.25.0-3
+Depends: libc6 (>= 2.38), libgnutls30t64 (>= 3.8.1), libidn2-0 (>= 0.6), libnettle8t64, libpcre2-8-0 (>= 10.22), libpsl5t64 (>= 0.16.0), libuuid1 (>= 2.16), zlib1g (>= 1:1.1.4)
+Recommends: ca-certificates
+Conflicts: wget-ssl
+
+Package: x11-common
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 275
+Architecture: all
+Multi-Arch: foreign
+Source: xorg
+Version: 1:7.7+26
+Depends: lsb-base
+
+Package: x11-utils
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 487
+Architecture: m68k
+Multi-Arch: foreign
+Version: 7.7+7
+Depends: libc6 (>= 2.38), libfontconfig1 (>= 2.12.6), libgl1, libx11-6, libx11-xcb1 (>= 2:1.8.7), libxaw7 (>= 2:1.0.14), libxcb-shape0, libxcb1 (>= 1.6), libxcomposite1 (>= 1:0.4.5), libxext6, libxft2 (>> 2.1.1), libxi6, libxinerama1 (>= 2:1.1.4), libxkbfile1 (>= 1:1.1.0), libxmu6 (>= 2:1.1.3), libxmuu1 (>= 2:1.1.3), libxrandr2 (>= 2:1.2.0), libxrender1, libxt6t64 (>= 1:1.1.0), libxtst6, libxv1, libxxf86dga1 (>= 2:1.1.5), libxxf86vm1
+Recommends: luit
+Suggests: mesa-utils
+
+Package: x11-xkb-utils
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 380
+Architecture: m68k
+Multi-Arch: foreign
+Version: 7.7+9
+Depends: libc6 (>= 2.38), libx11-6, libxaw7 (>= 2:1.0.14), libxkbfile1 (>= 1:1.1.0), libxrandr2 (>= 2:1.2.99.2), libxt6t64
+
+Package: x11-xserver-utils
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 451
+Architecture: m68k
+Multi-Arch: foreign
+Version: 7.7+11
+Depends: libc6 (>= 2.38), libice6 (>= 1:1.0.0), libx11-6, libxaw7 (>= 2:1.0.16), libxcursor1 (>> 1.1.2), libxext6, libxi6, libxmu6 (>= 2:1.1.3), libxmuu1 (>= 2:1.1.3), libxrandr2 (>= 2:1.5.0), libxt6t64, libxxf86vm1, cpp
+Suggests: nickle, cairo-5c, xorg-docs-core
+
+Package: xauth
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 63
+Architecture: m68k
+Multi-Arch: foreign
+Version: 1:1.1.2-1.1
+Depends: libc6 (>= 2.38), libx11-6, libxau6 (>= 1:1.0.11), libxext6, libxmuu1 (>= 2:1.1.3)
+
+Package: xbitmaps
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 241
+Architecture: all
+Multi-Arch: foreign
+Version: 1.1.1-2.2
+
+Package: xfonts-base
+Status: install ok installed
+Priority: optional
+Section: fonts
+Installed-Size: 7164
+Architecture: all
+Multi-Arch: foreign
+Version: 1:1.0.5+nmu1
+Replaces: xfonts-misc
+Depends: xfonts-utils
+Suggests: xfs | xserver
+
+Package: xfonts-encodings
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 667
+Architecture: all
+Multi-Arch: foreign
+Version: 1:1.0.4-2.2
+Replaces: xfonts-base (<< 1:1.0.0)
+Depends: x11-common
+
+Package: xfonts-utils
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 375
+Architecture: m68k
+Multi-Arch: foreign
+Version: 1:7.7+7
+Depends: libc6 (>= 2.38), libfontenc1 (>= 1:1.1.8), libfreetype6 (>= 2.6), zlib1g (>= 1:1.2.3.4), x11-common, xfonts-encodings
+
+Package: xinit
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 77
+Architecture: m68k
+Version: 1.4.2-1
+Depends: libc6 (>= 2.34), libx11-6, x11-common, xauth
+Recommends: xserver-xorg | xserver, xterm | x-session-manager | x-window-manager | x-terminal-emulator
+
+Package: xkb-data
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 10844
+Architecture: all
+Multi-Arch: foreign
+Source: xkeyboard-config
+Version: 2.48-1
+Breaks: x11-xkb-utils (<< 7.7+5)
+Conflicts: keyboards-rg
+
+Package: xserver-common
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 2530
+Architecture: all
+Multi-Arch: foreign
+Source: xorg-server
+Version: 2:21.1.25-2
+Replaces: xserver-xorg-core (<< 2:1.5.2)
+Depends: x11-common, xkb-data, x11-xkb-utils
+Recommends: xfonts-base, xauth
+
+Package: xserver-xorg-core
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 5546
+Architecture: m68k
+Source: xorg-server
+Version: 2:21.1.25-2
+Replaces: xserver-xorg (<< 1:7.7+10~), xserver-xorg-video-modesetting
+Provides: xorg-input-abi-24, xorg-video-abi-25, xserver-xorg-video-modesetting
+Depends: xserver-common (>= 2:21.1.25-2), keyboard-configuration, udev (>= 149), libegl1, libaudit1 (>= 1:2.2.1), libc6 (>= 2.42), libdbus-1-3 (>= 1.10), libdrm2 (>= 2.4.107-5~), libepoxy0 (>= 1.5.4), libgbm1 (>= 17.1.0~rc2), libgl1, libnettle8t64, libpciaccess0 (>= 0.12.902), libpixman-1-0 (>= 0.30.0), libselinux1 (>= 3.1~), libsystemd0, libudev1 (>= 183), libxau6 (>= 1:1.0.11), libxcvt0 (>= 0.1.0), libxdmcp6 (>= 1:1.1.5), libxfont2 (>= 1:2.0.1), libxshmfence1
+Recommends: libgl1-mesa-dri (>= 7.10.2-4), default-logind | logind, xcvt
+Suggests: xfonts-100dpi | xfonts-75dpi, xfonts-scalable
+Breaks: libgl1-mesa-dri (<< 18.0.5), systemd (<< 226-4~), xserver-xorg (<< 1:7.7+10~)
+Conflicts: xserver-xorg-input-evtouch, xserver-xorg-video-modesetting
+
+Package: xserver-xorg-input-evdev
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 164
+Architecture: m68k
+Version: 1:2.11.0-1
+Replaces: xserver-xorg-core (<< 2:1.18.0-1)
+Provides: xorg-driver-input
+Depends: libc6 (>= 2.34), libevdev2 (>= 1.2.2+dfsg-1~), libmtdev1t64 (>= 1.1.0), libudev1 (>= 183), xorg-input-abi-24, xserver-xorg-core (>= 2:21.1.1)
+Breaks: xserver-xorg-core (<< 2:1.18.0-1)
+
+Package: xserver-xorg-video-fbdev
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 69
+Architecture: m68k
+Version: 1:0.5.0-2
+Provides: xorg-driver-video
+Depends: libc6 (>= 2.4), xorg-video-abi-25, xserver-xorg-core (>= 2:21.1.1)
+
+Package: xterm
+Status: install ok installed
+Priority: optional
+Section: x11
+Installed-Size: 2348
+Architecture: m68k
+Multi-Arch: foreign
+Version: 412-1
+Provides: x-terminal-emulator
+Depends: xbitmaps, libc6 (>= 2.38), libfontconfig1 (>= 2.12.6), libfreetype6 (>= 2.2.1), libice6 (>= 1:1.0.0), libtinfo6 (>= 6), libutempter0 (>= 1.1.5), libx11-6, libxaw7 (>= 2:1.0.16), libxext6, libxft2 (>> 2.1.1), libxinerama1 (>= 2:1.1.4), libxmu6 (>= 2:1.1.3), libxpm4, libxt6t64
+Recommends: luit | x11-utils (<< 7.7+6~)
+Suggests: xfonts-cyrillic
+
+Package: zlib1g
+Status: install ok installed
+Priority: required
+Section: libs
+Installed-Size: 140
+Architecture: m68k
+Multi-Arch: same
+Source: zlib
+Version: 1:1.3.dfsg+really1.3.2-3
+Provides: libz1
+Depends: libc6 (>= 2.28)
+Breaks: libxml2 (<< 2.7.6.dfsg-2), texlive-binaries (<< 2023.20230311.66589-8)
+Conflicts: zlib1 (<= 1:1.0.4-7)

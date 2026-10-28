@@ -1,5 +1,7 @@
 package com.nectariich.create_flippies.content.design_workbench.blueprint;
 
+import com.nectariich.create_flippies.compat.SavedDataCompat;
+
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
@@ -23,7 +25,7 @@ public class WorldBlueprints extends SavedData {
     private BlueprintIndex index = new BlueprintIndex();
 
     public static WorldBlueprints of(MinecraftServer server) {
-        return server.overworld().getDataStorage().computeIfAbsent(WorldBlueprints::loaded, WorldBlueprints::new,
+        return SavedDataCompat.get(server.overworld().getDataStorage(), WorldBlueprints::loaded, WorldBlueprints::new,
                 NAME);
     }
 

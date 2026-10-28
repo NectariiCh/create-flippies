@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowDraft;
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowGrab;
 import com.nectariich.create_flippies.content.panel.PanelEditKind;
@@ -14,7 +12,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * The screwdriver menu, applied to the stack the sender is holding.
@@ -25,7 +22,7 @@ import net.minecraftforge.network.NetworkEvent;
  * name a stack it is not holding, and there is no per-player state to keep in step
  * with the inventory.
  */
-public class ConfigureScrewdriverPacket {
+public class ConfigureScrewdriverPacket implements FlippiesPacket {
 
     private final InteractionHand hand;
     private final ScrewdriverMode mode;
@@ -85,9 +82,9 @@ public class ConfigureScrewdriverPacket {
      * store and the panel refuse what they cannot hold, so the worst a nonsensical
      * number can do is waste one click.
      */
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             ItemStack stack = player.getItemInHand(hand);
@@ -108,6 +105,5 @@ public class ConfigureScrewdriverPacket {
                 ArrowGrab.write(stack, null);
             }
         });
-        context.get().setPacketHandled(true);
     }
 }

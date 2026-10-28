@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlock;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlockEntity;
@@ -15,7 +13,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One notch of a drag turn: which switch, and which way its handle went.
@@ -51,7 +48,7 @@ import net.minecraftforge.network.NetworkEvent;
  * it over, and a release that never arrives is made up for by the switch itself as
  * soon as its holder is no longer standing in front of it.
  */
-public class TurnRotarySwitchPacket {
+public class TurnRotarySwitchPacket implements FlippiesPacket {
 
     /**
      * How far the switch may be from the player — vanilla's reach with room to
@@ -108,9 +105,9 @@ public class TurnRotarySwitchPacket {
             buffer.writeEnum(side);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null || !Float.isFinite(localX) || !Float.isFinite(localY) || !Float.isFinite(localZ))
                 return;
             Level level = player.level();
@@ -122,7 +119,6 @@ public class TurnRotarySwitchPacket {
                 return;
             turn(level, player);
         });
-        context.get().setPacketHandled(true);
     }
 
     /**

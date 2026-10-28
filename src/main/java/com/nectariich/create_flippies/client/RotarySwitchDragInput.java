@@ -28,7 +28,11 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -265,9 +269,15 @@ public final class RotarySwitchDragInput {
      * go of the button.
      */
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || grabbedPos == null)
             return;
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+        if (grabbedPos == null)
+            return;
+    *///?}
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
         if (player == null || minecraft.level == null || minecraft.screen != null || !player.isAlive()
@@ -289,7 +299,7 @@ public final class RotarySwitchDragInput {
         while (predicted != target) {
             RotarySwitchSide side = target > predicted ? RotarySwitchSide.LEFT : RotarySwitchSide.RIGHT;
             predicted += side.detentStep();
-            ModPackets.CHANNEL.sendToServer(new TurnRotarySwitchPacket(grabbedPos, grabbedLocal, side));
+            ModPackets.sendToServer(new TurnRotarySwitchPacket(grabbedPos, grabbedLocal, side));
         }
     }
 
@@ -444,7 +454,7 @@ public final class RotarySwitchDragInput {
     private static void release() {
         Minecraft minecraft = Minecraft.getInstance();
         if (grabbedPos != null && minecraft.getConnection() != null)
-            ModPackets.CHANNEL.sendToServer(TurnRotarySwitchPacket.release(grabbedPos, grabbedLocal));
+            ModPackets.sendToServer(TurnRotarySwitchPacket.release(grabbedPos, grabbedLocal));
         grabbedPos = null;
         grabbedLocal = null;
         planeOrigin = null;

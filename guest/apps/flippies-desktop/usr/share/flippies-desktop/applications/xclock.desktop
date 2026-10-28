@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Clock
+Comment=An analog clock (xclock)
+Exec=xclock
+TryExec=xclock
+Categories=Utility;

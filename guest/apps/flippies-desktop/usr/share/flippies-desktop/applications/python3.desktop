@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Python 3
+Comment=The Python 3 interpreter
+Exec=python3
+TryExec=python3
+Terminal=true
+Categories=Development;

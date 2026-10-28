@@ -16,6 +16,8 @@ import com.nectariich.create_flippies.content.computer.net.ContentSource;
 import com.nectariich.create_flippies.content.computer.net.FolderContent;
 import com.nectariich.create_flippies.content.computer.net.MemoryContent;
 import com.nectariich.create_flippies.content.computer.net.Modem;
+import com.nectariich.create_flippies.content.computer.net.PackContent;
+import com.nectariich.create_flippies.content.computer.net.PackSet;
 import com.nectariich.create_flippies.content.computer.net.SharedFolder;
 
 import java.io.IOException;
@@ -56,6 +58,8 @@ import java.util.function.LongSupplier;
  *   --catalogue JAR     or serving the internet bundled in the mod's jar, as the network_modem block does
  *   --modem             link the NIC to a modem with an empty catalogue (DHCP, DNS, ping; HTTP 404s)
  *   --share DIR         also serve DIR as localfilesys.com, the world's file share (implies --modem)
+ *   --pack FILE         serve the content pack FILE (a .flippack, spec 12.4.3) over the --catalogue, or over
+ *                       the mod's built-in pages as the game does; repeatable, the first given wins (implies --modem)
  *   --mac MAC           the NIC's MAC, as 02:46:4c:50:43:01 (the default)
  *   --strict-fpu        68040 only: the FPU traps what the real chip leaves to software (spec 10.4)
  *   --epoch SECONDS     the RTC starts at this Unix time (default: host time)
@@ -135,6 +139,7 @@ public final class HeadlessPc {
               --catalogue JAR     or the internet bundled in the mod jar JAR (a .jar file)
               --modem             link the NIC to a modem with an empty catalogue
               --share DIR         also serve DIR as localfilesys.com (the world's file share)
+              --pack FILE         serve the content pack FILE (.flippack); repeatable, first wins
               --mac MAC           the NIC's MAC (default 02:46:4c:50:43:01)
               --strict-fpu        68040 only: the FPU traps what the chip leaves to software
               --epoch SECONDS     the RTC starts at this Unix time (default: host time)
@@ -168,7 +173,7 @@ public final class HeadlessPc {
 
     /** The parsed command line. Paths are as given (relative to the working directory). */
     record Options(CpuModel cpu, int clockHz, int ramBytes, Path hdd, long hddCreateBytes, Path floppy,
-                   boolean readOnly, double syncSeconds, Path catalogue, Path share, boolean modem, long mac, boolean strictFpu,
+                   boolean readOnly, double syncSeconds, Path catalogue, Path share, List<Path> packs, boolean modem, long mac, boolean strictFpu,
                    Long epochSeconds, double maxSeconds, Path screenshot, double screenshotAt, int display,
                    boolean realtime, Path kernel, Path initrd, String cmdline, Path input, boolean help) {
 
@@ -180,6 +185,7 @@ public final class HeadlessPc {
             Path hdd = null, floppy = null, catalogue = null, share = null, screenshot = null, kernel = null, initrd = null,
                     input = null;
             String cmdline = null;
+            List<Path> packs = new ArrayList<>();
             long hddCreate = 0;
             boolean readOnly = false, modem = false, strictFpu = false, realtime = false, help = false;
             double sync = 0, maxSeconds = 0, screenshotAt = 0;
@@ -220,6 +226,7 @@ public final class HeadlessPc {
                     case "--catalogue" -> catalogue = Path.of(value);
                     case "--modem" -> modem = true;
                     case "--share" -> share = Path.of(value);
+                    case "--pack" -> packs.add(Path.of(value));
                     case "--mac" -> mac = mac(value);
                     case "--strict-fpu" -> strictFpu = true;
                     case "--epoch" -> epoch = number(value, "--epoch");
@@ -251,7 +258,8 @@ public final class HeadlessPc {
             if (kernel != null && cmdline == null)
                 cmdline = DEFAULT_CMDLINE;
             return new Options(cpu, clock != null ? clock : cpu.defaultClockHz(), ram, hdd, hddCreate, floppy,
-                    readOnly, sync, catalogue, share, modem || catalogue != null || share != null, mac, strictFpu, epoch, maxSeconds,
+                    readOnly, sync, catalogue, share, List.copyOf(packs), modem || catalogue != null || share != null || !packs.isEmpty(),
+                    mac, strictFpu, epoch, maxSeconds,
                     screenshot, screenshotAt, display, realtime, kernel, initrd, cmdline, input, help);
         }
 
@@ -419,10 +427,30 @@ public final class HeadlessPc {
         return options.share() != null ? new Catalogue(new SharedFolder(options.share()), hosts) : new Catalogue(hosts);
     }
 
+    /** The --pack files, opened in the order given; IOException naming the first that is not a usable pack. */
+    private List<PackContent> openPacks() throws IOException {
+        List<PackContent> packs = new ArrayList<>();
+        try {
+            for (Path p : options.packs()) {
+                try {
+                    packs.add(PackContent.open(p));
+                } catch (IOException e) {
+                    throw new IOException("pack " + p + ": " + e.getMessage(), e);
+                }
+            }
+        } catch (IOException e) {
+            for (PackContent p : packs)
+                p.close();
+            throw e;
+        }
+        return packs;
+    }
+
     /** Builds the machine, runs it to an exit, saves the screenshot and the disks; returns the exit status. */
     int run() {
         List<RawDiskFile> disks = new ArrayList<>();
         URLClassLoader catalogueJar = null;
+        PackSet packSet = null;
         try {
             RawDiskFile hdd = null, floppy = null;
             Machine machine;
@@ -451,12 +479,22 @@ public final class HeadlessPc {
                         hdd == null ? null : hdd.image(), BootRoms.image(options.cpu()), rtc, null,
                         options.strictFpu(), options.mac());
                 machine = new Machine(config, StandardCpus.INSTANCE);
-                if (jar) {
-                    // the jar alone, no parent: the same lookups the block's ClasspathContent makes in game
-                    catalogueJar = new URLClassLoader(new URL[] {cat.toUri().toURL()}, null);
-                    modem = new Modem(MODEM_MAC, catalogue(new ClasspathContent(catalogueJar, ClasspathContent.ROOT)));
-                } else if (options.modem()) {
-                    modem = new Modem(MODEM_MAC, catalogue(cat != null ? new FolderContent(cat) : new MemoryContent()));
+                if (options.modem()) {
+                    ContentSource hosts;
+                    if (jar) {
+                        // the jar alone, no parent: the same lookups the block's ClasspathContent makes in game
+                        catalogueJar = new URLClassLoader(new URL[] {cat.toUri().toURL()}, null);
+                        hosts = new ClasspathContent(catalogueJar, ClasspathContent.ROOT);
+                    } else if (cat != null) {
+                        hosts = new FolderContent(cat);
+                    } else {
+                        hosts = options.packs().isEmpty() ? new MemoryContent() : ClasspathContent.bundled();
+                    }
+                    if (!options.packs().isEmpty()) {
+                        packSet = new PackSet(openPacks(), hosts, w -> err.println("headless: " + w));
+                        hosts = packSet;
+                    }
+                    modem = new Modem(MODEM_MAC, catalogue(hosts));
                 }
             } catch (IOException | IllegalArgumentException e) {
                 err.println("headless: " + e.getMessage());
@@ -494,6 +532,8 @@ public final class HeadlessPc {
                     err.println("headless: could not write " + d.path() + " back: " + e.getMessage());
                 }
             }
+            if (packSet != null)
+                packSet.retire();
             if (catalogueJar != null) {
                 try {
                     catalogueJar.close();

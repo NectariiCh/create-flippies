@@ -205,28 +205,22 @@ class ClasspathContentTest {
     }
 
     /**
-     * What this build bundles (build.gradle copies guest/debian/out/chunks and generates
-     * index.txt): get.flip is served, and every image the index lists is there, the size the
-     * index says, starting with an FDI1 header whose title is the index's.
+     * What the jar holds (spec 12.4.3): get.flip with an index that lists no image, so the
+     * netinstall floppy says no OS is installed until a pack brings one, and the page at
+     * http://get.flip/. No large content: OS images and the apt archive come in packs.
      */
     @Test
-    void theBundledCatalogueIsWhole() throws IOException {
+    void theBuiltInPagesAreSmall() throws IOException {
         ClasspathContent content = ClasspathContent.bundled();
-        assertTrue(content.hosts().contains("get.flip"));
+        assertEquals(Set.of("get.flip"), content.hosts());
         Catalogue catalogue = new Catalogue(content);
         CatalogueFile index = catalogue.open("get.flip", "index.txt");
-        assertNotNull(index, "processResources generates get.flip/index.txt");
-        for (CatalogueIndex.Entry entry : CatalogueIndex.parse(new String(readAll(index), StandardCharsets.UTF_8))) {
-            CatalogueFile file = catalogue.open("get.flip", entry.path().substring(1));
-            assertNotNull(file, entry.path());
-            assertEquals(entry.size(), file.size(), entry.path());
-            byte[] head = new byte[84];
-            assertEquals(84, file.read(0, head, 0, 84));
-            assertEquals("FDI1", new String(head, 0, 4, StandardCharsets.US_ASCII));
-            assertEquals(entry.title(), new String(head, 20, 64, StandardCharsets.UTF_8).replace("\0", "").trim());
-            byte[] last = new byte[1];
-            assertEquals(1, file.read(file.size() - 1, last, 0, 1), "the last chunk is there and inflates");
-            file.close();
-        }
+        assertNotNull(index);
+        assertEquals(List.of(), CatalogueIndex.parse(new String(readAll(index), StandardCharsets.UTF_8)));
+        CatalogueFile page = catalogue.listing("get.flip", "");
+        assertNotNull(page, "http://get.flip/ is a page");
+        assertTrue(new String(readAll(page), StandardCharsets.UTF_8).contains("flippies packs reload"));
+        assertNull(catalogue.open("get.flip", "debian.fdi"));
+        assertNull(content.open("get.flip/debian.fdi.z/size.txt"), "no OS image in the jar");
     }
 }

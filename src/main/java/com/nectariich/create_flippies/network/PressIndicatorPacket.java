@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.indicator.IndicatorAim;
 
 import net.minecraft.core.BlockPos;
@@ -10,7 +8,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * The use key going down on an indicator's cap, or coming up again.
@@ -36,7 +33,7 @@ import net.minecraftforge.network.NetworkEvent;
  * when they are no longer standing in front of it, which is
  * {@code IndicatorButton.tick}.
  */
-public class PressIndicatorPacket {
+public class PressIndicatorPacket implements FlippiesPacket {
 
     /**
      * How far the indicator may be from the player — vanilla's reach with room to
@@ -81,9 +78,9 @@ public class PressIndicatorPacket {
         buffer.writeBoolean(down);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null || !Float.isFinite(localX) || !Float.isFinite(localY) || !Float.isFinite(localZ))
                 return;
             Level level = player.level();
@@ -101,7 +98,6 @@ public class PressIndicatorPacket {
             else
                 target.release(player);
         });
-        context.get().setPacketHandled(true);
     }
 
     /** The aim, clamped rather than refused; see {@link BreakControlPacket}. */

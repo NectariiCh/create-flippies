@@ -18,7 +18,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(GameRenderer.class)
 public class GameRendererDevicePickMixin {
 
+    // 1.21.1 overloads pick with a private (Entity, double, double, float) helper
+    //? if forge {
     @Inject(method = "pick", at = @At("TAIL"))
+    //?} else {
+    /*@Inject(method = "pick(F)V", at = @At("TAIL"))
+    *///?}
     private void create_flippies$pickDevices(float partialTicks, CallbackInfo ci) {
         DevicePicker.pickInto(partialTicks);
     }

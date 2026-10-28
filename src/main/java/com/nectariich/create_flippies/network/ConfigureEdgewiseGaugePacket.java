@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseFaceDefinition;
 import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseGaugeBlockEntity;
 import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseProceduralGaugeBlockEntity;
@@ -18,7 +16,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Applies the edgewise face menu's result to an edgewise gauge: either a full face
@@ -32,7 +29,7 @@ import net.minecraftforge.network.NetworkEvent;
  * {@link EdgewiseFaceDefinition#fromNbt}, which sanitises every field, so a client
  * cannot print anything the menu itself could not.
  */
-public class ConfigureEdgewiseGaugePacket {
+public class ConfigureEdgewiseGaugePacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final EdgewiseFaceDefinition face;
@@ -69,9 +66,9 @@ public class ConfigureEdgewiseGaugePacket {
             mount.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             Level level = player.level();
@@ -96,6 +93,5 @@ public class ConfigureEdgewiseGaugePacket {
                 receiver.setSupply(supply);
             gauge.setCustomFace(face);
         });
-        context.get().setPacketHandled(true);
     }
 }

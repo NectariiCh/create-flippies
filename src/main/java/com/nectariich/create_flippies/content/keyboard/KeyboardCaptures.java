@@ -17,7 +17,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * Every keyboard someone is typing on, on this server (spec 11.2.12): grants and
@@ -212,7 +211,7 @@ public final class KeyboardCaptures {
     }
 
     private static void send(ServerPlayer player, int id, boolean granted, String reason) {
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+        ModPackets.sendToPlayer(player,
                 new KeyboardCaptureStatePacket(id, granted, reason));
     }
 }

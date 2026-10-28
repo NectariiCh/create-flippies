@@ -1,14 +1,10 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Tells one player's client to open the element editor for one mounted display: an
@@ -34,7 +30,7 @@ import net.minecraftforge.network.NetworkEvent;
  * The display is named by its mount rather than by its place in the host's list, for
  * the reason {@code AlphanumDisplay.at} gives.
  */
-public class OpenAlphanumDisplayPacket {
+public class OpenAlphanumDisplayPacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final ControlMount mount;
@@ -54,9 +50,8 @@ public class OpenAlphanumDisplayPacket {
         mount.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientOnly.run(
                 () -> () -> com.nectariich.create_flippies.client.display.ScreenEditorScreen.open(pos, mount)));
-        context.get().setPacketHandled(true);
     }
 }

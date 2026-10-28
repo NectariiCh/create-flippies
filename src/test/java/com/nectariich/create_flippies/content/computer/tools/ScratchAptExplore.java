@@ -22,7 +22,7 @@ class ScratchAptExplore {
     @Timeout(value = 120, unit = TimeUnit.MINUTES)
     void explore() throws Exception {
         Path base = Path.of("build/apt-explore");
-        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(base.resolve("RUN")));
+        org.junit.jupiter.api.Assumptions.assumeTrue("1".equals(System.getProperty("explore.run")));
         List<String> commands = Files.readAllLines(base.resolve("commands.txt"));
         Path dir = LinuxDesktopTest.emptyFolder(base.resolve("run"));
         Path web = dir.resolve("web");
@@ -69,7 +69,7 @@ class ScratchAptExplore {
         t.setDaemon(true);
         t.start();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
-        String[] args = {"--cpu", "68040", "--ram", "128M", "--hdd", "guest/debian/out/debian.img", "--readonly",
+        String[] args = {"--cpu", "68040", "--ram", "128M", "--hdd", AptArchiveTest.sparseCopy(Path.of("guest/debian/out/debian.img"), dir.resolve("hdd.img")).toString(), "--sync-seconds", "10",
                 "--catalogue", web.toString(), "--epoch", "1792944000", "--max-seconds",
                 System.getProperty("explore.max", "20000")};
         try {

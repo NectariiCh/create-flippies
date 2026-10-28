@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.BlockEntities;
 import com.nectariich.create_flippies.content.display.element.ElementDisplay;
 import com.nectariich.create_flippies.content.display.link.ElementAddressedTarget;
 import com.nectariich.create_flippies.content.display.link.LinkAddress;
@@ -125,7 +126,7 @@ public class ControlHostDisplayTarget extends DisplayTarget implements ElementAd
             LinkRouting.route(rows, line, lines);
             return;
         }
-        CompoundTag before = target.getUpdateTag();
+        CompoundTag before = BlockEntities.updateTag(target);
         LinkRouting.route(rows, line, lines);
         logSync(target, before);
     }
@@ -248,7 +249,7 @@ public class ControlHostDisplayTarget extends DisplayTarget implements ElementAd
      * logging on.
      */
     private static void logSync(BlockEntity target, CompoundTag before) {
-        CompoundTag after = target.getUpdateTag();
+        CompoundTag after = BlockEntities.updateTag(target);
         if (after.equals(before))
             return;
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();

@@ -80,7 +80,7 @@ public final class ScrewdriverInteractions {
         if (!player.level().isClientSide)
             return;
         BlockHitResult hit = event.getHitVec();
-        ModPackets.CHANNEL.sendToServer(ScrewdriverActionPacket.of(hand, false, hit.getBlockPos(), hit.getDirection(),
+        ModPackets.sendToServer(ScrewdriverActionPacket.of(hand, false, hit.getBlockPos(), hit.getDirection(),
                 hit.getLocation()));
     }
 
@@ -139,7 +139,7 @@ public final class ScrewdriverInteractions {
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.SUCCESS);
         if (player.level().isClientSide)
-            ModPackets.CHANNEL.sendToServer(new ScrewdriverAirPacket(hand, false));
+            ModPackets.sendToServer(new ScrewdriverAirPacket(hand, false));
     }
 
     /**
@@ -157,7 +157,7 @@ public final class ScrewdriverInteractions {
             return;
         if (ScrewdriverSettings.read(player.getItemInHand(hand)).mode() != ScrewdriverMode.EDIT_PANEL)
             return;
-        ModPackets.CHANNEL.sendToServer(new ScrewdriverAirPacket(hand, true));
+        ModPackets.sendToServer(new ScrewdriverAirPacket(hand, true));
     }
 
     /**
@@ -220,7 +220,7 @@ public final class ScrewdriverInteractions {
         BlockHitResult hit = aimedAt(player, event.getPos(), face);
         if (hit == null)
             return;
-        ModPackets.CHANNEL.sendToServer(
+        ModPackets.sendToServer(
                 ScrewdriverActionPacket.of(hand, true, event.getPos(), face, hit.getLocation()));
     }
 

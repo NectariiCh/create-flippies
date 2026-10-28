@@ -7,7 +7,7 @@ import tkinter as tk
 
 import sysprobe
 
-EVERY_MS = 3000
+EVERY_MS = 5000
 BG = "#C0C0C0"
 FONT = ("Misc Fixed", -13)
 
@@ -46,7 +46,7 @@ class App:
                           highlightbackground="#000000")
             c.pack(anchor="w")
             self.bars[key] = c
-        value = tk.Label(cell, text="", font=FONT, background=BG, anchor="w", width=40, justify="left")
+        value = tk.Label(cell, text="", font=FONT, background=BG, anchor="w", width=48, justify="left")
         value.pack(anchor="w")
         self.rows[key] = value
         self.r += 1

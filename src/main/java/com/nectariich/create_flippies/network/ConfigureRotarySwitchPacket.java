@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchAppearance;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlock;
@@ -15,7 +13,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Applies the appearance menu's result to a rotary switch: the front it is printed
@@ -44,7 +41,7 @@ import net.minecraftforge.network.NetworkEvent;
  * {@code RotarySwitchSpring.sanitise} keeps only the bits for detents the switch
  * really has, never its rest detent.
  */
-public class ConfigureRotarySwitchPacket {
+public class ConfigureRotarySwitchPacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final RotarySwitchAppearance appearance;
@@ -85,9 +82,9 @@ public class ConfigureRotarySwitchPacket {
             mount.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             Level level = player.level();
@@ -110,6 +107,5 @@ public class ConfigureRotarySwitchPacket {
             if (turn)
                 RotarySwitchBlock.turn(level, pos);
         });
-        context.get().setPacketHandled(true);
     }
 }

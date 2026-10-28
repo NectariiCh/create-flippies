@@ -1,11 +1,12 @@
 package com.nectariich.create_flippies.content.schematic_arrow;
 
+import com.nectariich.create_flippies.compat.NbtCompat;
+import com.nectariich.create_flippies.compat.StackData;
 import com.nectariich.create_flippies.foundation.panel.PanelDefinition;
 import com.nectariich.create_flippies.foundation.panel.PanelPlane;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
 
@@ -21,32 +22,36 @@ public record ArrowGrab(long id, BlockPos cell, PanelPlane plane, int depth, int
     private static final String ROOT = "ArrowGrab";
 
     public static ArrowGrab read(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
+        CompoundTag tag = StackData.peek(stack);
         if (tag == null || !tag.contains(ROOT, Tag.TAG_COMPOUND))
             return null;
         CompoundTag grab = tag.getCompound(ROOT);
         PanelPlane plane = PanelPlane.load(grab);
         if (plane == null || !grab.contains("Cell", Tag.TAG_COMPOUND))
             return null;
-        return new ArrowGrab(grab.getLong("Id"), NbtUtils.readBlockPos(grab.getCompound("Cell")), plane,
+        return new ArrowGrab(grab.getLong("Id"), NbtCompat.readBlockPos(grab.getCompound("Cell")), plane,
                 grab.getInt("Depth") == 0 ? 0 : PanelDefinition.THICKNESS, grab.getInt("U"), grab.getInt("V"));
     }
 
     /** Records, or with null forgets, the arrow being moved. */
     public static void write(ItemStack stack, ArrowGrab grab) {
         if (grab == null) {
+            //? if forge {
             CompoundTag tag = stack.getTag();
             if (tag != null)
                 tag.remove(ROOT);
+            //?} else {
+            /*StackData.remove(stack, ROOT);
+            *///?}
             return;
         }
         CompoundTag tag = new CompoundTag();
         tag.putLong("Id", grab.id);
-        tag.put("Cell", NbtUtils.writeBlockPos(grab.cell));
+        tag.put("Cell", NbtCompat.writeBlockPos(grab.cell));
         grab.plane.save(tag);
         tag.putInt("Depth", grab.depth);
         tag.putInt("U", grab.u);
         tag.putInt("V", grab.v);
-        stack.getOrCreateTag().put(ROOT, tag);
+        StackData.put(stack, ROOT, tag);
     }
 }

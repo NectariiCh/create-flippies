@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignBundle;
 import com.nectariich.create_flippies.content.design_workbench.DesignKind;
@@ -279,7 +280,7 @@ class AnnunciatorRackTest {
     private static MeshData parse(DesignBundle bundle) throws Exception {
         String base = "designs/test/";
         return ObjMeshReader.read(new ByteArrayInputStream(bundle.obj()),
-                new ResourceLocation("create_flippies", base + bundle.objName()), ObjImportSettings.DEFAULT, mtl -> {
+                Ids.of("create_flippies", base + bundle.objName()), ObjImportSettings.DEFAULT, mtl -> {
                     byte[] bytes = bundle.files().get(mtl.getPath().substring(base.length()));
                     return bytes == null ? null : new ByteArrayInputStream(bytes);
                 }).mesh();

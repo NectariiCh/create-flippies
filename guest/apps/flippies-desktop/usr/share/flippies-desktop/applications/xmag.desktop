@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Magnifier
+Comment=Magnify a part of the screen (xmag)
+Exec=xmag
+TryExec=xmag
+Categories=Utility;Accessibility;

@@ -2,14 +2,12 @@ package com.nectariich.create_flippies.network;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.foundation.grid.ClientGridStore;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Everything the client needs to know about one chunk's placement grids, sent
@@ -26,7 +24,7 @@ import net.minecraftforge.network.NetworkEvent;
  * counter, and a delta that went missing costs nothing beyond the next time the
  * chunk is watched.
  */
-public class SyncGridChunkPacket {
+public class SyncGridChunkPacket implements FlippiesPacket {
 
     private final long chunk;
     private final List<PlacementGrid> grids;
@@ -46,10 +44,9 @@ public class SyncGridChunkPacket {
         buffer.writeCollection(grids, (target, grid) -> grid.write(target));
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
+    public void handle(PacketContext context) {
         // Geometry arrives unvalidated and is checked as the mirror files it, so a
         // malformed grid is dropped rather than becoming a cell nobody can click
-        context.get().enqueueWork(() -> ClientGridStore.acceptChunk(chunk, grids));
-        context.get().setPacketHandled(true);
+        context.enqueueWork(() -> ClientGridStore.acceptChunk(chunk, grids));
     }
 }

@@ -2271,7 +2271,9 @@ void netinstall_main(u32 ram, u32 boot_device, void *print)
         }
         parse_index((u32)n);
         if (!nitems) {
-            message("The catalogue", "The catalogue is empty.", "", A_ERROR);
+            /* the jar's built-in index when the server has no OS pack (spec 12.4.3) */
+            message("The catalogue", "No OS is available on this server.",
+                "Ask the server owner to install an OS pack.", A_ERROR);
             continue;
         }
         struct item *it = &items[choose()];

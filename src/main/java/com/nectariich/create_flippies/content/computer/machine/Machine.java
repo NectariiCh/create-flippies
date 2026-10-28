@@ -492,6 +492,44 @@ public final class Machine {
         StateIo.check(body.available() == 0, "saved machine state has " + body.available() + " bytes left over");
     }
 
+    /**
+     * A copy of {@code state} (from {@link #saveState()}) with the disk id {@code from} replaced
+     * by {@code to}, the checksum made again. A PC snapshot placed in the world gets fresh disk
+     * ids (its disks are copies), and the HDD section checks the id on load (spec 12.19).
+     *
+     * The id sits in the HDD or floppy section as a present flag and the two halves; it is
+     * found by those 17 bytes. RAM is deflated in the state, so a stray match is as likely as
+     * guessing a random UUID. Throws IllegalArgumentException unless it occurs exactly once.
+     */
+    public static byte[] withDiskId(byte[] state, java.util.UUID from, java.util.UUID to) {
+        Objects.requireNonNull(state, "state");
+        byte[] old = idBytes(from), now = idBytes(to);
+        int at = -1;
+        for (int i = 0; i + old.length <= state.length - 4; i++) {
+            if (state[i] != old[0] || !Arrays.equals(state, i, i + old.length, old, 0, old.length))
+                continue;
+            if (at >= 0)
+                throw new IllegalArgumentException("disk id " + from + " occurs more than once in the state");
+            at = i;
+        }
+        if (at < 0)
+            throw new IllegalArgumentException("disk id " + from + " is not in the state");
+        byte[] copy = state.clone();
+        System.arraycopy(now, 0, copy, at, now.length);
+        CRC32 crc = new CRC32();
+        crc.update(copy, 0, copy.length - 4);
+        int value = (int) crc.getValue();
+        for (int i = 0; i < 4; i++)
+            copy[copy.length - 4 + i] = (byte) (value >>> (24 - 8 * i));
+        return copy;
+    }
+
+    private static byte[] idBytes(java.util.UUID id) {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(17);
+        b.put((byte) 1).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits());
+        return b.array();
+    }
+
     /** What a component writes or reads in its section. */
     @FunctionalInterface
     private interface StateWriter {

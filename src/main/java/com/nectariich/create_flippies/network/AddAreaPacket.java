@@ -1,12 +1,9 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.foundation.protection.BreakArea;
 import com.nectariich.create_flippies.foundation.protection.ClientProtectionStore;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * One newly protected area, sent to everyone watching the chunks it covers.
@@ -15,7 +12,7 @@ import net.minecraftforge.network.NetworkEvent;
  * costs a duplicate the mirror discards — filing is by id, so the second arrival
  * changes nothing.
  */
-public class AddAreaPacket {
+public class AddAreaPacket implements FlippiesPacket {
 
     private final BreakArea area;
 
@@ -31,8 +28,7 @@ public class AddAreaPacket {
         area.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> ClientProtectionStore.accept(area));
-        context.get().setPacketHandled(true);
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientProtectionStore.accept(area));
     }
 }

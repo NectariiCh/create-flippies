@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.content.crt;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.content.data_cord.DataCordItem;
 import com.nectariich.create_flippies.content.data_cord.DataCords;
 import com.nectariich.create_flippies.content.data_cord.DataLink;
@@ -36,8 +37,6 @@ import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 import org.patryk3211.powergrid.electricity.wire.IWire;
 
@@ -112,11 +111,19 @@ public class CrtEntity extends DeviceEntity implements DataPortHost, EntityElect
     }
 
     @Override
+    //? if forge {
     protected void defineSynchedData() {
         entityData.define(ON, false);
         entityData.define(SIGNAL, false);
         entityData.define(SOCKET, false);
     }
+    //?} else {
+    /*protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(ON, false);
+        builder.define(SIGNAL, false);
+        builder.define(SOCKET, false);
+    }
+    *///?}
 
     public boolean on() {
         return entityData.get(ON);
@@ -165,7 +172,7 @@ public class CrtEntity extends DeviceEntity implements DataPortHost, EntityElect
         if (accessor == ON && on() && tickCount > 1)
             onSince = level().getGameTime();
         if (accessor == SIGNAL && !signal())
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            ClientOnly.run(
                     () -> () -> com.nectariich.create_flippies.client.pc.CrtClient.release(getId()));
     }
 
@@ -215,7 +222,7 @@ public class CrtEntity extends DeviceEntity implements DataPortHost, EntityElect
             electric.unload();
         if (level().isClientSide) {
             int id = getId();
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            ClientOnly.run(
                     () -> () -> com.nectariich.create_flippies.client.pc.CrtClient.release(id));
         } else if (PcServer.get() != null) {
             PcServer.get().crts().remove(this);

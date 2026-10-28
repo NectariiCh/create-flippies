@@ -42,21 +42,25 @@ class KeyboardMousePortsTest {
         double[] mouse = cube("keyboard_and_mouse", "ps/2 2");
         assertNotNull(keyboard);
         assertNotNull(mouse);
-        assertArrayEquals(KeyboardGeometry.PORT, keyboard, 1e-9);
+        assertArrayEquals(KeyboardGeometry.PAIR_KEYBOARD_PORT, keyboard, 1e-9);
         assertArrayEquals(KeyboardGeometry.MOUSE_PORT, mouse, 1e-9);
         // The keyboard's own model is unchanged
         assertArrayEquals(KeyboardGeometry.PORT, cube("keyboard", "ps/2"), 1e-9);
     }
 
     @Test
-    void portsDoNotOverlapAndSitOnTheBody() {
-        double[] a = KeyboardGeometry.portBox(KeyboardGeometry.PORT);
+    void portsDoNotOverlapAndSitOnTheirBodies() {
+        double[] a = KeyboardGeometry.portBox(KeyboardGeometry.PAIR_KEYBOARD_PORT);
         double[] b = KeyboardGeometry.portBox(KeyboardGeometry.MOUSE_PORT);
         boolean overlap = a[0] < b[3] && b[0] < a[3] && a[1] < b[4] && b[1] < a[4] && a[2] < b[5] && b[2] < a[5];
         assertFalse(overlap);
-        for (double[] port : new double[][] {KeyboardGeometry.PORT, KeyboardGeometry.MOUSE_PORT}) {
-            assertArrayEquals(new double[] {KeyboardGeometry.BODY[3]}, new double[] {port[0]}, 1e-9);
-            assertFalse(port[2] < KeyboardGeometry.BODY[2] || port[5] > KeyboardGeometry.BODY[5]);
+        double[][][] pairs = {{KeyboardGeometry.PAIR_KEYBOARD_PORT, KeyboardGeometry.PAIR_KEYBOARD_BODY},
+                {KeyboardGeometry.MOUSE_PORT, KeyboardGeometry.PAIR_MOUSE_BODY}};
+        for (double[][] pair : pairs) {
+            double[] port = pair[0], body = pair[1];
+            // On the body's +x face, within its z and y span (the port's normal is +x)
+            assertArrayEquals(new double[] {body[3]}, new double[] {port[0]}, 1e-9);
+            assertFalse(port[2] < body[2] || port[5] > body[5] || port[1] < body[1] || port[4] > body[4]);
         }
     }
 }

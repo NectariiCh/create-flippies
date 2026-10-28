@@ -3,8 +3,10 @@ package com.nectariich.create_flippies.foundation.grid;
 import java.util.List;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.SavedDataCompat;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid.Problem;
 import com.nectariich.create_flippies.network.AddGridPacket;
+import com.nectariich.create_flippies.network.FlippiesPacket;
 import com.nectariich.create_flippies.network.ModPackets;
 import com.nectariich.create_flippies.network.RemoveGridsPacket;
 import com.nectariich.create_flippies.network.SyncGridChunkPacket;
@@ -15,7 +17,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * The authoritative store of placement grids for one dimension, and the only
@@ -42,7 +43,7 @@ public class GridStore extends SavedData {
     private final GridIndex index = new GridIndex();
 
     public static GridStore of(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(GridStore::loaded, GridStore::new, NAME);
+        return SavedDataCompat.get(level.getDataStorage(), GridStore::loaded, GridStore::new, NAME);
     }
 
     public GridIndex index() {
@@ -81,7 +82,7 @@ public class GridStore extends SavedData {
         List<PlacementGrid> grids = index.inChunk(chunk.toLong());
         if (grids.isEmpty())
             return;
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SyncGridChunkPacket(chunk, grids));
+        ModPackets.sendToPlayer(player, new SyncGridChunkPacket(chunk, grids));
     }
 
     @Override
@@ -102,11 +103,11 @@ public class GridStore extends SavedData {
      * chunk the server has not got, so forcing one in just to address an empty
      * audience would be all cost.
      */
-    private static <T> void broadcast(ServerLevel level, PlacementGrid grid, T packet) {
+    private static void broadcast(ServerLevel level, PlacementGrid grid, FlippiesPacket packet) {
         grid.forEachChunk(key -> {
             LevelChunk chunk = level.getChunkSource().getChunkNow(ChunkPos.getX(key), ChunkPos.getZ(key));
             if (chunk != null)
-                ModPackets.CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> chunk), packet);
+                ModPackets.sendToTrackingChunk(chunk, packet);
         });
     }
 }

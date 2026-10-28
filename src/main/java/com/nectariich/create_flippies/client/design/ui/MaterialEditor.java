@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 
 import com.nectariich.create_flippies.client.design.DesignMaterials;
 import com.nectariich.create_flippies.client.design.DesignPreview;
+import com.nectariich.create_flippies.compat.Checkboxes;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignMaterial;
 
@@ -184,17 +185,13 @@ public final class MaterialEditor {
 
         if (showsDial()) {
             String key = host.state().kind.isScreen() ? "material.screen" : "material.dial";
-            Checkbox dial = new Checkbox(x, y, w, 20, t(key), host.state().isFace(part, material)) {
-                @Override
-                public void onPress() {
-                    super.onPress();
-                    if (selected())
-                        host.state().assignFace(part, material);
-                    else
-                        host.state().clearFace();
-                    host.rebuild();
-                }
-            };
+            Checkbox dial = Checkboxes.create(x, y, w, 20, t(key), host.state().isFace(part, material), selected -> {
+                if (selected)
+                    host.state().assignFace(part, material);
+                else
+                    host.state().clearFace();
+                host.rebuild();
+            });
             dial.setTooltip(Tooltip.create(t(key + ".tooltip")));
             add.accept(dial);
             y += 22;
@@ -217,16 +214,12 @@ public final class MaterialEditor {
             add.accept(lit);
             y += 24;
             if (editingLit) {
-                add.accept(new Checkbox(x, y, w, 20, t("material.lit.auto"),
-                        current.litColor() == DesignMaterial.AUTO) {
-                    @Override
-                    public void onPress() {
-                        super.onPress();
-                        set(current.withLitColor(selected() ? DesignMaterial.AUTO : current.color()));
-                        syncHsv();
-                        host.rebuild();
-                    }
-                });
+                add.accept(Checkboxes.create(x, y, w, 20, t("material.lit.auto"),
+                        current.litColor() == DesignMaterial.AUTO, selected -> {
+                            set(current.withLitColor(selected ? DesignMaterial.AUTO : current.color()));
+                            syncHsv();
+                            host.rebuild();
+                        }));
                 y += 22;
             }
         }

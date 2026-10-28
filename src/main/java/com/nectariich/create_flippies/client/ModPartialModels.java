@@ -7,6 +7,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.circuit_breaker.CircuitBreakerType;
 import com.nectariich.create_flippies.content.display.DisplayForm;
 import com.nectariich.create_flippies.content.indicator.IndicatorColor;
@@ -242,7 +243,7 @@ public class ModPartialModels {
     public static final PartialModel THERMOMETER_NEEDLE = powerGrid("block/thermometer/needle");
 
     private static PartialModel powerGrid(String path) {
-        return PartialModel.of(new ResourceLocation("powergrid", path));
+        return PartialModel.of(Ids.of("powergrid", path));
     }
 
     /** Classloads the partials; must run during client mod construction. */

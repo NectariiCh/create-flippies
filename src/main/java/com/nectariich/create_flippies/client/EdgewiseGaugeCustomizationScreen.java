@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseFaceDefinition;
 import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseGaugeBlockEntity;
 import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseProceduralGaugeBlockEntity;
@@ -24,7 +25,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
@@ -46,7 +46,7 @@ import net.minecraft.util.Mth;
  * Square voltmeters: the pointer always shows the measured voltage over the
  * variant's range. On the link-driven gauge they are also the expected data range.
  */
-public class EdgewiseGaugeCustomizationScreen extends Screen {
+public class EdgewiseGaugeCustomizationScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".gauge_menu.";
     private static final String EDGEWISE_PREFIX = "gui." + CreateFlippies.MOD_ID + ".edgewise_gauge_menu.";
@@ -211,7 +211,7 @@ public class EdgewiseGaugeCustomizationScreen extends Screen {
 
         int actionY = top + 8 * ROW_HEIGHT;
         addRenderableWidget(Button.builder(Component.translatable(LANG_PREFIX + "reset"), button -> {
-            ModPackets.CHANNEL.sendToServer(new ConfigureEdgewiseGaugePacket(pos, null, supply, mount));
+            ModPackets.sendToServer(new ConfigureEdgewiseGaugePacket(pos, null, supply, mount));
             onClose();
         }).bounds(cx - 95, actionY, BOX_WIDTH, 20).build());
         if (isReceiver)
@@ -344,7 +344,7 @@ public class EdgewiseGaugeCustomizationScreen extends Screen {
                 .nameOnSide(nameOnSide)
                 .sideNameMargin(orElse(parseFloat(sideMarginBox.getValue()), initial.sideNameMargin))
                 .build();
-        ModPackets.CHANNEL.sendToServer(new ConfigureEdgewiseGaugePacket(pos, face, supply, mount));
+        ModPackets.sendToServer(new ConfigureEdgewiseGaugePacket(pos, face, supply, mount));
         onClose();
     }
 
@@ -388,7 +388,7 @@ public class EdgewiseGaugeCustomizationScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int cx = width / 2;
         int top = height / 2 - 108;
         graphics.drawCenteredString(font, title, cx, top - 16, 0xFFFFFF);

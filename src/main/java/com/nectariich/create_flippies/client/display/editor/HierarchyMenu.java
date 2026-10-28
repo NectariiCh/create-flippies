@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.lwjgl.glfw.GLFW;
 
+import com.nectariich.create_flippies.compat.EditBoxes;
 import com.nectariich.create_flippies.content.display.element.ElementKind;
 import com.nectariich.create_flippies.content.display.element.ScreenElement;
 
@@ -497,7 +498,7 @@ public final class HierarchyMenu implements EditorMenu {
         rename.setMaxLength(ScreenElement.MAX_NAME);
         rename.setValue(element.name());
         rename.setFocused(true);
-        rename.moveCursorToEnd();
+        EditBoxes.cursorToEnd(rename);
         rename.setHighlightPos(0);
         renaming = element.id();
     }
@@ -557,6 +558,6 @@ public final class HierarchyMenu implements EditorMenu {
     @Override
     public void tick() {
         if (rename != null)
-            rename.tick();
+            EditBoxes.tick(rename);
     }
 }

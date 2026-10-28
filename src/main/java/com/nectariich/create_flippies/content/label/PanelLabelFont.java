@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.label;
 import java.util.Locale;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Ids;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -44,7 +45,7 @@ public enum PanelLabelFont {
     private final ResourceLocation font;
 
     PanelLabelFont(String path) {
-        this.font = new ResourceLocation("minecraft", path);
+        this.font = Ids.of("minecraft", path);
     }
 
     /** The font resource, as a {@code Style} names it. */

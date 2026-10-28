@@ -160,8 +160,14 @@ public final class DesignScreenRenderer {
         nz /= length;
         // dP/du × dP/dv points into the glass, so the front is the other way
         float ox = (float) (f[0] - LIFT * nx), oy = (float) (f[1] - LIFT * ny), oz = (float) (f[2] - LIFT * nz);
+        //? if forge {
         ms.mulPoseMatrix(new Matrix4f((float) f[3], (float) f[4], (float) f[5], 0, (float) f[6], (float) f[7],
                 (float) f[8], 0, (float) -nx, (float) -ny, (float) -nz, 0, ox, oy, oz, 1));
+        //?} else {
+        /*// The pose only, as mulPoseMatrix did; mulPose(Matrix4f) would also turn the normal
+        ms.last().pose().mul(new Matrix4f((float) f[3], (float) f[4], (float) f[5], 0, (float) f[6], (float) f[7],
+                (float) f[8], 0, (float) -nx, (float) -ny, (float) -nz, 0, ox, oy, oz, 1));
+        *///?}
         return true;
     }
 }

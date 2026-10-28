@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.decal.DecalArt;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
@@ -13,8 +11,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
-
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Which picture the screwdriver paints with, in what colour, and whether imports
@@ -28,7 +24,7 @@ import net.minecraftforge.network.NetworkEvent;
  * client, so its proportions are the stored picture's own and a hash naming
  * something that is not a picture is turned away.
  */
-public class SelectDecalPacket {
+public class SelectDecalPacket implements FlippiesPacket {
 
     private final InteractionHand hand;
     private final String art;
@@ -56,9 +52,9 @@ public class SelectDecalPacket {
         buffer.writeBoolean(transparent);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             ItemStack stack = player.getItemInHand(hand);
@@ -73,7 +69,6 @@ public class SelectDecalPacket {
             }
             selection.apply(stack);
         });
-        context.get().setPacketHandled(true);
     }
 
     private static DecalArt stored(ServerPlayer player, String art) {

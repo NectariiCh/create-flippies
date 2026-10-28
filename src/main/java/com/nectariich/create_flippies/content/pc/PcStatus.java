@@ -3,6 +3,8 @@ package com.nectariich.create_flippies.content.pc;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.BufCompat;
+
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 
@@ -24,14 +26,14 @@ public record PcStatus(List<Component> lines) {
         int count = Math.min(lines.size(), MAX_LINES);
         buffer.writeVarInt(count);
         for (int i = 0; i < count; i++)
-            buffer.writeComponent(lines.get(i));
+            BufCompat.writeComponent(buffer, lines.get(i));
     }
 
     public static PcStatus decode(FriendlyByteBuf buffer) {
         int count = Math.min(buffer.readVarInt(), MAX_LINES);
         List<Component> lines = new ArrayList<>(count);
         for (int i = 0; i < count; i++)
-            lines.add(buffer.readComponent());
+            lines.add(BufCompat.readComponent(buffer));
         return new PcStatus(lines);
     }
 }

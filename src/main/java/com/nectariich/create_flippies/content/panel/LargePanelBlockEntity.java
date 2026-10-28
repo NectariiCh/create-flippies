@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.content.decal.CellPaint;
 import com.nectariich.create_flippies.content.decal.PanelDecal;
 import com.nectariich.create_flippies.content.schematic_arrow.CellArrows;
@@ -38,10 +39,8 @@ import org.patryk3211.powergrid.electricity.base.IElectric;
 import org.patryk3211.powergrid.electricity.base.IElectricEntity;
 import org.patryk3211.powergrid.electricity.base.ITerminalPlacement;
 
-import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.model.data.ModelData;
 import net.minecraftforge.client.model.data.ModelProperty;
-import net.minecraftforge.fml.DistExecutor;
 
 /**
  * One cell of one or more large panels: Create's copycat block entity, plus the
@@ -742,7 +741,7 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
         decals.addAll(read);
         if (clientPacket)
             for (PanelDecal decal : decals)
-                DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> com.nectariich.create_flippies.client.decal
+                ClientOnly.run(() -> () -> com.nectariich.create_flippies.client.decal
                         .ClientDecals.need(decal.art(), worldPosition));
         return true;
     }
@@ -762,7 +761,7 @@ public class LargePanelBlockEntity extends CopycatBlockEntity implements IElectr
         if (clientPacket)
             for (PanelArrow arrow : arrows)
                 if (arrow.isStamped())
-                    DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> com.nectariich.create_flippies.client.decal
+                    ClientOnly.run(() -> () -> com.nectariich.create_flippies.client.decal
                             .ClientDecals.need(arrow.art(), worldPosition));
         return true;
     }

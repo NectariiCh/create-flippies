@@ -11,6 +11,8 @@ import com.nectariich.create_flippies.content.computer.device.Ps2Key;
 import com.nectariich.create_flippies.content.computer.net.Catalogue;
 import com.nectariich.create_flippies.content.computer.net.CatalogueFile;
 import com.nectariich.create_flippies.content.computer.net.ClasspathContent;
+import com.nectariich.create_flippies.content.computer.net.PackContent;
+import com.nectariich.create_flippies.content.computer.net.PackSet;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -23,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -33,24 +36,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 /**
- * The whole netinstall path of spec 12.4 and 12.5 as a player meets it, outside Minecraft: the
- * mod's built jar is the modem's catalogue (through {@link ClasspathContent}, as the
- * network_modem block reads it), the jar's netinstall floppy installs the Debian image from it onto a
- * blank 1 GiB HDD of a 68040 PC with 128 MiB in the headless runner, and after the restart the
- * HDD boots through flipboot to the JWM desktop (spec 12.16).
+ * The whole netinstall path of spec 12.4 and 12.5 as a player meets it, outside Minecraft: the OS
+ * pack (guest/packs/out/debian-os.flippack) over the jar's built-in pages is the modem's catalogue,
+ * as a server with that pack installed serves it, the jar's netinstall floppy installs the Debian
+ * image from it onto a blank 1 GiB HDD of a 68040 PC with 128 MiB in the headless runner, and after
+ * the restart the HDD boots through flipboot to the JWM desktop (spec 12.16).
  * <ul>
- * <li>the jar serves get.flip/debian.fdi byte for byte as guest/debian/out/debian.fdi;</li>
+ * <li>the pack serves get.flip/debian.fdi byte for byte as guest/debian/out/debian.fdi;</li>
  * <li>the install: the catalogue's only entry, YES, "netinstall: done" with no problems; the HDD
  * is then byte for byte guest/debian/out/debian.img, when that is there;</li>
  * <li>the floppy out and Enter: the ROM boots the HDD, "login:" on COM1, the desktop on display
- * 0; Debian fetches get.flip/index.txt from the jar with wget, then powers off.</li>
+ * 0; Debian fetches get.flip/index.txt from the modem with wget, then powers off.</li>
  * </ul>
  *
- * Tagged "linux": {@code ./gradlew linuxTest}, which builds the jar first. Needs the mod jar (build/libs, or the one
- * FLIPPIES_MOD_JAR or the flippies.modJar system property names) built with the Debian chunks
- * (guest/debian/build.sh --chunks) and guest/netinstall/out/netinstall.img, both of which it
- * takes from the jar; skipped without them. A jar built before the chunks fails the byte-for-byte check rather than installing an
- * old image. The HDD file, the COM1 transcript, screenshots and timings stay in
+ * Tagged "linux": {@code ./gradlew :1.20.1-forge:linuxTest}, which builds the jar first. Needs the
+ * OS pack (guest/packs/out/debian-os.flippack, or the one FLIPPIES_OS_PACK or the flippies.osPack
+ * system property names) and the mod jar (the one FLIPPIES_MOD_JAR or the flippies.modJar system
+ * property names) built with guest/netinstall/out/netinstall.img, which it takes from the jar;
+ * skipped without them. A pack built before the image fails the byte-for-byte check rather than
+ * installing an old image. The HDD file, the COM1 transcript, screenshots and timings stay in
  * build/netinstall-debian.
  */
 @Tag("linux")
@@ -58,6 +62,8 @@ class NetinstallDebianTest {
 
     private static final Path JAR = Path.of(System.getProperty("flippies.modJar",
             System.getenv().getOrDefault("FLIPPIES_MOD_JAR", "build/libs/create_flippies-0.1.0.jar")));
+    private static final Path OS_PACK = Path.of(System.getProperty("flippies.osPack",
+            System.getenv().getOrDefault("FLIPPIES_OS_PACK", "guest/packs/out/debian-os.flippack")));
     private static final Path FDI = Path.of("guest/debian/out/debian.fdi");
     private static final Path IMG = Path.of("guest/debian/out/debian.img");
     private static final Path OUT = Path.of("build/netinstall-debian");
@@ -69,12 +75,8 @@ class NetinstallDebianTest {
     private static final Pattern TIMES = Pattern.compile(
             "Download and write: ([0-9.]+) s, ([0-9.]+) MB/s\\. Verify: ([0-9.]+) s, ([0-9.]+) MB/s\\.");
 
-    private static void assumeJar() throws IOException {
-        assumeTrue(Files.isRegularFile(JAR), JAR + " is not built (./gradlew jar)");
-        try (URLClassLoader jar = jarLoader()) {
-            assumeTrue(jar.getResource(ClasspathContent.ROOT + "get.flip/debian.fdi.z/size.txt") != null,
-                    JAR + " holds no Debian chunks (guest/debian/build.sh --chunks, then ./gradlew jar)");
-        }
+    private static void assumePack() {
+        assumeTrue(Files.isRegularFile(OS_PACK), OS_PACK + " is not built (the guest pack build)");
     }
 
     private static URLClassLoader jarLoader() throws IOException {
@@ -83,18 +85,19 @@ class NetinstallDebianTest {
 
     @Test
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
-    void theJarServesTheDebianImageByteForByte() throws IOException {
-        assumeJar();
+    void thePackServesTheDebianImageByteForByte() throws IOException {
+        assumePack();
         assumeTrue(Files.isRegularFile(FDI), FDI + " is not built (guest/debian/build.sh)");
-        try (URLClassLoader jar = jarLoader()) {
-            Catalogue catalogue = new Catalogue(new ClasspathContent(jar, ClasspathContent.ROOT));
+        PackSet packs = new PackSet(List.of(PackContent.open(OS_PACK)), ClasspathContent.bundled(), w -> fail(w));
+        try {
+            Catalogue catalogue = new Catalogue(packs);
             assertTrue(catalogue.hasHost("get.flip"));
             try (CatalogueFile index = catalogue.open("get.flip", "index.txt")) {
                 assertNotNull(index);
                 byte[] text = new byte[(int) index.size()];
                 for (int at = 0; at < text.length; )
                     at += index.read(at, text, at, text.length - at);
-                assertTrue(new String(text, StandardCharsets.UTF_8).contains("\nimage /debian.fdi " + Files.size(FDI) + " "),
+                assertTrue(("\n" + new String(text, StandardCharsets.UTF_8)).contains("\nimage /debian.fdi " + Files.size(FDI) + " "),
                         new String(text, StandardCharsets.UTF_8));
             }
             assertEquals(null, catalogue.open("get.flip", "debian.fdi.z"), "the chunk folder is not served");
@@ -110,20 +113,23 @@ class NetinstallDebianTest {
                     assertTrue(n > 0, "nothing read at " + at);
                     assertEquals(n, want.readNBytes(expected, 0, n));
                     if (!Arrays.equals(got, 0, n, expected, 0, n))
-                        fail("debian.fdi differs from the jar's in the block at " + at);
+                        fail("debian.fdi differs from the pack's in the block at " + at);
                     at += n;
                 }
                 assertEquals(-1, want.read());
             }
-            System.out.printf(Locale.ROOT, "the jar served debian.fdi (%d bytes) byte for byte in %.1f s host%n",
+            System.out.printf(Locale.ROOT, "the pack served debian.fdi (%d bytes) byte for byte in %.1f s host%n",
                     Files.size(FDI), (System.nanoTime() - host) / 1e9);
+        } finally {
+            packs.retire();
         }
     }
 
     @Test
     @Timeout(value = 30, unit = TimeUnit.MINUTES)
-    void installsDebianFromTheJarAndBootsToTheDesktop() throws Exception {
-        assumeJar();
+    void installsDebianFromThePackAndBootsToTheDesktop() throws Exception {
+        assumePack();
+        assumeTrue(Files.isRegularFile(JAR), JAR + " is not built (./gradlew :1.20.1-forge:jar)");
         Path dir = LinuxDesktopTest.emptyFolder(OUT);
         // the floppy the game copies onto a new disk on first insert (FloppyPresets), from the jar
         Path floppy = dir.resolve("netinstall.img");
@@ -141,7 +147,7 @@ class NetinstallDebianTest {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         // read-write with a sync, so the 258 MB written leave the heap as they reach hdd.img
         String[] args = {"--cpu", "68040", "--ram", "128M", "--hdd", hdd.toString(), "--hdd-size", "1G",
-                "--sync-seconds", "10", "--floppy", floppy.toString(), "--catalogue", JAR.toString(),
+                "--sync-seconds", "10", "--floppy", floppy.toString(), "--pack", OS_PACK.toString(),
                 "--epoch", Long.toString(EPOCH), "--max-seconds", "1200"};
         int status;
         long hostStart = System.nanoTime();

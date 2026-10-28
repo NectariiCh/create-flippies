@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.content.procedural_gauge;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.IProtrudingHitbox;
 import com.nectariich.create_flippies.foundation.control.ConfigurableBlock;
 import com.nectariich.create_flippies.foundation.control.ControlConfig;
@@ -18,8 +19,6 @@ import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 import net.createmod.catnip.math.VoxelShaper;
 
@@ -110,7 +109,7 @@ public abstract class EdgewiseGaugeBlock<BE extends EdgewiseGaugeBlockEntity> ex
         if (!(level.getBlockEntity(pos) instanceof EdgewiseGaugeBlockEntity gauge))
             return false;
         if (level.isClientSide)
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            ClientOnly.run(
                     () -> () -> com.nectariich.create_flippies.client.EdgewiseGaugeCustomizationScreen.open(gauge));
         return true;
     }

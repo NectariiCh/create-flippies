@@ -57,12 +57,14 @@ class MenuTest(unittest.TestCase):
         self.apps = os.path.join(self.tmp, "applications")
         self.home = os.path.join(self.tmp, "home")
         self.cache = os.path.join(self.tmp, "cache", "apps-menu.xml")
+        self.extra = os.path.join(self.tmp, "extra")
         os.makedirs(self.home)
+        os.makedirs(self.extra)
         write(self.apps, FILES)
 
     def run_menu(self, *args, path_extra=None):
         env = dict(os.environ, FLIPPIES_APPLICATIONS=self.apps, FLIPPIES_MENU_CACHE=self.cache,
-                   HOME=self.home)
+                   FLIPPIES_EXTRA_APPLICATIONS=self.extra, HOME=self.home)
         env.pop("XDG_DATA_HOME", None)
         # Without flippies-apps on PATH unless a test adds a folder holding it
         env["PATH"] = (path_extra + os.pathsep if path_extra else "") + "/usr/bin:/bin"
@@ -150,6 +152,100 @@ class MenuTest(unittest.TestCase):
         with open(self.cache) as f:
             self.assertNotIn("Mine", f.read())
         self.assertIn("Mine", self.run_menu())
+
+    def test_try_exec(self):
+        write(self.apps, {
+            "there.desktop": "[Desktop Entry]\nType=Application\nName=There\nExec=sh -c x\nTryExec=sh\n",
+            "missing.desktop": "[Desktop Entry]\nType=Application\nName=Missing\nExec=nope\n"
+                               "TryExec=no-such-program-here\n",
+            "odd.desktop": "[Desktop Entry]\nType=Application\nName=Odd\nExec=sh\nTryExec=sh;true\n"})
+        labels = [p.get("label") for p in ET.fromstring(self.run_menu()).iter("Program")]
+        self.assertIn("There", labels)
+        self.assertNotIn("Missing", labels)
+        self.assertNotIn("Odd", labels)
+
+    def test_extra_entries_after_the_systems(self):
+        write(self.extra, {
+            "xcalc.desktop": "[Desktop Entry]\nType=Application\nName=Calculator\nExec=xcalc\n"
+                             "TryExec=sh\nCategories=Utility;Calculator;\n",
+            "vim.desktop": "[Desktop Entry]\nType=Application\nName=Our vim\nExec=vim\n",
+            "gone.desktop": "[Desktop Entry]\nType=Application\nName=Gone\nExec=gone\n"
+                            "TryExec=no-such-program-here\n"})
+        got = dict(m for m in self.menus(self.run_menu()) if len(m) == 2)
+        self.assertEqual(got["Accessories"], [("Calculator", "xcalc", None), ("calculator", "galculator", None),
+                                              ("Vim", "xterm -e vim", "gvim")])
+        self.assertNotIn("Gone", self.run_menu())
+
+
+OLD_JWMRC = """<?xml version="1.0"?>
+<JWM>
+    <StartupCommand>xterm</StartupCommand>
+    <RootMenu onroot="1" label="Flippies">
+        <Program label="Terminal">xterm</Program>
+        <Separator/>
+        <Program label="Display info">xdpyinfo</Program>
+        <Separator/>
+        <Restart label="Restart the desktop"/>
+    </RootMenu>
+    <RootMenu onroot="3">
+        <Separator/>
+        <Program label="Terminal">xterm</Program>
+    </RootMenu>
+</JWM>
+"""
+
+
+class AddToJwmrcTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.rc = os.path.join(self.tmp, ".jwmrc")
+
+    def add(self, text):
+        with open(self.rc, "w") as f:
+            f.write(text)
+        out = subprocess.run(["sh", paths.MENU, "--add-to", self.rc], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True)
+        with open(self.rc) as f:
+            return out, f.read()
+
+    def test_after_the_first_separator_every_entry_kept(self):
+        out, text = self.add(OLD_JWMRC)
+        self.assertEqual((out.returncode, out.stdout), (0, "added\n"))
+        root = ET.fromstring(text)
+        start = root.findall("RootMenu")[0]
+        self.assertEqual([(e.tag, e.get("label"), e.text) for e in start], [
+            ("Program", "Terminal", "xterm"),
+            ("Separator", None, None),
+            ("Dynamic", "Apps", "exec:flippies-apps-menu"),
+            ("Separator", None, None),
+            ("Program", "Display info", "xdpyinfo"),
+            ("Separator", None, None),
+            ("Restart", "Restart the desktop", None),
+        ])
+        # the other menu as it was, and the icon folders before the start menu
+        self.assertEqual(len(root.findall("RootMenu")[1]), 2)
+        self.assertEqual([e.text for e in root.findall("IconPath")][:2],
+                         ["/usr/share/icons/hicolor/16x16/apps", "/usr/share/pixmaps"])
+        self.assertIn("    <IconPath>/usr/share/icons/hicolor/32x32/apps</IconPath>\n    <RootMenu onroot=\"1\"", text)
+
+    def test_once_only(self):
+        _, first = self.add(OLD_JWMRC)
+        out, second = self.add(first)
+        self.assertEqual((out.returncode, out.stdout), (0, ""))
+        self.assertEqual(first, second)
+
+    def test_without_a_separator_at_the_end_and_icon_paths_kept(self):
+        text = OLD_JWMRC.replace("        <Separator/>\n", "").replace(
+            "<JWM>\n", "<JWM>\n    <IconPath>/mine</IconPath>\n")
+        _, got = self.add(text)
+        start = ET.fromstring(got).findall("RootMenu")[0]
+        self.assertEqual([e.tag for e in start][-2:], ["Dynamic", "Separator"])
+        self.assertEqual([e.text for e in ET.fromstring(got).findall("IconPath")], ["/mine"])
+
+    def test_no_menu(self):
+        out, text = self.add("<JWM></JWM>\n")
+        self.assertNotEqual(out.returncode, 0)
+        self.assertEqual(text, "<JWM></JWM>\n")
 
 
 if __name__ == "__main__":

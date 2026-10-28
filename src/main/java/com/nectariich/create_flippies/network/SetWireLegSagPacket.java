@@ -1,12 +1,9 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.foundation.wire.bend.WireBendService;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * WIRE SAG: a player dragging the sag of one leg of a hanging wire. The wire is named
@@ -15,7 +12,7 @@ import net.minecraftforge.network.NetworkEvent;
  * edit) shifts the legs, so the index would name the wrong one and the server drops
  * it. The server checks all of it in {@link WireBendService#setLegSag}.
  */
-public class SetWireLegSagPacket {
+public class SetWireLegSagPacket implements FlippiesPacket {
 
     private final int entityId;
     private final int leg;
@@ -43,12 +40,11 @@ public class SetWireLegSagPacket {
         buffer.writeFloat(sag);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player != null)
                 WireBendService.setLegSag(player, entityId, leg, pointCount, sag);
         });
-        context.get().setPacketHandled(true);
     }
 }

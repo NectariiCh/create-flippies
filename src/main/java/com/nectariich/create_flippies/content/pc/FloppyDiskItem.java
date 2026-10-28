@@ -2,7 +2,10 @@ package com.nectariich.create_flippies.content.pc;
 
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.StackData;
+
 import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
@@ -28,19 +31,23 @@ public class FloppyDiskItem extends PcPartItem {
     }
 
     public static boolean writeProtected(ItemStack stack) {
-        return stack.hasTag() && stack.getTag().getBoolean(TAG_WRITE_PROTECT);
+        CompoundTag tag = stack.isEmpty() ? null : StackData.peek(stack);
+        return tag != null && tag.getBoolean(TAG_WRITE_PROTECT);
     }
 
     /** The bundled image this disk was made from, or null for a blank one. */
     public static String preset(ItemStack stack) {
-        return stack.hasTag() && stack.getTag().contains(TAG_PRESET) ? stack.getTag().getString(TAG_PRESET) : null;
+        CompoundTag tag = stack.isEmpty() ? null : StackData.peek(stack);
+        return tag != null && tag.contains(TAG_PRESET) ? tag.getString(TAG_PRESET) : null;
     }
 
     /** A new, never inserted, write-protected disk of a preset, as the creative tab lists it. */
     public static ItemStack presetStack(net.minecraft.world.item.Item item, String preset) {
         ItemStack stack = new ItemStack(item);
-        stack.getOrCreateTag().putString(TAG_PRESET, preset);
-        stack.getTag().putBoolean(TAG_WRITE_PROTECT, true);
+        StackData.edit(stack, tag -> {
+            tag.putString(TAG_PRESET, preset);
+            tag.putBoolean(TAG_WRITE_PROTECT, true);
+        });
         return stack;
     }
 
@@ -69,7 +76,7 @@ public class FloppyDiskItem extends PcPartItem {
                 com.nectariich.create_flippies.content.computer.device.PagedDiskImage.FLOPPY_CAPACITY);
         FloppyPresets.copyInto(disk, image);
         disks.release(disk);
-        FloppyPresets.settle(stack.getTag());
+        StackData.edit(stack, FloppyPresets::settle);
     }
 
     @Override
@@ -81,7 +88,11 @@ public class FloppyDiskItem extends PcPartItem {
 
     /** The anvil name, or null for an unlabelled disk. */
     public static String label(ItemStack stack) {
+        //? if forge {
         return stack.hasCustomHoverName() ? stack.getHoverName().getString() : null;
+        //?} else {
+        /*return stack.has(net.minecraft.core.component.DataComponents.CUSTOM_NAME) ? stack.getHoverName().getString() : null;
+        *///?}
     }
 
     @Override
@@ -91,8 +102,10 @@ public class FloppyDiskItem extends PcPartItem {
             return InteractionResultHolder.pass(stack);
         if (!level.isClientSide) {
             boolean protect = !writeProtected(stack);
-            stack.getOrCreateTag().putBoolean(TAG_WRITE_PROTECT, protect);
-            FloppyPresets.settle(stack.getTag());
+            StackData.edit(stack, tag -> {
+                tag.putBoolean(TAG_WRITE_PROTECT, protect);
+                FloppyPresets.settle(tag);
+            });
             player.displayClientMessage(Component.translatable(protect
                     ? "gui.create_flippies.pc.tooltip.write_protected" : "gui.create_flippies.pc.tooltip.writable"),
                     true);

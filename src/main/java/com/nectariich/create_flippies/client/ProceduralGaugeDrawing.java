@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import com.nectariich.create_flippies.compat.Verts;
 import com.nectariich.create_flippies.content.procedural_gauge.GaugeFaceDefinition;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralGaugeBlock;
 import com.nectariich.create_flippies.foundation.SurfaceMount;
@@ -114,13 +115,8 @@ public final class ProceduralGaugeDrawing {
 
     private static void vertex(VertexConsumer vertices, Matrix4f pose, Matrix3f normal, int light, float x, float y,
             float u, float v) {
-        vertices.vertex(pose, x, y, DIAL_Z)
-                .color(255, 255, 255, 255)
-                .uv(u, v)
-                .overlayCoords(OverlayTexture.NO_OVERLAY)
-                .uv2(light)
-                .normal(normal, 0, 0, -1)
-                .endVertex();
+        Verts.block(vertices, pose, normal, x, y, DIAL_Z, 255, 255, 255, 255, u, v, OverlayTexture.NO_OVERLAY, light,
+                0, 0, -1);
     }
 
     /**

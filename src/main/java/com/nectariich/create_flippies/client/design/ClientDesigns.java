@@ -100,7 +100,7 @@ public final class ClientDesigns {
             return mesh;
         if (!STATES.containsKey(hash) && ControlDesign.isHash(hash)) {
             STATES.put(hash, State.REQUESTED);
-            ModPackets.CHANNEL.sendToServer(new RequestDesignPacket(hash));
+            ModPackets.sendToServer(new RequestDesignPacket(hash));
         }
         return null;
     }
@@ -167,7 +167,7 @@ public final class ClientDesigns {
         if (DesignFonts.bytes(hash) != null || STATES.containsKey(hash) || !ControlDesign.isHash(hash))
             return;
         STATES.put(hash, State.REQUESTED);
-        ModPackets.CHANNEL.sendToServer(new RequestDesignPacket(hash));
+        ModPackets.sendToServer(new RequestDesignPacket(hash));
     }
 
     /**
@@ -179,7 +179,7 @@ public final class ClientDesigns {
         if (ClientDecals.art(hash) != null || STATES.containsKey(hash) || !ControlDesign.isHash(hash))
             return;
         STATES.put(hash, State.REQUESTED);
-        ModPackets.CHANNEL.sendToServer(new RequestDesignPacket(hash));
+        ModPackets.sendToServer(new RequestDesignPacket(hash));
     }
 
     /**
