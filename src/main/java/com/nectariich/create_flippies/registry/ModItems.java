@@ -84,6 +84,13 @@ public class ModItems {
                     () -> new BlockItem(ModBlocks.ALPHANUM_DISPLAYS.get(kind).get(), new Item.Properties()));
     }
 
+    static {
+        for (com.nectariich.create_flippies.content.speaker.SpeakerKind kind
+                : com.nectariich.create_flippies.content.speaker.SpeakerKind.values())
+            ITEMS.register(kind.blockId(),
+                    () -> new BlockItem(ModBlocks.ALARM_SPEAKERS.get(kind).get(), new Item.Properties()));
+    }
+
     /**
      * One rail. Placing it puts a single rail on the wall; right-clicking a rail
      * already there with another adds to it, up to three.

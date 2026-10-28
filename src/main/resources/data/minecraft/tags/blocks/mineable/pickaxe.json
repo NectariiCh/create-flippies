@@ -189,6 +189,21 @@
     "create_flippies:oled_display_light_shade_long_8x12_24v",
     "create_flippies:oled_display_light_shade_long_8x15_5v",
     "create_flippies:oled_display_light_shade_long_8x15_12v",
-    "create_flippies:oled_display_light_shade_long_8x15_24v"
+    "create_flippies:oled_display_light_shade_long_8x15_24v",
+    "create_flippies:speaker_1_alarm_in5v_12v",
+    "create_flippies:speaker_1_alarm_in5v_24v",
+    "create_flippies:speaker_1_alarm_in5v_48v",
+    "create_flippies:speaker_1_alarm_in5v_120v",
+    "create_flippies:speaker_1_alarm_in5v_240v",
+    "create_flippies:speaker_1_alarm_in12v_12v",
+    "create_flippies:speaker_1_alarm_in12v_24v",
+    "create_flippies:speaker_1_alarm_in12v_48v",
+    "create_flippies:speaker_1_alarm_in12v_120v",
+    "create_flippies:speaker_1_alarm_in12v_240v",
+    "create_flippies:speaker_1_alarm_in24v_12v",
+    "create_flippies:speaker_1_alarm_in24v_24v",
+    "create_flippies:speaker_1_alarm_in24v_48v",
+    "create_flippies:speaker_1_alarm_in24v_120v",
+    "create_flippies:speaker_1_alarm_in24v_240v"
   ]
 }

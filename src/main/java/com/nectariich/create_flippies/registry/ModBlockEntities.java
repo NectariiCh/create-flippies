@@ -6,6 +6,7 @@ import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.gauge.UniversalGaugeBlockEntity;
 import com.nectariich.create_flippies.content.din_rail.DinRailBlockEntity;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayBlockEntity;
+import com.nectariich.create_flippies.content.speaker.AlarmSpeakerBlockEntity;
 import com.nectariich.create_flippies.content.host.ControlHostBlockEntity;
 import com.nectariich.create_flippies.content.indicator.IndicatorBlockEntity;
 import com.nectariich.create_flippies.content.panel.LargePanelBlockEntity;
@@ -79,6 +80,14 @@ public class ModBlockEntities {
             BLOCK_ENTITIES.register("alphanum_display", () -> BlockEntityType.Builder
                     .of(AlphanumDisplayBlockEntity::new,
                             ModBlocks.ALPHANUM_DISPLAYS.values().stream()
+                                    .map(Supplier::get)
+                                    .toArray(Block[]::new))
+                    .build(null));
+
+    public static final Supplier<BlockEntityType<AlarmSpeakerBlockEntity>> ALARM_SPEAKER =
+            BLOCK_ENTITIES.register("alarm_speaker", () -> BlockEntityType.Builder
+                    .of(AlarmSpeakerBlockEntity::new,
+                            ModBlocks.ALARM_SPEAKERS.values().stream()
                                     .map(Supplier::get)
                                     .toArray(Block[]::new))
                     .build(null));

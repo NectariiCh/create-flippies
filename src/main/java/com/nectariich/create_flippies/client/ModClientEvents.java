@@ -69,6 +69,7 @@ public class ModClientEvents {
         event.registerBlockEntityRenderer(ModBlockEntities.INDICATOR.get(), IndicatorRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.ALPHANUM_DISPLAY.get(),
                 AlphanumDisplayRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.ALARM_SPEAKER.get(), AlarmSpeakerRenderer::new);
         // A host has no block model, so its renderer is the only thing that draws
         // anything mounted in it
         event.registerBlockEntityRenderer(ModBlockEntities.CONTROL_HOST.get(), ControlHostRenderer::new);
@@ -129,6 +130,7 @@ public class ModClientEvents {
         RelayMountControlRenderer.register();
         TerminalBlockControlRenderer.register();
         AlphanumDisplayControlRenderer.register();
+        AlarmSpeakerControlRenderer.register();
         com.nectariich.create_flippies.client.design.DesignedControlRenderer.register();
         com.nectariich.create_flippies.client.design.ClientDesigns.setup();
     }
