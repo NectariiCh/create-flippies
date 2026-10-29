@@ -1,0 +1,22 @@
+#!/bin/sh
+# Makes the cached Apps menu at configure time and whenever a package adds or removes a file in
+# /usr/share/applications, /usr/bin or /usr/games (the trigger). At configure time it also puts
+# the Apps submenu into the start menu of each user whose ~/.jwmrc predates this package (a disk
+# installed before the image shipped it), keeping their entries, and asks a running JWM to
+# reload its menu.
+set -e
+case "$1" in
+    configure)
+        flippies-apps-menu --update || true
+        for rc in /home/*/.jwmrc; do
+            [ -f "$rc" ] || continue
+            if [ "$(flippies-apps-menu --add-to "$rc" 2> /dev/null)" = added ]; then
+                echo "flippies-desktop: added the Apps submenu to $rc"
+                home=$(dirname "$rc")
+                # The desktop of the first X display, when it runs: its user's X cookie
+                DISPLAY=:0 XAUTHORITY="$home/.Xauthority" timeout 10 jwm -restart > /dev/null 2>&1 || true
+            fi
+        done
+        ;;
+    triggered) flippies-apps-menu --update || true ;;
+esac

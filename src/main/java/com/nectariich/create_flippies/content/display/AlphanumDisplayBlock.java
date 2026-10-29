@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.display;
 import java.util.EnumMap;
 import java.util.Map;
 
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.IProtrudingHitbox;
 import com.nectariich.create_flippies.foundation.SurfaceMount;
 import com.nectariich.create_flippies.foundation.control.ConfigurableBlock;
@@ -27,8 +28,6 @@ import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 import org.patryk3211.powergrid.electricity.base.ElectricBlock;
 import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
@@ -70,12 +69,12 @@ public class AlphanumDisplayBlock extends ElectricBlock
     public static final IntegerProperty ROTATION = IntegerProperty.create("rotation", 0, 3);
 
     /**
-     * Only the glass collides. The barrel and the pins stand in the neighbouring
-     * block, where collision would stop anyone building out there. Rotation cannot
-     * change this shape — the glass is square about the mounting axis — so one entry
-     * per facing is the whole table.
+     * Only the front collides: the glass and whatever bezel or shade stands round it.
+     * The barrel and the pins stand in the neighbouring block, where collision would
+     * stop anyone building out there. Keyed on facing and rotation both, because a
+     * glass that is not square, or a shade on one edge, turns with the device.
      */
-    private final Map<Direction, VoxelShape> collision;
+    private final Map<Direction, VoxelShape[]> collision;
 
     private final DisplayKind kind;
 
@@ -117,7 +116,7 @@ public class AlphanumDisplayBlock extends ElectricBlock
 
     @Override
     public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return collision.get(state.getValue(FACING));
+        return collision.get(state.getValue(FACING))[state.getValue(ROTATION)];
     }
 
     /**
@@ -141,16 +140,17 @@ public class AlphanumDisplayBlock extends ElectricBlock
     }
 
     /**
-     * The configuration menu, opened by a right click with a screwdriver like every
-     * other control's; see {@link ControlConfig}.
+     * The element editor, opened by a right click with a screwdriver like every other
+     * control's; see {@link ControlConfig}. Opened from the client's own pass of the
+     * click, since the block is the display and the client already has it.
      */
     @Override
     public boolean openConfig(Level level, BlockPos pos, Player player) {
-        if (!(level.getBlockEntity(pos) instanceof AlphanumDisplayBlockEntity display))
+        if (!(level.getBlockEntity(pos) instanceof AlphanumDisplayBlockEntity))
             return false;
         if (level.isClientSide)
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                    () -> () -> com.nectariich.create_flippies.client.AlphanumDisplayScreen.open(display));
+            ClientOnly.run(
+                    () -> () -> com.nectariich.create_flippies.client.display.ScreenEditorScreen.open(pos, null));
         return true;
     }
 
@@ -184,10 +184,14 @@ public class AlphanumDisplayBlock extends ElectricBlock
                 state.getValue(ROTATION));
     }
 
-    private static Map<Direction, VoxelShape> collisionShapes(DisplayForm form) {
-        Map<Direction, VoxelShape> shapes = new EnumMap<>(Direction.class);
-        for (Direction facing : Direction.values())
-            shapes.put(facing, SurfaceMount.shape(new double[][] { form.glass() }, facing, 0));
+    private static Map<Direction, VoxelShape[]> collisionShapes(DisplayForm form) {
+        Map<Direction, VoxelShape[]> shapes = new EnumMap<>(Direction.class);
+        for (Direction facing : Direction.values()) {
+            VoxelShape[] turns = new VoxelShape[4];
+            for (int rotation = 0; rotation < turns.length; rotation++)
+                turns[rotation] = SurfaceMount.shape(new double[][] { form.front() }, facing, rotation);
+            shapes.put(facing, turns);
+        }
         return shapes;
     }
 }

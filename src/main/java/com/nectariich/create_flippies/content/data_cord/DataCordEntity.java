@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.data_cord;
 import java.util.List;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.SpawnDataEntity;
 import com.nectariich.create_flippies.foundation.wire.bend.BendGeometry;
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 import com.nectariich.create_flippies.foundation.wire.bend.WireBends;
@@ -12,10 +13,10 @@ import com.nectariich.create_flippies.registry.ModItems;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
+//? if neoforge {
+/*import net.minecraft.network.syncher.SynchedEntityData;
+*///?}
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -25,15 +26,13 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.entity.IEntityAdditionalSpawnData;
-import net.minecraftforge.network.NetworkHooks;
 
 import org.patryk3211.powergrid.electricity.wire.CurveParameters;
 import org.patryk3211.powergrid.utility.IComplexRaycast;
 
 /**
  * A data cord hanging between two ports (spec 11.2.5): only for drawing and for
- * breaking. What it connects is held by the two endpoint block entities as
+ * breaking. What it connects is held by the two endpoint hosts as
  * {@link DataLink}s, so the per-tick exchange never needs this entity's chunk.
  *
  * Its UUID is the links' {@code cordId}. The ends are fixed when it is made, so
@@ -49,7 +48,7 @@ import org.patryk3211.powergrid.utility.IComplexRaycast;
  * between bend points then hangs, is hit and is boxed on its own, and it is still
  * the one cord with the one item.
  */
-public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData, IComplexRaycast, BendableWire {
+public class DataCordEntity extends SpawnDataEntity implements IComplexRaycast, BendableWire {
 
     /**
      * Power Grid's copper cord's curve coefficients (wire_types/copper_cord.json),
@@ -61,7 +60,7 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
     /** Ticks between checks that both ends still hold this cord. */
     private static final int CHECK_INTERVAL = 40;
 
-    private BlockPos posA = BlockPos.ZERO, posB = BlockPos.ZERO;
+    private PortAddress addressA = PortAddress.block(BlockPos.ZERO), addressB = PortAddress.block(BlockPos.ZERO);
     private int portA, portB;
     private PortType type = PortType.COM;
     private Vec3 originA = Vec3.ZERO, originB = Vec3.ZERO;
@@ -75,13 +74,13 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         noPhysics = true;
     }
 
-    static DataCordEntity create(ServerLevel level, UUID id, BlockPos posA, int portA, DataPortHost a, BlockPos posB,
-            int portB, DataPortHost b) {
+    static DataCordEntity create(ServerLevel level, UUID id, PortAddress addressA, int portA, DataPortHost a,
+            PortAddress addressB, int portB, DataPortHost b) {
         DataCordEntity cord = new DataCordEntity(ModEntityTypes.DATA_CORD.get(), level);
         cord.setUUID(id);
-        cord.posA = posA;
+        cord.addressA = addressA;
         cord.portA = portA;
-        cord.posB = posB;
+        cord.addressB = addressB;
         cord.portB = portB;
         cord.type = a.portType(portA);
         cord.originA = a.portOrigin(portA);
@@ -92,12 +91,12 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         return cord;
     }
 
-    public BlockPos posA() {
-        return posA;
+    public PortAddress addressA() {
+        return addressA;
     }
 
-    public BlockPos posB() {
-        return posB;
+    public PortAddress addressB() {
+        return addressB;
     }
 
     public int portA() {
@@ -140,9 +139,23 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
     /** The curve in coordinates relative to the entity's position, as Power Grid's renderer takes it. */
     public CurveParameters curve() {
         if (curve == null)
+            //? if forge {
             curve = new CurveParameters(endA(), endB(), CURVE_COEFFICIENT, CURVE_COEFFICIENT, THICKNESS);
+            //?} else {
+            /*curve = new CurveParameters(endA(), endB(), curveLength(endA(), endB()), THICKNESS);
+            *///?}
         return curve;
     }
+
+    //? if neoforge {
+    /*// Power Grid 1.21.1 takes the cord's length rather than its coefficients: this is
+    // the length its 1.20.1 constructor worked out from them, a vertical cord included
+    private static double curveLength(Vec3 a, Vec3 b) {
+        double dx = (float) Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.z - a.z) * (b.z - a.z));
+        double dy = b.y - a.y;
+        return dx > 0 ? Math.sqrt(dx * dx * CURVE_COEFFICIENT + dy * dy * CURVE_COEFFICIENT) : dy;
+    }
+    *///?}
 
     /** Positions the entity between the ends, which also rebuilds its box. */
     private void placed() {
@@ -168,15 +181,19 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
     }
 
     @Override
+    //? if forge {
     protected void defineSynchedData() {}
+    //?} else {
+    /*protected void defineSynchedData(SynchedEntityData.Builder builder) {}
+    *///?}
 
     @Override
     public void tick() {
         super.tick();
         if (level().isClientSide || tickCount % CHECK_INTERVAL != 0)
             return;
-        Boolean heldA = DataCords.holds(level(), posA, portA, getUUID());
-        Boolean heldB = DataCords.holds(level(), posB, portB, getUUID());
+        Boolean heldA = DataCords.holds(level(), addressA, portA, getUUID());
+        Boolean heldB = DataCords.holds(level(), addressB, portB, getUUID());
         // Either end let go while this was unloaded: the item was dropped by whoever did
         if (Boolean.FALSE.equals(heldA) || Boolean.FALSE.equals(heldB))
             discard();
@@ -253,6 +270,15 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         return hit[0];
     }
 
+    //? if neoforge {
+    /*// Power Grid's own wires answer their plain box here outside the Sable mod's
+    // sub-levels, which cords do not follow
+    @Override
+    public AABB getDeSabledBB() {
+        return getBoundingBox();
+    }
+    *///?}
+
     /** Closest approach of a ray (origin, unit direction) and a segment: {ray distance, segment fraction}. */
     private static double[] closest(Vec3 origin, Vec3 unit, Vec3 p, Vec3 q) {
         Vec3 seg = q.subtract(p);
@@ -311,8 +337,9 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
-        posA = NbtUtils.readBlockPos(tag.getCompound("PosA"));
-        posB = NbtUtils.readBlockPos(tag.getCompound("PosB"));
+        PortAddress a = PortAddress.read(tag, "PosA"), b = PortAddress.read(tag, "PosB");
+        addressA = a == null ? PortAddress.block(BlockPos.ZERO) : a;
+        addressB = b == null ? PortAddress.block(BlockPos.ZERO) : b;
         portA = tag.getInt("PortA");
         portB = tag.getInt("PortB");
         PortType read = PortType.byOrdinal(tag.getInt("Type"));
@@ -327,8 +354,8 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     protected void addAdditionalSaveData(CompoundTag tag) {
-        tag.put("PosA", NbtUtils.writeBlockPos(posA));
-        tag.put("PosB", NbtUtils.writeBlockPos(posB));
+        addressA.write(tag, "PosA");
+        addressB.write(tag, "PosB");
         tag.putInt("PortA", portA);
         tag.putInt("PortB", portB);
         tag.putInt("Type", type.ordinal());
@@ -354,8 +381,8 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     public void writeSpawnData(FriendlyByteBuf buffer) {
-        buffer.writeBlockPos(posA);
-        buffer.writeBlockPos(posB);
+        addressA.write(buffer);
+        addressB.write(buffer);
         buffer.writeVarInt(portA);
         buffer.writeVarInt(portB);
         buffer.writeVarInt(type.ordinal());
@@ -369,8 +396,8 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
 
     @Override
     public void readSpawnData(FriendlyByteBuf buffer) {
-        posA = buffer.readBlockPos();
-        posB = buffer.readBlockPos();
+        addressA = PortAddress.read(buffer);
+        addressB = PortAddress.read(buffer);
         portA = buffer.readVarInt();
         portB = buffer.readVarInt();
         PortType read = PortType.byOrdinal(buffer.readVarInt());
@@ -381,10 +408,5 @@ public class DataCordEntity extends Entity implements IEntityAdditionalSpawnData
         normalB = new Vec3(buffer.readDouble(), buffer.readDouble(), buffer.readDouble());
         bends = WireBends.read(buffer);
         placed();
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
     }
 }

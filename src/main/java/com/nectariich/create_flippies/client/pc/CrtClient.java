@@ -8,7 +8,8 @@ import java.util.Optional;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.nectariich.create_flippies.CreateFlippies;
-import com.nectariich.create_flippies.content.crt.CrtBlockEntity;
+import com.nectariich.create_flippies.compat.Ids;
+import com.nectariich.create_flippies.content.crt.CrtEntity;
 import com.nectariich.create_flippies.content.crt.CrtCanvas;
 import com.nectariich.create_flippies.content.crt.CrtFont;
 import com.nectariich.create_flippies.content.crt.CrtFrameCodec;
@@ -19,7 +20,6 @@ import com.nectariich.create_flippies.content.computer.device.VgaDisplay;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraftforge.api.distmarker.Dist;
@@ -44,9 +44,9 @@ public final class CrtClient {
 
     /** Text mode's blink half-periods, ms: cursor and blinking characters, about the VGA's rates. */
     private static final long CURSOR_HALF_MS = 266, BLINK_HALF_MS = 533;
-    private static final ResourceLocation FONT_SHEET = new ResourceLocation("minecraft", "textures/font/ascii.png");
+    private static final ResourceLocation FONT_SHEET = Ids.of("minecraft", "textures/font/ascii.png");
 
-    private static final Map<BlockPos, Screen> SCREENS = new HashMap<>();
+    private static final Map<Integer, Screen> SCREENS = new HashMap<>();
     private static CrtFont font;
     private static int nextId;
 
@@ -70,23 +70,23 @@ public final class CrtClient {
         }
     }
 
-    /** An update from the server for the CRT at {@code pos}. */
-    public static void frame(BlockPos pos, byte[] payload) {
+    /** An update from the server for the CRT with entity id {@code id}. */
+    public static void frame(int id, byte[] payload) {
         ClientLevel level = Minecraft.getInstance().level;
-        if (level == null || !level.isLoaded(pos) || !(level.getBlockEntity(pos) instanceof CrtBlockEntity))
+        if (level == null || !(level.getEntity(id) instanceof CrtEntity))
             return;
         CrtFrameCodec.Update update = CrtFrameCodec.decode(payload);
         if (update == null)
             return;
-        Screen screen = SCREENS.computeIfAbsent(pos.immutable(), p -> new Screen());
+        Screen screen = SCREENS.computeIfAbsent(id, i -> new Screen());
         BitSet changed = screen.image.apply(update);
         if (changed != null)
             screen.dirty.or(changed);
     }
 
-    /** Forgets the CRT at {@code pos} and frees its texture. */
-    public static void release(BlockPos pos) {
-        Screen screen = SCREENS.remove(pos);
+    /** Forgets the CRT with entity id {@code id} and frees its texture. */
+    public static void release(int id) {
+        Screen screen = SCREENS.remove(id);
         if (screen != null)
             screen.free();
     }
@@ -98,11 +98,11 @@ public final class CrtClient {
     }
 
     /**
-     * The texture showing the CRT at {@code pos} now, brought up to date, or null
-     * before its first full frame. Render thread only.
+     * The texture showing the CRT with entity id {@code id} now, brought up to date,
+     * or null before its first full frame. Render thread only.
      */
-    public static ResourceLocation texture(BlockPos pos, long millis) {
-        Screen s = SCREENS.get(pos);
+    public static ResourceLocation texture(int id, long millis) {
+        Screen s = SCREENS.get(id);
         if (s == null || s.image.header() == null)
             return null;
         CrtFrameCodec.Header h = s.image.header();

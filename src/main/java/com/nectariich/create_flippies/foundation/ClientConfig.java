@@ -2,7 +2,12 @@ package com.nectariich.create_flippies.foundation;
 
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchTurnMode;
 
+// The spec class is renamed for 1.21.1 by a Stonecutter replacement (stonecutter.gradle.kts).
+//? if forge {
 import net.minecraftforge.common.ForgeConfigSpec;
+//?} else {
+/*import net.neoforged.neoforge.common.ForgeConfigSpec;
+*///?}
 
 /**
  * The mod's client-side settings, written to
@@ -23,6 +28,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec SPEC;
 
     private static final ForgeConfigSpec.EnumValue<RotarySwitchTurnMode> TURN_MODE;
+    private static final ForgeConfigSpec.IntValue DISPLAY_EDITOR_GUI_SCALE;
     // PC
     private static final ForgeConfigSpec.IntValue KEYBOARD_RELEASE_DOUBLE_PRESS_MILLIS;
     // PC end
@@ -37,6 +43,11 @@ public final class ClientConfig {
                         "                  Still experimental.",
                         "Also settable in game with /flippies turnmode, which writes back to here.")
                 .defineEnum("rotarySwitchTurnMode", RotarySwitchTurnMode.PUSH);
+        DISPLAY_EDITOR_GUI_SCALE = builder
+                .comment("The GUI scale the display editor runs at while it is open, whatever the game's own.",
+                        "  0 - automatic: the largest scale, no larger than the game's, at which the editor",
+                        "      has room for its sidebars (about 860 by 520 scaled pixels).")
+                .defineInRange("displayEditorGuiScale", 0, 0, 16);
         // PC
         KEYBOARD_RELEASE_DOUBLE_PRESS_MILLIS = builder
                 .comment("While typing on an in-game keyboard, two Escape presses within this many",
@@ -69,6 +80,11 @@ public final class ClientConfig {
             return;
         TURN_MODE.set(mode);
         TURN_MODE.save();
+    }
+
+    /** The display editor's own GUI scale, or 0 to choose one to fit the window. */
+    public static int displayEditorGuiScale() {
+        return SPEC.isLoaded() ? DISPLAY_EDITOR_GUI_SCALE.get() : 0;
     }
 
     // PC

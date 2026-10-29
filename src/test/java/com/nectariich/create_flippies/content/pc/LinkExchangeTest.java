@@ -3,9 +3,13 @@ package com.nectariich.create_flippies.content.pc;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import com.nectariich.create_flippies.content.computer.cpu.CpuModel;
 import com.nectariich.create_flippies.content.computer.device.Nic;
@@ -14,6 +18,7 @@ import com.nectariich.create_flippies.content.computer.machine.Machine;
 import com.nectariich.create_flippies.content.computer.machine.MachineConfig;
 import com.nectariich.create_flippies.content.computer.machine.Rv32Map;
 import com.nectariich.create_flippies.content.computer.machine.StandardCpus;
+import com.nectariich.create_flippies.content.computer.net.FrameEndpoint;
 
 import org.junit.jupiter.api.Test;
 
@@ -131,5 +136,51 @@ class LinkExchangeTest {
         b.runTick(Machine.TICK_NANOS, Long.MAX_VALUE);
         // The byte arrived in the far UART's receive register
         assertEquals('x', b.com(2).read(Uart16550.RBR, 1));
+    }
+
+    /** A stand-in for the modem: an endpoint with its own queue that records what it is given. */
+    private static final class FakeEndpoint implements FrameEndpoint {
+        final ArrayDeque<byte[]> outgoing = new ArrayDeque<>();
+        final List<byte[]> received = new ArrayList<>();
+        boolean link;
+
+        @Override
+        public byte[] takeOutgoing() {
+            return outgoing.poll();
+        }
+
+        @Override
+        public boolean deliver(byte[] frame, int offset, int length) {
+            received.add(Arrays.copyOfRange(frame, offset, offset + length));
+            return true;
+        }
+
+        @Override
+        public void setLink(boolean up) {
+            link = up;
+        }
+    }
+
+    @Test
+    void ethernetBetweenANicAndAnotherEndpoint() {
+        long mac = 0x02_0000_0000_0AL, other = 0x02_0000_0000_0CL;
+        Machine pc = machine(mac);
+        pc.nic().write(Nic.CTRL, 4, Nic.CTRL_RX_ENABLE);
+        FakeEndpoint modem = new FakeEndpoint();
+
+        PcLinkExchange.ethernet(pc.nic(), modem);
+        assertTrue(pc.nic().link() && modem.link);
+        byte[] up = frame(other, mac, 46, 0x33), down = frame(mac, other, 1500, 0x44);
+        assertEquals(Nic.ERR_NONE, send(pc, up));
+        modem.outgoing.add(down);
+        PcLinkExchange.ethernet(modem, pc.nic());
+        assertEquals(1, modem.received.size());
+        assertArrayEquals(up, modem.received.get(0));
+        assertArrayEquals(down, receive(pc));
+
+        modem.outgoing.add(down);
+        PcLinkExchange.ethernetDown(modem);
+        assertFalse(modem.link);
+        assertNull(modem.takeOutgoing(), "what it queued as the link went down is cleared");
     }
 }

@@ -251,8 +251,14 @@ final class PanelPaintQuads {
             this.named = named;
             this.lift = lift;
             this.into = into;
+            // The sprite centre: 1.21 takes the position as 0..1 instead of 0..16
+            //? if forge {
             this.spriteU = sprite.getU(8);
             this.spriteV = sprite.getV(8);
+            //?} else {
+            /*this.spriteU = sprite.getU(0.5f);
+            this.spriteV = sprite.getV(0.5f);
+            *///?}
         }
 
         /**

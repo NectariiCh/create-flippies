@@ -1,0 +1,192 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andriy Chuma <chuma.andriy@gmail.com>
+Date: Sun, 25 Oct 2026 13:56:11 +0000
+Subject: [PATCH 2/2] m68k: flippies: Register the platform devices
+
+Register COM1 to COM3 for the 8250 driver, and every other device of the
+Create Flippies PC with its register window and interrupt line, for the
+drivers that will bind to them: the system controller, the real-time
+clock, the hard disk and floppy controllers, the network card, the three
+displays with their framebuffers and the two PS/2 ports.
+
+The device names are in <linux/platform_data/flippies.h>, which those
+drivers include.
+
+Set min_low_pfn to 0 on this machine, as the virt machine does. The disk
+controllers and the network card move data by DMA to any RAM, including
+the pages of the kernel image freed after boot; those lie below
+min_low_pfn, and dma_direct refuses them as buffers.
+---
+ arch/m68k/flippies/Makefile            |   2 +-
+ arch/m68k/flippies/platform.c          | 115 +++++++++++++++++++++++++
+ include/linux/platform_data/flippies.h |  29 +++++++
+ 3 files changed, 145 insertions(+), 1 deletion(-)
+ create mode 100644 arch/m68k/flippies/platform.c
+ create mode 100644 include/linux/platform_data/flippies.h
+
+diff --git a/arch/m68k/flippies/Makefile b/arch/m68k/flippies/Makefile
+index 175302e..21b0b78 100644
+--- a/arch/m68k/flippies/Makefile
++++ b/arch/m68k/flippies/Makefile
+@@ -3,4 +3,4 @@
+ # Makefile for Linux arch/m68k/flippies source directory
+ #
+ 
+-obj-y		:= config.o ints.o timer.o
++obj-y		:= config.o ints.o timer.o platform.o
+diff --git a/arch/m68k/flippies/platform.c b/arch/m68k/flippies/platform.c
+new file mode 100644
+index 0000000..db64da3
+--- /dev/null
++++ b/arch/m68k/flippies/platform.c
+@@ -0,0 +1,115 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Platform devices of the Create Flippies PC: COM1 to COM3 for the 8250 driver, and every other
++ * device with its register window and interrupt line for the drivers that bind to it
++ * (include/linux/platform_data/flippies.h).
++ */
++
++#include <linux/err.h>
++#include <linux/init.h>
++#include <linux/ioport.h>
++#include <linux/memblock.h>
++#include <linux/platform_data/flippies.h>
++#include <linux/platform_device.h>
++#include <linux/serial_8250.h>
++
++#include <asm/flippies.h>
++#include <asm/setup.h>
++
++#define FLIPPIES_UART(_base, _line)					\
++	{								\
++		.mapbase	= (_base),				\
++		.irq		= FLIPPIES_IRQ(_line),			\
++		.uartclk	= 1843200,				\
++		.iotype		= UPIO_MEM,				\
++		.regshift	= 0,					\
++		.flags		= UPF_BOOT_AUTOCONF | UPF_IOREMAP,	\
++	}
++
++static struct plat_serial8250_port flippies_uarts[] = {
++	FLIPPIES_UART(FLIPPIES_COM1_BASE, FLIPPIES_LINE_COM1),
++	FLIPPIES_UART(FLIPPIES_COM2_BASE, FLIPPIES_LINE_COM2),
++	FLIPPIES_UART(FLIPPIES_COM3_BASE, FLIPPIES_LINE_COM3),
++	{ }
++};
++
++static struct platform_device flippies_serial = {
++	.name	= "serial8250",
++	.id	= PLAT8250_DEV_PLATFORM,
++	.dev	= {
++		.platform_data	= flippies_uarts,
++	},
++};
++
++struct flippies_device {
++	const char *name;
++	int id;
++	unsigned long base;
++	unsigned long size;
++	unsigned long vram;	/* displays only: the framebuffer */
++	int line;		/* 0 for none */
++};
++
++static const struct flippies_device flippies_devices[] __initconst = {
++	{ FLIPPIES_SYSCON_NAME, PLATFORM_DEVID_NONE, FLIPPIES_SYSCON_BASE,
++	  FLIPPIES_WINDOW_SIZE, 0, 0 },
++	{ FLIPPIES_RTC_NAME, PLATFORM_DEVID_NONE, FLIPPIES_RTC_BASE,
++	  FLIPPIES_WINDOW_SIZE, 0, 0 },
++	{ FLIPPIES_HDD_NAME, PLATFORM_DEVID_NONE, FLIPPIES_HDD_BASE,
++	  FLIPPIES_WINDOW_SIZE, 0, FLIPPIES_LINE_HDD },
++	{ FLIPPIES_FDC_NAME, PLATFORM_DEVID_NONE, FLIPPIES_FDC_BASE,
++	  FLIPPIES_WINDOW_SIZE, 0, FLIPPIES_LINE_FDC },
++	{ FLIPPIES_NIC_NAME, PLATFORM_DEVID_NONE, FLIPPIES_NIC_BASE,
++	  FLIPPIES_WINDOW_SIZE, 0, FLIPPIES_LINE_NIC },
++	{ FLIPPIES_FB_NAME, 0, FLIPPIES_VGA0_BASE,
++	  FLIPPIES_WINDOW_SIZE, FLIPPIES_VRAM0_BASE, FLIPPIES_LINE_VGA0 },
++	{ FLIPPIES_FB_NAME, 1, FLIPPIES_VGA1_BASE,
++	  FLIPPIES_WINDOW_SIZE, FLIPPIES_VRAM1_BASE, FLIPPIES_LINE_VGA1 },
++	{ FLIPPIES_FB_NAME, 2, FLIPPIES_VGA2_BASE,
++	  FLIPPIES_WINDOW_SIZE, FLIPPIES_VRAM2_BASE, FLIPPIES_LINE_VGA2 },
++	{ FLIPPIES_PS2_NAME, 0, FLIPPIES_PS2_BASE,
++	  FLIPPIES_PS2_PORT_SIZE, 0, FLIPPIES_LINE_PS2_0 },
++	{ FLIPPIES_PS2_NAME, 1, FLIPPIES_PS2_BASE + FLIPPIES_PS2_PORT_SIZE,
++	  FLIPPIES_PS2_PORT_SIZE, 0, FLIPPIES_LINE_PS2_1 },
++};
++
++static int __init flippies_add(const struct flippies_device *dev)
++{
++	struct resource res[3];
++	struct platform_device *pdev;
++	unsigned int n = 0;
++
++	res[n++] = DEFINE_RES_MEM(dev->base, dev->size);
++	if (dev->vram)
++		res[n++] = DEFINE_RES_MEM(dev->vram, FLIPPIES_VRAM_SIZE);
++	if (dev->line)
++		res[n++] = DEFINE_RES_IRQ(FLIPPIES_IRQ(dev->line));
++
++	pdev = platform_device_register_simple(dev->name, dev->id, res, n);
++	return PTR_ERR_OR_ZERO(pdev);
++}
++
++static int __init flippies_platform_init(void)
++{
++	unsigned int i;
++	int err;
++
++	if (!MACH_IS_FLIPPIES)
++		return -ENODEV;
++
++	/*
++	 * The disk controllers and the network card move data by DMA to any RAM, including the
++	 * pages of the kernel image freed after boot, which lie below min_low_pfn (the end of the
++	 * kernel). dma_direct refuses buffers below it, as the virt machine found.
++	 */
++	min_low_pfn = 0;
++
++	err = platform_device_register(&flippies_serial);
++	for (i = 0; !err && i < ARRAY_SIZE(flippies_devices); i++)
++		err = flippies_add(&flippies_devices[i]);
++	if (err)
++		pr_err("flippies: cannot register the platform devices: %d\n", err);
++	return err;
++}
++
++arch_initcall(flippies_platform_init);
+diff --git a/include/linux/platform_data/flippies.h b/include/linux/platform_data/flippies.h
+new file mode 100644
+index 0000000..5bf722e
+--- /dev/null
++++ b/include/linux/platform_data/flippies.h
+@@ -0,0 +1,29 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Platform devices of the Create Flippies PC (arch/m68k/flippies): the names its drivers bind
++ * to. Each device has its register window as memory resource 0 and, where it interrupts, its
++ * interrupt controller line as irq resource 0.
++ *
++ * - FLIPPIES_SYSCON_NAME: system controller (power, reset, the guest error light)
++ * - FLIPPIES_RTC_NAME: real-time clock
++ * - FLIPPIES_HDD_NAME: hard disk controller
++ * - FLIPPIES_FDC_NAME: floppy controller, the HDD's registers plus media and motor state
++ * - FLIPPIES_NIC_NAME: network card
++ * - FLIPPIES_FB_NAME: displays 0 to 2 (the device id); memory resource 1 is the display's
++ *   framebuffer, the irq is its vertical blank
++ * - FLIPPIES_PS2_NAME: PS/2 ports 0 and 1 (the device id), each a 16-byte window
++ *
++ * COM1 to COM3 are 16550 UARTs on the stock 8250 driver ("serial8250").
++ */
++#ifndef __LINUX_PLATFORM_DATA_FLIPPIES_H
++#define __LINUX_PLATFORM_DATA_FLIPPIES_H
++
++#define FLIPPIES_SYSCON_NAME	"flippies-syscon"
++#define FLIPPIES_RTC_NAME	"flippies-rtc"
++#define FLIPPIES_HDD_NAME	"flippies-hdd"
++#define FLIPPIES_FDC_NAME	"flippies-fdc"
++#define FLIPPIES_NIC_NAME	"flippies-nic"
++#define FLIPPIES_FB_NAME	"flippies-fb"
++#define FLIPPIES_PS2_NAME	"flippies-ps2"
++
++#endif /* __LINUX_PLATFORM_DATA_FLIPPIES_H */

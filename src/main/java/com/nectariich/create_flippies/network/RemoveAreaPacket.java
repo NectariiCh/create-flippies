@@ -1,12 +1,10 @@
 package com.nectariich.create_flippies.network;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import com.nectariich.create_flippies.foundation.protection.ClientProtectionStore;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * The one area a removal took away, sent to everyone watching the chunks it
@@ -16,7 +14,7 @@ import net.minecraftforge.network.NetworkEvent;
  * not nest, so removing one never implies removing another, and a client told about
  * this id has been told everything that changed.
  */
-public class RemoveAreaPacket {
+public class RemoveAreaPacket implements FlippiesPacket {
 
     private final UUID id;
 
@@ -32,8 +30,7 @@ public class RemoveAreaPacket {
         buffer.writeUUID(id);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> ClientProtectionStore.forget(id));
-        context.get().setPacketHandled(true);
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientProtectionStore.forget(id));
     }
 }

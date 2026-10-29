@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.client;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.gauge.GaugeTheme;
 import com.nectariich.create_flippies.content.gauge.UniversalGaugeBlockEntity;
 import com.nectariich.create_flippies.network.ConfigureGaugePacket;
@@ -10,11 +11,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
-public class UniversalGaugeScreen extends Screen {
+public class UniversalGaugeScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".universal_gauge.";
 
@@ -75,7 +75,7 @@ public class UniversalGaugeScreen extends Screen {
     private void applyAndClose() {
         float min = parseOr(minBox.getValue(), initialMin);
         float max = parseOr(maxBox.getValue(), initialMax);
-        ModPackets.CHANNEL.sendToServer(new ConfigureGaugePacket(pos, min, max, theme));
+        ModPackets.sendToServer(new ConfigureGaugePacket(pos, min, max, theme));
         onClose();
     }
 
@@ -109,7 +109,7 @@ public class UniversalGaugeScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int cx = width / 2;
         int cy = height / 2;
         graphics.drawCenteredString(font, title, cx, cy - 70, 0xFFFFFF);

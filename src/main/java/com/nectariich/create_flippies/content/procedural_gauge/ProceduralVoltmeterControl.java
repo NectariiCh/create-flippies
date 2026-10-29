@@ -13,7 +13,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 
-import net.minecraftforge.network.PacketDistributor;
 
 import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
 
@@ -98,7 +97,7 @@ public class ProceduralVoltmeterControl extends HostedControl implements Mounted
     public boolean openEditor(ServerPlayer player) {
         if (host() == null)
             return false;
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+        ModPackets.sendToPlayer(player,
                 new OpenGaugeMenuPacket(host().pos(), mount()));
         return true;
     }

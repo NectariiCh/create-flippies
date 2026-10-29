@@ -133,10 +133,14 @@ public final class DuctNetwork {
      * <ul>
      * <li>A turn within one face: the existing one stops short by half its width and
      * the added one runs on by as much, so the corner square is drawn once.</li>
-     * <li>A turn from one face onto another (a wall down onto the floor, the inside
-     * corner): the centre lines meet half a depth off both faces, so the existing one
-     * runs on by half a depth, down to the other face, and the added one stops short
-     * by as much, starting where the existing one's lid is.</li>
+     * <li>A turn from one face onto another, over an inside corner (a wall down onto
+     * the floor) or an outside one (round a block's edge): the centre lines meet half
+     * a depth off both faces, so the existing one runs on by half a depth, to the
+     * other face or to the other's lid, and the added one stops short by as much.
+     * A stretch that runs to the turn from the other face itself, filling an inside
+     * corner, runs on over the whole corner the same way, and one that runs from the
+     * turn to the other face lies wholly inside the existing one's corner and shrinks
+     * to nothing.</li>
      * <li>Straight on: end to end.</li>
      * </ul>
      */

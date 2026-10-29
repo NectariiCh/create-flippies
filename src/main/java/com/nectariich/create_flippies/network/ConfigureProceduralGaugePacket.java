@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.procedural_gauge.SquareProceduralGaugeBlockEntity;
 import com.nectariich.create_flippies.content.procedural_gauge.GaugeFaceDefinition;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralGaugeBlockEntity;
@@ -17,7 +15,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Applies the dial customization menu's result to a procedural gauge: either a full
@@ -35,7 +32,7 @@ import net.minecraftforge.network.NetworkEvent;
  * deliberately not mountable — so a supply voltage sent with a mount has nothing to
  * apply to and is ignored rather than refused.
  */
-public class ConfigureProceduralGaugePacket {
+public class ConfigureProceduralGaugePacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final boolean reset;
@@ -79,9 +76,9 @@ public class ConfigureProceduralGaugePacket {
             mount.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             Level level = player.level();
@@ -106,6 +103,5 @@ public class ConfigureProceduralGaugePacket {
                 receiver.setSupply(supply);
             gauge.setCustomFace(face);
         });
-        context.get().setPacketHandled(true);
     }
 }

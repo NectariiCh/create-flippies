@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.speaker;
 import java.util.List;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.foundation.control.HostedControl;
@@ -12,8 +13,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 
 import org.patryk3211.powergrid.electricity.base.IElectricEntity;
 import org.patryk3211.powergrid.electricity.sim.node.FloatingNode;
@@ -115,7 +114,7 @@ public final class AlarmSpeaker {
         boolean[] high = new boolean[SpeakerPins.CHANNELS];
         for (int channel = 0; channel < high.length; channel++)
             high[channel] = channelHigh(kind, nodes, channel);
-        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> com.nectariich.create_flippies.client.audio.SpeakerAudio
+        ClientOnly.run( () -> () -> com.nectariich.create_flippies.client.audio.SpeakerAudio
                 .report(key, position, settings, powered, high));
     }
 

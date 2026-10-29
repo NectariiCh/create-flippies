@@ -1,6 +1,13 @@
 package com.nectariich.create_flippies.foundation;
 
+import java.util.List;
+
+// The spec class is renamed for 1.21.1 by a Stonecutter replacement (stonecutter.gradle.kts).
+//? if forge {
 import net.minecraftforge.common.ForgeConfigSpec;
+//?} else {
+/*import net.neoforged.neoforge.common.ForgeConfigSpec;
+*///?}
 
 /**
  * The mod's server-side settings, written per world to
@@ -25,6 +32,10 @@ public final class ServerConfig {
     // CRT
     private static final ForgeConfigSpec.IntValue DISPLAY_SYNC_MAX_FPS;
     // CRT end
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> PACK_DOWNLOADS;
+    private static final ForgeConfigSpec.BooleanValue PACK_ALLOW_HTTP;
+    private static final ForgeConfigSpec.IntValue PACK_MAX_MIB;
+    private static final ForgeConfigSpec.IntValue SNAPSHOT_MAX_MIB;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -32,7 +43,7 @@ public final class ServerConfig {
         HOST_BUDGET_PER_PC_MICROS = builder
                 .comment("Host time one PC may spend emulating per server tick, microseconds.",
                         "A PC that needs more runs slower than real time instead.")
-                .defineInRange("hostBudgetPerPcMicros", 2000, 100, 50000);
+                .defineInRange("hostBudgetPerPcMicros", 20000, 100, 50000);
         HOST_BUDGET_TOTAL_MICROS = builder
                 .comment("Host time all PCs together may spend per server tick, microseconds.")
                 .defineInRange("hostBudgetTotalMicros", 20000, 1000, 45000);
@@ -58,6 +69,37 @@ public final class ServerConfig {
                 .defineInRange("displaySyncMaxFps", 20, 1, 20);
         // CRT end
         builder.pop();
+        // The network modem's content packs (spec 12.4.3)
+        builder.push("packs");
+        PACK_DOWNLOADS = builder
+                .comment("Content packs (*.flippack: OS images for the netinstall floppy, the apt archive) fetched when the",
+                        "server starts, into config/create_flippies/packs/, on a background thread; the packs are loaded",
+                        "once they are there. One string per pack: \"<file name> <sha256> <url>\", for example",
+                        "\"debian-os.flippack 0123...cdef https://example.com/debian-os.flippack\". The file name is lower case",
+                        "and ends in .flippack; the SHA-256 is 64 hex digits; the URL is https unless allowHttp is true.",
+                        "A download is checked against its SHA-256 and moved into place only when it matches. A file of that",
+                        "name already in the folder is never replaced (a pack already there wins): delete it to fetch again.",
+                        "Packs can also be dropped into config/create_flippies/packs/ or <world>/flippies_packs/ by hand;",
+                        "then run /flippies packs reload.")
+                //? if forge {
+                .defineListAllowEmpty("downloads", List.of(), ServerConfig::validDownload);
+                //?} else {
+                /*.defineListAllowEmpty("downloads", List.of(), () -> "", ServerConfig::validDownload);
+                *///?}
+        PACK_ALLOW_HTTP = builder
+                .comment("Also fetch packs over plain http. The SHA-256 check still applies.")
+                .define("allowHttp", false);
+        PACK_MAX_MIB = builder
+                .comment("The largest pack fetched, MiB; a larger download is stopped and deleted.")
+                .defineInRange("maxPackMiB", 4096, 1, 65536);
+        builder.pop();
+        // PC snapshots (spec 12.19)
+        builder.push("snapshots");
+        SNAPSHOT_MAX_MIB = builder
+                .comment("The largest PC snapshot a player's computer may send for /flippies pc snapshot give, MiB.",
+                        "A snapshot holds the PC's RAM and the used part of its disks: a Debian PC is a few hundred MiB.")
+                .defineInRange("maxSnapshotMiB", 2048, 1, 65536);
+        builder.pop();
         SPEC = builder.build();
     }
 
@@ -65,6 +107,11 @@ public final class ServerConfig {
 
     private static int get(ForgeConfigSpec.IntValue value) {
         return SPEC.isLoaded() ? value.get() : value.getDefault();
+    }
+
+    /** A string; its format is checked where it is used, so one bad entry is logged rather than the list reset. */
+    private static boolean validDownload(Object entry) {
+        return entry instanceof String;
     }
 
     public static int hostBudgetPerPcMicros() {
@@ -100,4 +147,21 @@ public final class ServerConfig {
         return get(DISPLAY_SYNC_MAX_FPS);
     }
     // CRT end
+
+    /** Content packs to fetch at server start, as configured: "<file name> <sha256> <url>" each. */
+    public static List<? extends String> packDownloads() {
+        return SPEC.isLoaded() ? PACK_DOWNLOADS.get() : List.of();
+    }
+
+    public static boolean packAllowHttp() {
+        return SPEC.isLoaded() ? PACK_ALLOW_HTTP.get() : PACK_ALLOW_HTTP.getDefault();
+    }
+
+    public static int packMaxMiB() {
+        return get(PACK_MAX_MIB);
+    }
+
+    public static int snapshotMaxMiB() {
+        return get(SNAPSHOT_MAX_MIB);
+    }
 }

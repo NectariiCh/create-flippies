@@ -24,7 +24,7 @@ class PlcSmallControlTest {
     private static final String SKETCH = "void setup() {}\nvoid loop() {}\n";
 
     private static PlcSmallControl newPlc() {
-        return (PlcSmallControl) PlcSmallControlType.INSTANCE.create();
+        return (PlcSmallControl) PlcSmallControlType.DIN.create();
     }
 
     /**

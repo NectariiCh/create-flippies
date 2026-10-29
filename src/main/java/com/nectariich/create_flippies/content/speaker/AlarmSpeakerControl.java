@@ -15,7 +15,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
-import net.minecraftforge.network.PacketDistributor;
 
 import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
 
@@ -76,8 +75,7 @@ public class AlarmSpeakerControl extends HostedControl {
     public boolean openEditor(ServerPlayer player) {
         if (host() == null)
             return false;
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new OpenAlarmSpeakerPacket(host().pos(), mount()));
+        ModPackets.sendToPlayer(player, new OpenAlarmSpeakerPacket(host().pos(), mount()));
         return true;
     }
 

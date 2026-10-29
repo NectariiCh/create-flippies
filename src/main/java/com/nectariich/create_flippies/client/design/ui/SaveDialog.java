@@ -11,8 +11,11 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 import com.nectariich.create_flippies.client.blueprint.ClientBlueprints;
+import com.nectariich.create_flippies.client.decal.ClientDecals;
 import com.nectariich.create_flippies.client.design.DesignFonts;
+import com.nectariich.create_flippies.content.decal.DecalArt;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
+import com.nectariich.create_flippies.content.design_workbench.DesignBundle;
 import com.nectariich.create_flippies.content.design_workbench.blueprint.Blueprint;
 
 import net.minecraft.client.Minecraft;
@@ -216,7 +219,11 @@ public final class SaveDialog {
             error = t(state.gaugeError());
             return;
         }
-        if (state.moving.isEmpty() && !state.kind.isGenerated()) {
+        if (state.kind.isScreen() && state.screenError() != null) {
+            error = t(state.screenError());
+            return;
+        }
+        if (state.moving.isEmpty() && !state.kind.isGenerated() && !state.kind.isScreen()) {
             error = t("save.error.moving");
             return;
         }
@@ -234,8 +241,9 @@ public final class SaveDialog {
         else
             blueprint = new Blueprint(UUID.randomUUID(), clean, path, author(), now, now, design);
 
-        // The model's bundle and every font file the text uses, as far as this client
-        // has them; the server already has any it lacks here, since they came from it
+        // The model's bundle, every font file the text uses and every picture a screen
+        // shows, as far as this client has them; the server already has any it lacks
+        // here, since they came from it
         Map<String, byte[]> blobs = new LinkedHashMap<>();
         byte[] model = state.blob != null ? state.blob : ClientBlueprints.blob(design.model());
         if (model != null)
@@ -244,6 +252,11 @@ public final class SaveDialog {
             byte[] bytes = DesignFonts.bytes(font);
             if (bytes != null)
                 blobs.put(font, bytes);
+        }
+        for (String art : design.artHashes()) {
+            byte[] bytes = pictureBytes(art);
+            if (bytes != null)
+                blobs.put(art, bytes);
         }
 
         // Wait for the world's answer: only a save it accepted is saved, becomes the
@@ -273,6 +286,27 @@ public final class SaveDialog {
             if (!closed)
                 close.run();
         });
+    }
+
+    /**
+     * A picture's stored bytes: as fetched or kept here, else encoded again from the
+     * picture this client drew it from, which gives the same bytes and so the same hash
+     * (decoding and encoding a picture are exact inverses). Null when this client has
+     * neither.
+     */
+    private static byte[] pictureBytes(String hash) {
+        byte[] held = ClientBlueprints.blob(hash);
+        if (held != null)
+            return held;
+        DecalArt art = ClientDecals.art(hash);
+        if (art == null)
+            return null;
+        try {
+            byte[] encoded = art.encode();
+            return DesignBundle.hash(encoded).equals(hash) ? encoded : null;
+        } catch (java.io.IOException e) {
+            return null;
+        }
     }
 
     private static String author() {

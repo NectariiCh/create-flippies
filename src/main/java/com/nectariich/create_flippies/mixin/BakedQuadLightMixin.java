@@ -33,6 +33,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @Mixin(ModelBlockRenderer.class)
 public class BakedQuadLightMixin {
 
+    //? if forge {
     @Redirect(method = "putQuadData", at = @At(value = "INVOKE",
             target = "Lcom/mojang/blaze3d/vertex/VertexConsumer;putBulkData(Lcom/mojang/blaze3d/vertex/PoseStack$Pose;"
                     + "Lnet/minecraft/client/renderer/block/model/BakedQuad;[FFFF[IIZ)V"))
@@ -42,4 +43,16 @@ public class BakedQuadLightMixin {
         consumer.putBulkData(pose, quad, brightness, red, green, blue, PanelQuadLight.lightOf(quad, light), overlay,
                 readExistingColor);
     }
+    //?} else {
+    /*// 1.21.1 added the alpha after blue, which is handed on as it came
+    @Redirect(method = "putQuadData", at = @At(value = "INVOKE",
+            target = "Lcom/mojang/blaze3d/vertex/VertexConsumer;putBulkData(Lcom/mojang/blaze3d/vertex/PoseStack$Pose;"
+                    + "Lnet/minecraft/client/renderer/block/model/BakedQuad;[FFFFF[IIZ)V"))
+    private void create_flippies$keepBakedVertexLight(VertexConsumer consumer, PoseStack.Pose pose, BakedQuad quad,
+            float[] brightness, float red, float green, float blue, float alpha, int[] light, int overlay,
+            boolean readExistingColor) {
+        consumer.putBulkData(pose, quad, brightness, red, green, blue, alpha, PanelQuadLight.lightOf(quad, light),
+                overlay, readExistingColor);
+    }
+    *///?}
 }

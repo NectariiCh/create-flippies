@@ -1,0 +1,2 @@
+// The disk is small: apt-get drops each downloaded package once it is installed, as apt does.
+APT::Keep-Downloaded-Packages "false";

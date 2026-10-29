@@ -1,29 +1,24 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.wire_duct.WireDuctService;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Something a player did to a wire duct, or to a wire in one, picked on the client
  * where a duct (which the game itself never targets) can be aimed at. The server
  * checks all of it again in {@link WireDuctService}.
  */
-public class DuctActionPacket {
+public class DuctActionPacket implements FlippiesPacket {
 
     public enum Action {
         /** With a placeable wire being laid: take it into the duct at {@code hit}, or along to there. */
         ROUTE,
-        /** Left click: break the duct. */
-        BREAK,
-        /** Wrench, sneaking: take the duct back into the inventory. */
-        WRENCH,
+        /** Screwdriver in either hand, sneaking: take the duct back into the inventory. */
+        REMOVE,
         /** Wire cutters, sneaking, on a placeable wire run through ducts: cut the whole wire. */
         CUT,
         /** A dye: recolour the duct's run. */
@@ -69,12 +64,11 @@ public class DuctActionPacket {
             buffer.writeBlockHitResult(block);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player != null)
                 WireDuctService.act(player, action, entityId, hit, block);
         });
-        context.get().setPacketHandled(true);
     }
 }

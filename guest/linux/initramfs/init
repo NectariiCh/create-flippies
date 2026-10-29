@@ -1,0 +1,24 @@
+#!/bin/sh
+# /init of the initramfs (spec 12.6, 12.10): busybox's applets, the kernel's file systems, then a
+# shell on the console with job control. The shell's exit powers off. When the console is a
+# serial port and the kernel has a framebuffer console, a second shell runs on tty1, the
+# framebuffer console's first terminal, for the PS/2 keyboard.
+/bin/busybox mkdir -p /usr/bin /usr/sbin
+/bin/busybox --install -s
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin HOME=/root
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+echo "initramfs: $(uname -sr), busybox $(busybox | head -n 1 | cut -d ' ' -f 2)," \
+    "up $(cut -d ' ' -f 1 /proc/uptime) s"
+# cttyhack below opens the last console listed (tty0 is the framebuffer console's front terminal)
+console=$(cat /sys/class/tty/console/active)
+case "${console##* }" in
+ttyS*)
+    if [ -c /dev/fb0 ]; then
+        setsid -c sh </dev/tty1 >/dev/tty1 2>&1 &
+    fi
+    ;;
+esac
+setsid cttyhack sh
+poweroff -f

@@ -1,0 +1,10 @@
+Package: flippies-sysinfo
+Version: 1.1
+Architecture: all
+Maintainer: Create Flippies <flippies@deb.flip>
+Section: utils
+Priority: optional
+Depends: python3, python3-tk
+Description: System information panel for the Create Flippies PC
+ System info shows the CPU, memory, swap, disk space, network address and
+ traffic, and uptime of the PC in one small window.

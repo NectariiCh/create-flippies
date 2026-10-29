@@ -7,6 +7,7 @@ import com.nectariich.create_flippies.content.design_workbench.DesignTransfers;
 import com.nectariich.create_flippies.content.design_workbench.DesignedButtonControlType;
 import com.nectariich.create_flippies.content.design_workbench.DesignedRackControlType;
 import com.nectariich.create_flippies.content.design_workbench.DesignedGaugeControlType;
+import com.nectariich.create_flippies.content.design_workbench.DesignedScreenControlType;
 import com.nectariich.create_flippies.content.design_workbench.DesignedSwitchControlType;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayControlType;
 import com.nectariich.create_flippies.content.display.AlphanumDisplayTarget;
@@ -22,6 +23,8 @@ import com.nectariich.create_flippies.content.procedural_gauge.EdgewiseVoltmeter
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralVoltmeterControlType;
 import com.nectariich.create_flippies.content.procedural_gauge.SquareProceduralGaugeControlType;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchControlType;
+import com.nectariich.create_flippies.compat.ClientOnly;
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.foundation.ClientConfig;
 import com.nectariich.create_flippies.network.ModPackets;
 import com.nectariich.create_flippies.registry.ModBlockEntities;
@@ -36,15 +39,17 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.config.ModConfig;
+//? if forge {
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+//?} else {
+/*import net.neoforged.fml.ModContainer;
+*///?}
 import org.slf4j.Logger;
 
 @Mod(CreateFlippies.MOD_ID)
@@ -53,9 +58,15 @@ public class CreateFlippies {
     public static final String NAME = "Create: Flippies";
     public static final Logger LOGGER = LogUtils.getLogger();
 
+    //? if forge {
     public CreateFlippies() {
         FMLJavaModLoadingContext context = FMLJavaModLoadingContext.get();
         IEventBus modBus = context.getModEventBus();
+    //?} else {
+    /*public CreateFlippies(IEventBus modBus, ModContainer context) {
+        // NeoForge registers payloads from an event of their own, not in common setup
+        modBus.addListener(ModPackets::register);
+    *///?}
 
         ModBlocks.register(modBus);
         ModItems.register(modBus);
@@ -69,7 +80,11 @@ public class CreateFlippies {
         // WIRE GAUGES: registered only without Power Plant Grid, and remapped in saves
         // to and from its wires as it is installed or removed
         com.nectariich.create_flippies.registry.ModWires.register(modBus);
+        //? if forge {
         MinecraftForge.EVENT_BUS.register(com.nectariich.create_flippies.foundation.wire.gauge.WireGaugeCompat.class);
+        //?} else {
+        /*modBus.addListener(com.nectariich.create_flippies.foundation.wire.gauge.WireGaugeCompat::onRegister);
+        *///?}
         // WIRE GAUGES end
 
         // Client type, so the settings are per-installation and never loaded on a
@@ -82,14 +97,15 @@ public class CreateFlippies {
         modBus.addListener(this::clientSetup);
 
         // Flywheel partials must exist before model baking starts
-        DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> com.nectariich.create_flippies.client.ModPartialModels::init);
+        ClientOnly.run(() -> com.nectariich.create_flippies.client.ModPartialModels::init);
 
         MinecraftForge.EVENT_BUS.register(this);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
+        //? if forge {
         ModPackets.register();
+        //?}
         // Control kinds are named by their saves, so every kind a world might hold
         // has to be in the catalogue before any host block entity is read
         RotarySwitchControlType.register();
@@ -109,6 +125,7 @@ public class CreateFlippies {
         DesignedButtonControlType.register();
         DesignedRackControlType.register();
         DesignedGaugeControlType.register();
+        DesignedScreenControlType.register();
         // EDGEWISE GAUGES
         com.nectariich.create_flippies.content.procedural_gauge.EdgewiseProceduralGaugeControlType.register();
         event.enqueueWork(() -> DisplayTarget.BY_BLOCK_ENTITY
@@ -150,6 +167,6 @@ public class CreateFlippies {
     }
 
     public static ResourceLocation asResource(String path) {
-        return new ResourceLocation(MOD_ID, path);
+        return Ids.of(MOD_ID, path);
     }
 }

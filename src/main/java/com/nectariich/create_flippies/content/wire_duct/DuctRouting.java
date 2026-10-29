@@ -38,6 +38,12 @@ import org.patryk3211.powergrid.electricity.wire.registry.WireItemEntry;
 import org.patryk3211.powergrid.electricity.wire.registry.WireRegistry;
 import org.patryk3211.powergrid.utility.BlockTrace;
 import org.patryk3211.powergrid.utility.PlayerUtilities;
+//? if neoforge {
+/*import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
+import org.patryk3211.powergrid.collections.ModdedDataComponents;
+import org.patryk3211.powergrid.electricity.wire.WireConnection;
+*///?}
 
 /**
  * Running a Power Grid placeable wire through wire ducts, as one more way of
@@ -59,8 +65,9 @@ import org.patryk3211.powergrid.utility.PlayerUtilities;
  * another wire, an unjoined duct) takes it out through the duct's side facing
  * that way first, then on as Power Grid would ({@link #exit}, {@link #leaveDuct}).</li>
  * </ul>
- * Whether a wire fits is a matter of cross-section: each duct holds one wire's worth
- * of its own gauge, shared by gauge among the wires in it ({@link DuctWires#fit}).
+ * Whether a wire fits is a matter of width: the wires in a duct lie side by side,
+ * each as wide as its gauge is thick, up to what the duct's size takes
+ * ({@link DuctWires#fit}).
  * Every step is more of the same wire's chain, priced exactly as Power Grid prices
  * an extension, so the finished wire is one wire, one connection, holding the items
  * its whole length costs and resisting accordingly.
@@ -116,12 +123,38 @@ public final class DuctRouting {
     }
 
     public static boolean hasConnection(ItemStack stack) {
-        return stack.getTagElement(CONNECTION_KEY) != null;
+        return connection(stack) != null;
+    }
+
+    /**
+     * Power Grid's {@code Connection} on the wire in {@code stack}: the endpoint it is
+     * being laid from, serialized, or null. Read only. Power Grid 1.21.1 keeps it in its
+     * own data component rather than in the stack's tag, in the same shape.
+     */
+    public static CompoundTag connection(ItemStack stack) {
+        //? if forge {
+        return stack.getTagElement(CONNECTION_KEY);
+        //?} else {
+        /*WireConnection connection = stack.get(ModdedDataComponents.CONNECTION_DATA.get());
+        if (connection == null)
+            return null;
+        CompoundTag tag = (CompoundTag) WireConnection.CODEC.encodeStart(NbtOps.INSTANCE, connection).getOrThrow();
+        return tag.contains(CONNECTION_KEY, Tag.TAG_COMPOUND) ? tag.getCompound(CONNECTION_KEY) : null;
+        *///?}
+    }
+
+    /** Forgets Power Grid's {@code Connection} on the wire in {@code stack}. */
+    public static void clearConnection(ItemStack stack) {
+        //? if forge {
+        stack.removeTagKey(CONNECTION_KEY);
+        //?} else {
+        /*stack.remove(ModdedDataComponents.CONNECTION_DATA.get());
+        *///?}
     }
 
     /** The wire whose far end is being laid from with {@code stack}, or null. */
     public static BlockWireEntity layingEnd(Level level, ItemStack stack) {
-        CompoundTag connection = stack.getTagElement(CONNECTION_KEY);
+        CompoundTag connection = connection(stack);
         IWireEndpoint endpoint = connection == null ? null : WireEndpointType.deserialize(connection);
         if (!(endpoint instanceof BlockWireEntityEndpoint end) || !end.getEnd())
             return null;
@@ -137,7 +170,7 @@ public final class DuctRouting {
 
     /** What clicking {@code duct} at {@code hit} with the wire in {@code stack} would lay. Changes nothing. */
     public static Plan plan(Level level, Player player, ItemStack stack, WireDuctEntity duct, Vec3 hit) {
-        CompoundTag connection = stack.getTagElement(CONNECTION_KEY);
+        CompoundTag connection = connection(stack);
         if (connection == null)
             return Plan.refused("start_first");
         IWireEndpoint start = WireEndpointType.deserialize(connection);
@@ -290,12 +323,20 @@ public final class DuctRouting {
 
     // The server's side
 
-    /** A click on a duct with a placeable wire whose way is being laid: lays what {@link #plan} worked out. */
+    /**
+     * A click on a duct with a placeable wire whose way is being laid: lays what
+     * {@link #plan} worked out. A wire being laid as a hanging wire goes into the
+     * duct by its own way ({@link HangingDuctRoute}).
+     */
     static void route(ServerPlayer player, WireDuctEntity duct, Vec3 hit) {
         Level level = player.level();
         ItemStack stack = player.getMainHandItem();
         if (!isPlaceableWire(level, stack))
             return;
+        if (HangingDuctRoute.laying(level, player, stack)) {
+            HangingDuctRoute.route(player, duct, hit);
+            return;
+        }
         Plan plan = plan(level, player, stack, duct, hit);
         if (!plan.ok()) {
             WireDuctService.refuse(player, plan.refusal());
@@ -326,7 +367,14 @@ public final class DuctRouting {
             wire.extend(plan.points(), items);
         }
         PlayerUtilities.removeItems(player, stack, items);
+        //? if forge {
         stack.getOrCreateTag().put(CONNECTION_KEY, new BlockWireEntityEndpoint(wire, true).serialize());
+        //?} else {
+        /*WireConnection connection = stack.get(ModdedDataComponents.CONNECTION_DATA.get());
+        BlockWireEntityEndpoint end = new BlockWireEntityEndpoint(wire, true);
+        stack.set(ModdedDataComponents.CONNECTION_DATA.get(),
+                connection == null ? WireConnection.of(end) : connection.withEndpoint(end));
+        *///?}
         WireDuctItem.message(player, Component.translatable("gui.create_flippies.wire_duct."
                 + (plan.slide() ? "slid" : "entered")), false);
     }

@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.client;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.indicator.IndicatorAction;
 import com.nectariich.create_flippies.content.indicator.IndicatorBlockEntity;
 import com.nectariich.create_flippies.content.indicator.IndicatorColor;
@@ -18,7 +19,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
@@ -51,7 +51,7 @@ import net.minecraft.network.chat.Component;
  * and quarter turn are fixed when the screwdriver installs it — so its legend has a
  * turn of its own, which is the one that matters for reading a cap from the side.
  */
-public class IndicatorScreen extends Screen {
+public class IndicatorScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".indicator_menu.";
 
@@ -180,7 +180,7 @@ public class IndicatorScreen extends Screen {
 
     /** Whatever is typed goes with every send, so nothing is left behind unsent. */
     private void send(boolean turn) {
-        ModPackets.CHANNEL.sendToServer(new ConfigureIndicatorPacket(pos, color, action, legend, turn, mount));
+        ModPackets.sendToServer(new ConfigureIndicatorPacket(pos, color, action, legend, turn, mount));
     }
 
     /** The one place a typed box is committed: closing the menu. */
@@ -192,7 +192,7 @@ public class IndicatorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int cx = width / 2;
         int top = rowY(0);
         graphics.drawCenteredString(font, title, cx, top - 28, 0xFFFFFF);

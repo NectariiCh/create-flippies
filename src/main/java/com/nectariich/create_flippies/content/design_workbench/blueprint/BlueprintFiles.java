@@ -11,10 +11,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.zip.GZIPInputStream;
 
+import com.nectariich.create_flippies.compat.NbtCompat;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 
 /**
@@ -55,7 +55,7 @@ public final class BlueprintFiles {
 
     private static CompoundTag read(InputStream in, long budget) throws IOException {
         try (DataInputStream data = new DataInputStream(new BufferedInputStream(new GZIPInputStream(in)))) {
-            return NbtIo.read(data, new NbtAccounter(budget));
+            return NbtIo.read(data, NbtCompat.accounter(budget));
         } catch (RuntimeException e) {
             // The accounter throws a RuntimeException when the budget runs out
             throw new IOException(e.getMessage(), e);

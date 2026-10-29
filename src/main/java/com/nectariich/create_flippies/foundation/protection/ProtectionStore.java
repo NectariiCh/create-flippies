@@ -3,7 +3,9 @@ package com.nectariich.create_flippies.foundation.protection;
 import java.util.List;
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.SavedDataCompat;
 import com.nectariich.create_flippies.network.AddAreaPacket;
+import com.nectariich.create_flippies.network.FlippiesPacket;
 import com.nectariich.create_flippies.network.ModPackets;
 import com.nectariich.create_flippies.network.RemoveAreaPacket;
 import com.nectariich.create_flippies.network.SyncAreaChunkPacket;
@@ -14,7 +16,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * The authoritative store of break-protected areas for one dimension, and the only
@@ -40,7 +41,7 @@ public class ProtectionStore extends SavedData {
     private final ProtectionIndex index = new ProtectionIndex();
 
     public static ProtectionStore of(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(ProtectionStore::loaded, ProtectionStore::new, NAME);
+        return SavedDataCompat.get(level.getDataStorage(), ProtectionStore::loaded, ProtectionStore::new, NAME);
     }
 
     public ProtectionIndex index() {
@@ -77,7 +78,7 @@ public class ProtectionStore extends SavedData {
         List<BreakArea> areas = index.inChunk(chunk.toLong());
         if (areas.isEmpty())
             return;
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SyncAreaChunkPacket(chunk, areas));
+        ModPackets.sendToPlayer(player, new SyncAreaChunkPacket(chunk, areas));
     }
 
     @Override
@@ -98,11 +99,11 @@ public class ProtectionStore extends SavedData {
      * chunk the server has not got, so forcing one in just to address an empty
      * audience would be all cost.
      */
-    private static <T> void broadcast(ServerLevel level, BreakArea area, T packet) {
+    private static void broadcast(ServerLevel level, BreakArea area, FlippiesPacket packet) {
         area.forEachChunk(key -> {
             LevelChunk chunk = level.getChunkSource().getChunkNow(ChunkPos.getX(key), ChunkPos.getZ(key));
             if (chunk != null)
-                ModPackets.CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> chunk), packet);
+                ModPackets.sendToTrackingChunk(chunk, packet);
         });
     }
 }

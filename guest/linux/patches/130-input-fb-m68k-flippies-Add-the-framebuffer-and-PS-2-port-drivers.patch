@@ -1,0 +1,663 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andriy Chuma <chuma.andriy@gmail.com>
+Date: Sun, 25 Oct 2026 14:35:02 +0000
+Subject: [PATCH] m68k: flippies: Add the framebuffer and PS/2 port drivers
+
+Add drivers for the displays and the PS/2 ports of the Create Flippies
+PC, for the platform devices that arch/m68k/flippies registers.
+
+flippiesfb drives each of the three displays as an fbdev device. A
+display has a control window and 512 KiB of video memory of its own;
+the driver uses its 8-bit pseudocolour modes, 640x480 (the default) and
+320x200, with the palette at 0x400 in the control window. The display
+shows video memory from a byte offset, so the virtual screen is as tall
+as video memory allows and panning moves that offset. The video memory
+is mapped by fb_io_mmap. FBIO_WAITFORVSYNC waits for the display's
+vertical blank interrupt, which is enabled only while a task waits, and
+FBIOGET_VBLANK reports the frame counter. fbcon runs on fb0.
+
+flippies_ps2 drives each PS/2 port as a serio port. The controller
+passes the bytes of the device unchanged, so each port registers as
+SERIO_8042 with a write callback: atkbd then stays raw in scancode set
+2, and psmouse binds when a mouse is plugged in instead.
+
+Each port's interrupt stays enabled from probe on, as i8042's do, so a
+byte from a device plugged into a port with no driver bound makes serio
+rescan the port: a keyboard or mouse plugged in after boot binds.
+---
+ drivers/input/serio/Kconfig        |  10 +
+ drivers/input/serio/Makefile       |   1 +
+ drivers/input/serio/flippies_ps2.c | 146 +++++++++++
+ drivers/video/fbdev/Kconfig        |  15 ++
+ drivers/video/fbdev/Makefile       |   1 +
+ drivers/video/fbdev/flippiesfb.c   | 397 +++++++++++++++++++++++++++++
+ 6 files changed, 570 insertions(+)
+ create mode 100644 drivers/input/serio/flippies_ps2.c
+ create mode 100644 drivers/video/fbdev/flippiesfb.c
+
+diff --git a/drivers/input/serio/Kconfig b/drivers/input/serio/Kconfig
+index c7ef347..f0f204c 100644
+--- a/drivers/input/serio/Kconfig
++++ b/drivers/input/serio/Kconfig
+@@ -220,6 +220,16 @@ config SERIO_ALTERA_PS2
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called altera_ps2.
+ 
++config SERIO_FLIPPIES
++	tristate "Create Flippies PC PS/2 ports"
++	depends on FLIPPIES || COMPILE_TEST
++	help
++	  Say Y here to use the two PS/2 ports of the Create Flippies PC,
++	  each with a keyboard or a mouse on it.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called flippies_ps2.
++
+ config SERIO_AMS_DELTA
+ 	tristate "Amstrad Delta (E3) mailboard support"
+ 	depends on MACH_AMS_DELTA
+diff --git a/drivers/input/serio/Makefile b/drivers/input/serio/Makefile
+index 6d97bad..18d31bc 100644
+--- a/drivers/input/serio/Makefile
++++ b/drivers/input/serio/Makefile
+@@ -26,6 +26,7 @@ obj-$(CONFIG_SERIO_RAW)		+= serio_raw.o
+ obj-$(CONFIG_SERIO_AMS_DELTA)	+= ams_delta_serio.o
+ obj-$(CONFIG_SERIO_XILINX_XPS_PS2)	+= xilinx_ps2.o
+ obj-$(CONFIG_SERIO_ALTERA_PS2)	+= altera_ps2.o
++obj-$(CONFIG_SERIO_FLIPPIES)	+= flippies_ps2.o
+ obj-$(CONFIG_SERIO_ARC_PS2)	+= arc_ps2.o
+ obj-$(CONFIG_SERIO_APBPS2)	+= apbps2.o
+ obj-$(CONFIG_SERIO_OLPC_APSP)	+= olpc_apsp.o
+diff --git a/drivers/input/serio/flippies_ps2.c b/drivers/input/serio/flippies_ps2.c
+new file mode 100644
+index 0000000..081bb12
+--- /dev/null
++++ b/drivers/input/serio/flippies_ps2.c
+@@ -0,0 +1,146 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * PS/2 ports of the Create Flippies PC (arch/m68k/flippies).
++ *
++ * The controller has two identical ports, each a 16-byte window: DATA (a read pops the next byte
++ * from the device, a write sends the device a byte), STATUS (bit 0 a byte is ready, bit 1 a byte
++ * was lost, write 1 to clear it) and CTRL (bit 0 interrupt enable, bit 1 port enable). Each port
++ * has its own interrupt line, high while a byte is ready and the interrupt is enabled. Bytes pass
++ * unchanged, so a keyboard speaks scancode set 2 and each port is a plain SERIO_8042 port that
++ * atkbd or psmouse binds to, whichever device is plugged in.
++ */
++
++#include <linux/bits.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/module.h>
++#include <linux/platform_data/flippies.h>
++#include <linux/platform_device.h>
++#include <linux/serio.h>
++#include <linux/slab.h>
++
++#define FLIPPIES_PS2_DATA		0x0
++#define FLIPPIES_PS2_STATUS		0x4
++#define FLIPPIES_PS2_CTRL		0x8
++
++#define FLIPPIES_PS2_STATUS_RX_READY	BIT(0)
++#define FLIPPIES_PS2_STATUS_OVERRUN	BIT(1)
++#define FLIPPIES_PS2_CTRL_IRQ		BIT(0)
++#define FLIPPIES_PS2_CTRL_ENABLE	BIT(1)
++
++struct flippies_ps2 {
++	struct serio *serio;
++	void __iomem *regs;
++};
++
++static irqreturn_t flippies_ps2_interrupt(int irq, void *dev_id)
++{
++	struct flippies_ps2 *ps2 = dev_id;
++	irqreturn_t ret = IRQ_NONE;
++	u32 status;
++	u8 data;
++
++	while ((status = ioread32be(ps2->regs + FLIPPIES_PS2_STATUS)) &
++	       FLIPPIES_PS2_STATUS_RX_READY) {
++		/*
++		 * A lost byte needs no flag: a keyboard queues its overrun code in its place and a
++		 * mouse drops whole packets.
++		 */
++		if (status & FLIPPIES_PS2_STATUS_OVERRUN)
++			iowrite32be(FLIPPIES_PS2_STATUS_OVERRUN,
++				    ps2->regs + FLIPPIES_PS2_STATUS);
++		data = ioread32be(ps2->regs + FLIPPIES_PS2_DATA);
++		serio_interrupt(ps2->serio, data, 0);
++		ret = IRQ_HANDLED;
++	}
++
++	return ret;
++}
++
++static int flippies_ps2_write(struct serio *serio, unsigned char data)
++{
++	struct flippies_ps2 *ps2 = serio->port_data;
++
++	iowrite32be(data, ps2->regs + FLIPPIES_PS2_DATA);
++	return 0;
++}
++
++static int flippies_ps2_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct flippies_ps2 *ps2;
++	struct serio *serio;
++	int irq, ret;
++
++	ps2 = devm_kzalloc(dev, sizeof(*ps2), GFP_KERNEL);
++	if (!ps2)
++		return -ENOMEM;
++
++	ps2->regs = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(ps2->regs))
++		return PTR_ERR(ps2->regs);
++	irq = platform_get_irq(pdev, 0);
++	if (irq < 0)
++		return irq;
++
++	/* quiet until the serio port is registered */
++	iowrite32be(0, ps2->regs + FLIPPIES_PS2_CTRL);
++
++	serio = kzalloc(sizeof(*serio), GFP_KERNEL);
++	if (!serio)
++		return -ENOMEM;
++	serio->id.type = SERIO_8042;
++	serio->write = flippies_ps2_write;
++	serio->port_data = ps2;
++	serio->dev.parent = dev;
++	snprintf(serio->name, sizeof(serio->name), "Flippies PS/2 port %d",
++		 pdev->id);
++	snprintf(serio->phys, sizeof(serio->phys), "%s/serio0", dev_name(dev));
++	ps2->serio = serio;
++
++	ret = devm_request_irq(dev, irq, flippies_ps2_interrupt, 0,
++			       dev_name(dev), ps2);
++	if (ret) {
++		kfree(serio);
++		return ret;
++	}
++
++	serio_register_port(serio);
++	platform_set_drvdata(pdev, ps2);
++
++	/*
++	 * What the device said before anyone listened, its power-on bytes, is stale. From here on
++	 * the port interrupt stays enabled, as i8042's do, whether or not a driver is bound: a byte
++	 * on a port with no driver makes serio rescan it, which is how a keyboard or mouse plugged
++	 * in after boot gets its driver.
++	 */
++	while (ioread32be(ps2->regs + FLIPPIES_PS2_STATUS) &
++	       FLIPPIES_PS2_STATUS_RX_READY)
++		ioread32be(ps2->regs + FLIPPIES_PS2_DATA);
++	iowrite32be(FLIPPIES_PS2_STATUS_OVERRUN, ps2->regs + FLIPPIES_PS2_STATUS);
++	iowrite32be(FLIPPIES_PS2_CTRL_IRQ | FLIPPIES_PS2_CTRL_ENABLE,
++		    ps2->regs + FLIPPIES_PS2_CTRL);
++	return 0;
++}
++
++static void flippies_ps2_remove(struct platform_device *pdev)
++{
++	struct flippies_ps2 *ps2 = platform_get_drvdata(pdev);
++
++	/* no interrupt may reach the serio port once it is gone */
++	iowrite32be(0, ps2->regs + FLIPPIES_PS2_CTRL);
++	serio_unregister_port(ps2->serio);
++}
++
++static struct platform_driver flippies_ps2_driver = {
++	.probe	= flippies_ps2_probe,
++	.remove	= flippies_ps2_remove,
++	.driver	= {
++		.name	= FLIPPIES_PS2_NAME,
++	},
++};
++module_platform_driver(flippies_ps2_driver);
++
++MODULE_DESCRIPTION("Create Flippies PC PS/2 port driver");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:" FLIPPIES_PS2_NAME);
+diff --git a/drivers/video/fbdev/Kconfig b/drivers/video/fbdev/Kconfig
+index a257b73..e247182 100644
+--- a/drivers/video/fbdev/Kconfig
++++ b/drivers/video/fbdev/Kconfig
+@@ -1647,6 +1647,21 @@ config FB_GOLDFISH
+ 	help
+ 	  Framebuffer driver for Goldfish Virtual Platform
+ 
++config FB_FLIPPIES
++	tristate "Create Flippies PC framebuffer support"
++	depends on FB
++	depends on FLIPPIES || COMPILE_TEST
++	select FB_IOMEM_HELPERS
++	help
++	  Framebuffer driver for the three displays of the Create Flippies
++	  PC, the 68040 computer emulated by the Create Flippies mod for
++	  Minecraft. Each display shows 640x480 or 320x200 at 8 bits per
++	  pixel through a 256-colour palette, with panning and vertical
++	  blank interrupts.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called flippiesfb.
++
+ config FB_COBALT
+ 	tristate "Cobalt server LCD frame buffer support"
+ 	depends on FB && MIPS_COBALT
+diff --git a/drivers/video/fbdev/Makefile b/drivers/video/fbdev/Makefile
+index b3d12f9..16056b0 100644
+--- a/drivers/video/fbdev/Makefile
++++ b/drivers/video/fbdev/Makefile
+@@ -75,6 +75,7 @@ obj-$(CONFIG_FB_ATMEL)		  += atmel_lcdfb.o
+ obj-$(CONFIG_FB_PVR2)             += pvr2fb.o
+ obj-$(CONFIG_FB_VOODOO1)          += sstfb.o
+ obj-$(CONFIG_FB_GOLDFISH)         += goldfishfb.o
++obj-$(CONFIG_FB_FLIPPIES)         += flippiesfb.o
+ obj-$(CONFIG_FB_68328)            += 68328fb.o
+ obj-$(CONFIG_FB_GBE)              += gbefb.o
+ obj-$(CONFIG_FB_CIRRUS)		  += cirrusfb.o
+diff --git a/drivers/video/fbdev/flippiesfb.c b/drivers/video/fbdev/flippiesfb.c
+new file mode 100644
+index 0000000..069852e
+--- /dev/null
++++ b/drivers/video/fbdev/flippiesfb.c
+@@ -0,0 +1,397 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Framebuffer of the Create Flippies PC (arch/m68k/flippies), one per display.
++ *
++ * Each of the three displays has a control window and 512 KiB of video memory of its own. The
++ * driver uses the two 8-bit pseudocolour modes: 640x480 (mode 3, the default) and 320x200
++ * (mode 1). Rows are packed with no padding, so the line length is the width. The palette is 256
++ * entries of 0x00RRGGBB at 0x400 in the control window. The display shows video memory from the
++ * byte offset START, so the virtual screen is as tall as video memory allows and panning moves
++ * START. At every frame end the display sets VBLANK and, while its interrupt is enabled, raises
++ * its line; the driver enables the interrupt only while a task waits for it.
++ */
++
++#include <linux/bits.h>
++#include <linux/errno.h>
++#include <linux/fb.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/module.h>
++#include <linux/platform_data/flippies.h>
++#include <linux/platform_device.h>
++#include <linux/spinlock.h>
++#include <linux/string.h>
++#include <linux/uaccess.h>
++#include <linux/wait.h>
++
++#define FLIPPIESFB_MODE			0x00
++#define FLIPPIESFB_CTRL			0x04
++#define FLIPPIESFB_STATUS		0x08
++#define FLIPPIESFB_FRAME		0x10
++#define FLIPPIESFB_START		0x24
++#define FLIPPIESFB_PALETTE(i)		(0x400 + 4 * (i))
++
++#define FLIPPIESFB_CTRL_DISPLAY		BIT(0)
++#define FLIPPIESFB_CTRL_VBLANK_IRQ	BIT(1)
++#define FLIPPIESFB_STATUS_VBLANK	BIT(0)
++
++#define FLIPPIESFB_COLOURS		256
++
++/* Frames end 20 times a second; a wait gives up after several of them */
++#define FLIPPIESFB_VBLANK_TIMEOUT	(HZ / 4)
++
++struct flippiesfb_mode {
++	u32 mode;
++	u32 xres;
++	u32 yres;
++};
++
++/* The 8-bit modes, smallest first */
++static const struct flippiesfb_mode flippiesfb_modes[] = {
++	{ 1, 320, 200 },
++	{ 3, 640, 480 },
++};
++
++struct flippiesfb {
++	void __iomem *regs;
++	int irq;
++	spinlock_t lock;		/* ctrl and vblank_count */
++	u32 ctrl;			/* CTRL as last written */
++	unsigned int vblank_count;
++	wait_queue_head_t vblank_wait;
++};
++
++static const struct fb_fix_screeninfo flippiesfb_fix = {
++	.id		= "flippiesfb",
++	.type		= FB_TYPE_PACKED_PIXELS,
++	.visual		= FB_VISUAL_PSEUDOCOLOR,
++	.ypanstep	= 1,
++	.accel		= FB_ACCEL_NONE,
++};
++
++static const struct fb_var_screeninfo flippiesfb_default_var = {
++	.xres		= 640,
++	.yres		= 480,
++	.bits_per_pixel	= 8,
++	.red		= { 0, 8, 0 },
++	.green		= { 0, 8, 0 },
++	.blue		= { 0, 8, 0 },
++	.activate	= FB_ACTIVATE_NOW,
++	.height		= -1,
++	.width		= -1,
++	.vmode		= FB_VMODE_NONINTERLACED,
++};
++
++static const struct flippiesfb_mode *flippiesfb_find_mode(u32 xres, u32 yres)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(flippiesfb_modes); i++)
++		if (xres <= flippiesfb_modes[i].xres &&
++		    yres <= flippiesfb_modes[i].yres)
++			return &flippiesfb_modes[i];
++	return NULL;
++}
++
++/* The colour map starts as the palette the display holds */
++static void flippiesfb_read_palette(struct fb_info *info)
++{
++	struct flippiesfb *par = info->par;
++	unsigned int i;
++	u32 rgb;
++
++	for (i = 0; i < FLIPPIESFB_COLOURS; i++) {
++		rgb = ioread32be(par->regs + FLIPPIESFB_PALETTE(i));
++		info->cmap.red[i] = ((rgb >> 16) & 0xff) * 0x101;
++		info->cmap.green[i] = ((rgb >> 8) & 0xff) * 0x101;
++		info->cmap.blue[i] = (rgb & 0xff) * 0x101;
++	}
++}
++
++static int flippiesfb_check_var(struct fb_var_screeninfo *var,
++				struct fb_info *info)
++{
++	const struct flippiesfb_mode *mode;
++	u32 max_lines;
++
++	if (var->bits_per_pixel > 8)
++		return -EINVAL;
++	mode = flippiesfb_find_mode(var->xres, var->yres);
++	if (!mode)
++		return -EINVAL;
++
++	var->xres = mode->xres;
++	var->yres = mode->yres;
++	var->xres_virtual = mode->xres;
++	max_lines = info->fix.smem_len / mode->xres;
++	var->yres_virtual = clamp(var->yres_virtual, mode->yres, max_lines);
++	var->xoffset = 0;
++	if (var->yoffset > var->yres_virtual - var->yres)
++		return -EINVAL;
++
++	var->bits_per_pixel = 8;
++	var->grayscale = 0;
++	var->nonstd = 0;
++	var->rotate = 0;
++	var->red = (struct fb_bitfield){ 0, 8, 0 };
++	var->green = (struct fb_bitfield){ 0, 8, 0 };
++	var->blue = (struct fb_bitfield){ 0, 8, 0 };
++	var->transp = (struct fb_bitfield){ 0, 0, 0 };
++	var->vmode = FB_VMODE_NONINTERLACED;
++	return 0;
++}
++
++static int flippiesfb_set_par(struct fb_info *info)
++{
++	struct flippiesfb *par = info->par;
++	const struct flippiesfb_mode *mode;
++
++	mode = flippiesfb_find_mode(info->var.xres, info->var.yres);
++	if (!mode)
++		return -EINVAL;
++
++	info->fix.line_length = mode->xres;
++	iowrite32be(mode->mode, par->regs + FLIPPIESFB_MODE);
++	iowrite32be(info->var.yoffset * info->fix.line_length,
++		    par->regs + FLIPPIESFB_START);
++	return 0;
++}
++
++static int flippiesfb_setcolreg(unsigned int regno, unsigned int red,
++				unsigned int green, unsigned int blue,
++				unsigned int transp, struct fb_info *info)
++{
++	struct flippiesfb *par = info->par;
++
++	if (regno >= FLIPPIESFB_COLOURS)
++		return -EINVAL;
++
++	iowrite32be((red >> 8) << 16 | (green >> 8) << 8 | blue >> 8,
++		    par->regs + FLIPPIESFB_PALETTE(regno));
++	return 0;
++}
++
++static int flippiesfb_pan_display(struct fb_var_screeninfo *var,
++				  struct fb_info *info)
++{
++	struct flippiesfb *par = info->par;
++
++	if (var->xoffset)
++		return -EINVAL;
++
++	iowrite32be(var->yoffset * info->fix.line_length,
++		    par->regs + FLIPPIESFB_START);
++	return 0;
++}
++
++static void flippiesfb_write_ctrl(struct flippiesfb *par, u32 clear, u32 set)
++{
++	par->ctrl = (par->ctrl & ~clear) | set;
++	iowrite32be(par->ctrl, par->regs + FLIPPIESFB_CTRL);
++}
++
++static int flippiesfb_blank(int blank, struct fb_info *info)
++{
++	struct flippiesfb *par = info->par;
++	unsigned long flags;
++
++	spin_lock_irqsave(&par->lock, flags);
++	if (blank == FB_BLANK_UNBLANK)
++		flippiesfb_write_ctrl(par, 0, FLIPPIESFB_CTRL_DISPLAY);
++	else
++		flippiesfb_write_ctrl(par, FLIPPIESFB_CTRL_DISPLAY, 0);
++	spin_unlock_irqrestore(&par->lock, flags);
++	return 0;
++}
++
++/*
++ * The vertical blank interrupt is on only while a task waits: the first waiter turns it on, and
++ * the interrupt turns itself off at a frame end with nobody waiting. Both happen under the lock
++ * and the interrupt counts the frame end in the same critical section, so a waiter that read the
++ * count before the interrupt went off is always woken.
++ */
++static irqreturn_t flippiesfb_interrupt(int irq, void *dev_id)
++{
++	struct flippiesfb *par = dev_id;
++
++	if (!(ioread32be(par->regs + FLIPPIESFB_STATUS) & FLIPPIESFB_STATUS_VBLANK))
++		return IRQ_NONE;
++
++	spin_lock(&par->lock);
++	iowrite32be(FLIPPIESFB_STATUS_VBLANK, par->regs + FLIPPIESFB_STATUS);
++	par->vblank_count++;
++	/* under the lock: a waiter not queued yet sees the new count */
++	if (!waitqueue_active(&par->vblank_wait))
++		flippiesfb_write_ctrl(par, FLIPPIESFB_CTRL_VBLANK_IRQ, 0);
++	spin_unlock(&par->lock);
++
++	wake_up_interruptible_all(&par->vblank_wait);
++	return IRQ_HANDLED;
++}
++
++static int flippiesfb_wait_for_vblank(struct flippiesfb *par)
++{
++	unsigned int count;
++	unsigned long flags;
++	long ret;
++
++	spin_lock_irqsave(&par->lock, flags);
++	count = par->vblank_count;
++	if (!(par->ctrl & FLIPPIESFB_CTRL_VBLANK_IRQ)) {
++		/* only a frame end from now on counts */
++		iowrite32be(FLIPPIESFB_STATUS_VBLANK,
++			    par->regs + FLIPPIESFB_STATUS);
++		flippiesfb_write_ctrl(par, 0, FLIPPIESFB_CTRL_VBLANK_IRQ);
++	}
++	spin_unlock_irqrestore(&par->lock, flags);
++
++	ret = wait_event_interruptible_timeout(par->vblank_wait,
++					       READ_ONCE(par->vblank_count) != count,
++					       FLIPPIESFB_VBLANK_TIMEOUT);
++	if (ret < 0)
++		return ret;
++	return ret ? 0 : -ETIMEDOUT;
++}
++
++static int flippiesfb_ioctl(struct fb_info *info, unsigned int cmd,
++			    unsigned long arg)
++{
++	struct flippiesfb *par = info->par;
++	struct fb_vblank vblank;
++	u32 crtc;
++
++	switch (cmd) {
++	case FBIOGET_VBLANK:
++		memset(&vblank, 0, sizeof(vblank));
++		vblank.flags = FB_VBLANK_HAVE_COUNT;
++		vblank.count = ioread32be(par->regs + FLIPPIESFB_FRAME);
++		if (copy_to_user((void __user *)arg, &vblank, sizeof(vblank)))
++			return -EFAULT;
++		return 0;
++	case FBIO_WAITFORVSYNC:
++		if (get_user(crtc, (u32 __user *)arg))
++			return -EFAULT;
++		if (crtc)
++			return -ENODEV;
++		return flippiesfb_wait_for_vblank(par);
++	default:
++		return -ENOTTY;
++	}
++}
++
++static const struct fb_ops flippiesfb_ops = {
++	.owner		= THIS_MODULE,
++	FB_DEFAULT_IOMEM_OPS,
++	.fb_check_var	= flippiesfb_check_var,
++	.fb_set_par	= flippiesfb_set_par,
++	.fb_setcolreg	= flippiesfb_setcolreg,
++	.fb_pan_display	= flippiesfb_pan_display,
++	.fb_blank	= flippiesfb_blank,
++	.fb_ioctl	= flippiesfb_ioctl,
++};
++
++static int flippiesfb_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct flippiesfb *par;
++	struct fb_info *info;
++	struct resource *vram;
++	int ret;
++
++	info = framebuffer_alloc(sizeof(*par), dev);
++	if (!info)
++		return -ENOMEM;
++	par = info->par;
++	spin_lock_init(&par->lock);
++	init_waitqueue_head(&par->vblank_wait);
++
++	par->regs = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(par->regs)) {
++		ret = PTR_ERR(par->regs);
++		goto err_release;
++	}
++	info->screen_base = devm_platform_get_and_ioremap_resource(pdev, 1, &vram);
++	if (IS_ERR(info->screen_base)) {
++		ret = PTR_ERR(info->screen_base);
++		goto err_release;
++	}
++	par->irq = platform_get_irq(pdev, 0);
++	if (par->irq < 0) {
++		ret = par->irq;
++		goto err_release;
++	}
++
++	/* displayed, vertical blank interrupt off until a task waits for it */
++	flippiesfb_write_ctrl(par, ~0, FLIPPIESFB_CTRL_DISPLAY);
++	iowrite32be(FLIPPIESFB_STATUS_VBLANK, par->regs + FLIPPIESFB_STATUS);
++
++	info->fbops = &flippiesfb_ops;
++	info->flags = FBINFO_HWACCEL_YPAN | FBINFO_READS_FAST;
++	info->fix = flippiesfb_fix;
++	info->fix.smem_start = vram->start;
++	info->fix.smem_len = resource_size(vram);
++	info->screen_size = info->fix.smem_len;
++	info->var = flippiesfb_default_var;
++	info->var.yres_virtual = info->fix.smem_len / info->var.xres;
++
++	ret = flippiesfb_check_var(&info->var, info);
++	if (ret)
++		goto err_release;
++	ret = fb_alloc_cmap(&info->cmap, FLIPPIESFB_COLOURS, 0);
++	if (ret)
++		goto err_release;
++	flippiesfb_read_palette(info);
++	ret = flippiesfb_set_par(info);
++	if (ret)
++		goto err_cmap;
++
++	ret = request_irq(par->irq, flippiesfb_interrupt, 0, dev_name(dev), par);
++	if (ret)
++		goto err_cmap;
++
++	ret = register_framebuffer(info);
++	if (ret)
++		goto err_irq;
++	platform_set_drvdata(pdev, info);
++
++	fb_info(info, "%ux%u at 8 bits, %u KiB of video memory at %pa, irq %d\n",
++		info->var.xres, info->var.yres, info->fix.smem_len >> 10,
++		&vram->start, par->irq);
++	return 0;
++
++err_irq:
++	free_irq(par->irq, par);
++err_cmap:
++	fb_dealloc_cmap(&info->cmap);
++err_release:
++	framebuffer_release(info);
++	return ret;
++}
++
++static void flippiesfb_remove(struct platform_device *pdev)
++{
++	struct fb_info *info = platform_get_drvdata(pdev);
++	struct flippiesfb *par = info->par;
++	unsigned long flags;
++
++	unregister_framebuffer(info);
++	spin_lock_irqsave(&par->lock, flags);
++	flippiesfb_write_ctrl(par, FLIPPIESFB_CTRL_VBLANK_IRQ, 0);
++	spin_unlock_irqrestore(&par->lock, flags);
++	free_irq(par->irq, par);
++	fb_dealloc_cmap(&info->cmap);
++	framebuffer_release(info);
++}
++
++static struct platform_driver flippiesfb_driver = {
++	.probe	= flippiesfb_probe,
++	.remove	= flippiesfb_remove,
++	.driver	= {
++		.name	= FLIPPIES_FB_NAME,
++	},
++};
++module_platform_driver(flippiesfb_driver);
++
++MODULE_DESCRIPTION("Create Flippies PC framebuffer driver");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:" FLIPPIES_FB_NAME);

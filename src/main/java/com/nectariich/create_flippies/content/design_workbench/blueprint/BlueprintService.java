@@ -28,7 +28,6 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * The server's side of the blueprint browser: carrying out what a client asks of the
@@ -225,6 +224,7 @@ public final class BlueprintService {
         Set<String> hashes = new HashSet<>();
         hashes.add(design.model());
         hashes.addAll(design.fontHashes());
+        hashes.addAll(design.artHashes());
         for (String hash : hashes)
             if (!DesignStore.has(player.server, hash))
                 return Status.refused("missing_files");
@@ -245,7 +245,7 @@ public final class BlueprintService {
         for (int i = 0; i < total; i++) {
             int from = i * chunk;
             byte[] part = Arrays.copyOfRange(blob, from, Math.min(blob.length, from + chunk));
-            ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+            ModPackets.sendToPlayer(player,
                     new BlueprintBlobPacket(hash, i, total, part));
         }
     }

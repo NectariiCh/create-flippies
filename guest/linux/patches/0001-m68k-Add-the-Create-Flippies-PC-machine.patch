@@ -1,0 +1,736 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andriy Chuma <chuma.andriy@gmail.com>
+Date: Sun, 25 Oct 2026 13:55:57 +0000
+Subject: [PATCH 1/2] m68k: Add the Create Flippies PC machine
+
+The Create Flippies PC is a 68040 computer emulated by the Create Flippies
+mod for Minecraft. It has its own devices, mapped at the top of the
+physical address space: a system controller, an interrupt controller with
+31 level-sensitive lines, an interval timer counting microseconds, three
+16550 COM ports, disks, a network card, three framebuffers and two PS/2
+ports.
+
+Add it as machine type MACH_FLIPPIES (15), selected by CONFIG_FLIPPIES:
+
+- head.S maps 0xff000000 and up one to one with ITT1 and DTT1, as the
+  virt machine does, so the framebuffers, devices and boot ROM need no
+  page tables, and ioremap() hands those addresses back unchanged. Early
+  output goes to COM1.
+- Every interrupt controller line stays routed to output 0, which reaches
+  the CPU as autovector level 4. Its handler asks CLAIM for the lowest
+  pending and enabled line until there is none; line n is irq 8 + n,
+  masked and unmasked through ENABLE.
+- The interval timer's 64-bit microsecond counter is the clocksource and
+  sched_clock; its countdown, periodic or one-shot, is the clock event
+  device, limited to one second so that timekeeping's catch-up after a
+  long tickless idle stays short.
+- Reset and power off go through the system controller.
+---
+ arch/m68k/Kbuild                      |   1 +
+ arch/m68k/Kconfig.machine             |  12 +++
+ arch/m68k/flippies/Makefile           |   6 ++
+ arch/m68k/flippies/config.c           |  57 +++++++++++
+ arch/m68k/flippies/flippies.h         |   8 ++
+ arch/m68k/flippies/ints.c             |  78 +++++++++++++++
+ arch/m68k/flippies/timer.c            | 135 ++++++++++++++++++++++++++
+ arch/m68k/include/asm/config.h        |   1 +
+ arch/m68k/include/asm/flippies.h      |  57 +++++++++++
+ arch/m68k/include/asm/irq.h           |   2 +
+ arch/m68k/include/asm/setup.h         |  36 ++++---
+ arch/m68k/include/uapi/asm/bootinfo.h |   1 +
+ arch/m68k/kernel/head.S               |  32 ++++++
+ arch/m68k/kernel/setup_mm.c           |   5 +
+ arch/m68k/mm/kmap.c                   |  11 +++
+ 15 files changed, 431 insertions(+), 11 deletions(-)
+ create mode 100644 arch/m68k/flippies/Makefile
+ create mode 100644 arch/m68k/flippies/config.c
+ create mode 100644 arch/m68k/flippies/flippies.h
+ create mode 100644 arch/m68k/flippies/ints.c
+ create mode 100644 arch/m68k/flippies/timer.c
+ create mode 100644 arch/m68k/include/asm/flippies.h
+
+diff --git a/arch/m68k/Kbuild b/arch/m68k/Kbuild
+index 7762af9..b7a4b9f 100644
+--- a/arch/m68k/Kbuild
++++ b/arch/m68k/Kbuild
+@@ -18,3 +18,4 @@ obj-$(CONFIG_M68KFPU_EMU)	+= math-emu/
+ obj-$(CONFIG_M68000)		+= 68000/
+ obj-$(CONFIG_COLDFIRE)		+= coldfire/
+ obj-$(CONFIG_VIRT)		+= virt/
++obj-$(CONFIG_FLIPPIES)		+= flippies/
+diff --git a/arch/m68k/Kconfig.machine b/arch/m68k/Kconfig.machine
+index de39f23..7d29cb3 100644
+--- a/arch/m68k/Kconfig.machine
++++ b/arch/m68k/Kconfig.machine
+@@ -142,6 +142,18 @@ config VIRT
+ 	  This options enable a pure virtual machine based on m68k,
+ 	  VIRTIO MMIO devices and GOLDFISH interfaces (TTY, RTC, PIC).
+ 
++config FLIPPIES
++	bool "Create Flippies PC support"
++	depends on MMU
++	select GENERIC_SCHED_CLOCK
++	select M68040
++	help
++	  This option enables support for the Create Flippies PC, the 68040
++	  computer that the Create Flippies mod for Minecraft emulates. It has
++	  its own devices: a system controller, an interrupt controller, an
++	  interval timer, three 16550 COM ports, a hard disk, a floppy drive,
++	  a network card, three framebuffers and two PS/2 ports.
++
+ config PILOT
+ 	bool
+ 
+diff --git a/arch/m68k/flippies/Makefile b/arch/m68k/flippies/Makefile
+new file mode 100644
+index 0000000..175302e
+--- /dev/null
++++ b/arch/m68k/flippies/Makefile
+@@ -0,0 +1,6 @@
++# SPDX-License-Identifier: GPL-2.0-only
++#
++# Makefile for Linux arch/m68k/flippies source directory
++#
++
++obj-y		:= config.o ints.o timer.o
+diff --git a/arch/m68k/flippies/config.c b/arch/m68k/flippies/config.c
+new file mode 100644
+index 0000000..ce70b60
+--- /dev/null
++++ b/arch/m68k/flippies/config.c
+@@ -0,0 +1,57 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * The Create Flippies PC, a 68040 machine emulated by the Create Flippies mod for Minecraft:
++ * machine setup, reset and power off.
++ */
++
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/irqflags.h>
++#include <linux/reboot.h>
++#include <linux/string.h>
++
++#include <asm/config.h>
++#include <asm/flippies.h>
++#include <asm/machdep.h>
++
++#include "flippies.h"
++
++/* System controller: POWER takes a command, acted on after the writing instruction */
++#define SYSCON_POWER		0x00
++#define SYSCON_POWER_OFF	0x5555
++#define SYSCON_POWER_RESET	0x7777
++
++static void __iomem *const syscon = (void __iomem *)FLIPPIES_SYSCON_BASE;
++
++static void flippies_get_model(char *model)
++{
++	/* model is 80 characters long */
++	strscpy(model, "Create Flippies PC", 80);
++}
++
++static void flippies_reset(void)
++{
++	local_irq_disable();
++	iowrite32be(SYSCON_POWER_RESET, syscon + SYSCON_POWER);
++	while (1)
++		;
++}
++
++static void flippies_power_off(void)
++{
++	local_irq_disable();
++	iowrite32be(SYSCON_POWER_OFF, syscon + SYSCON_POWER);
++	while (1)
++		;
++}
++
++void __init config_flippies(void)
++{
++	mach_init_IRQ = flippies_init_IRQ;
++	mach_sched_init = flippies_sched_init;
++	mach_get_model = flippies_get_model;
++	mach_reset = flippies_reset;
++	mach_halt = flippies_power_off;
++
++	register_platform_power_off(flippies_power_off);
++}
+diff --git a/arch/m68k/flippies/flippies.h b/arch/m68k/flippies/flippies.h
+new file mode 100644
+index 0000000..68ba283
+--- /dev/null
++++ b/arch/m68k/flippies/flippies.h
+@@ -0,0 +1,8 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __M68K_FLIPPIES_FLIPPIES_H
++#define __M68K_FLIPPIES_FLIPPIES_H
++
++void flippies_init_IRQ(void);
++void flippies_sched_init(void);
++
++#endif /* __M68K_FLIPPIES_FLIPPIES_H */
+diff --git a/arch/m68k/flippies/ints.c b/arch/m68k/flippies/ints.c
+new file mode 100644
+index 0000000..bcfc945
+--- /dev/null
++++ b/arch/m68k/flippies/ints.c
+@@ -0,0 +1,78 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Interrupt controller of the Create Flippies PC: 31 level-sensitive lines (1 to 31), each
++ * routed to one of 8 outputs. Every line stays routed to output 0, which reaches the CPU as
++ * autovector level 4. The level 4 handler asks CLAIM for the lowest pending and enabled line
++ * until there is none; each line is Linux irq FLIPPIES_IRQ(line).
++ */
++
++#include <linux/bits.h>
++#include <linux/build_bug.h>
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/ioport.h>
++#include <linux/irq.h>
++#include <linux/irqdesc.h>
++
++#include <asm/flippies.h>
++#include <asm/irq.h>
++
++#include "flippies.h"
++
++#define PIC_ENABLE	0x04
++#define PIC_CLAIM	0x08
++#define PIC_ROUTE(n)	(0x10 + 4 * (n))
++
++static void __iomem *const pic = (void __iomem *)FLIPPIES_PIC_BASE;
++
++static struct resource pic_res = DEFINE_RES_MEM_NAMED(FLIPPIES_PIC_BASE,
++						      FLIPPIES_WINDOW_SIZE,
++						      "flippies-pic");
++
++/* ENABLE as last written; the irq core calls the chip with interrupts off */
++static u32 pic_enabled;
++
++static void flippies_irq_mask(struct irq_data *data)
++{
++	pic_enabled &= ~BIT(data->irq - FLIPPIES_IRQ_BASE);
++	iowrite32be(pic_enabled, pic + PIC_ENABLE);
++}
++
++static void flippies_irq_unmask(struct irq_data *data)
++{
++	pic_enabled |= BIT(data->irq - FLIPPIES_IRQ_BASE);
++	iowrite32be(pic_enabled, pic + PIC_ENABLE);
++}
++
++static struct irq_chip flippies_irq_chip = {
++	.name		= "flippies",
++	.irq_mask	= flippies_irq_mask,
++	.irq_unmask	= flippies_irq_unmask,
++};
++
++static void flippies_pic_handler(struct irq_desc *desc)
++{
++	unsigned int line;
++
++	while ((line = ioread32be(pic + PIC_CLAIM)) != 0)
++		generic_handle_irq(FLIPPIES_IRQ(line));
++}
++
++void __init flippies_init_IRQ(void)
++{
++	int i;
++
++	BUILD_BUG_ON(FLIPPIES_IRQ_BASE != IRQ_USER);
++	BUILD_BUG_ON(FLIPPIES_IRQ(FLIPPIES_LINES) > NR_IRQS);
++
++	if (request_resource(&iomem_resource, &pic_res))
++		pr_err("flippies: cannot claim the interrupt controller window\n");
++
++	iowrite32be(0, pic + PIC_ENABLE);
++	for (i = 0; i < 4; i++)
++		iowrite32be(0, pic + PIC_ROUTE(i));
++
++	m68k_setup_irq_controller(&flippies_irq_chip, handle_level_irq,
++				  FLIPPIES_IRQ(1), FLIPPIES_LINES - 1);
++	irq_set_chained_handler(IRQ_AUTO_4, flippies_pic_handler);
++}
+diff --git a/arch/m68k/flippies/timer.c b/arch/m68k/flippies/timer.c
+new file mode 100644
+index 0000000..3711c88
+--- /dev/null
++++ b/arch/m68k/flippies/timer.c
+@@ -0,0 +1,135 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Interval timer of the Create Flippies PC: a 64-bit counter of microseconds since power on
++ * (reading COUNTER_LO latches COUNTER_HI) and a countdown in microseconds that raises its line
++ * once, or periodically, when it expires. The counter is the clocksource and sched_clock, the
++ * countdown the clock event device.
++ */
++
++#include <linux/bits.h>
++#include <linux/clockchips.h>
++#include <linux/clocksource.h>
++#include <linux/init.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/ioport.h>
++#include <linux/irqflags.h>
++#include <linux/sched_clock.h>
++
++#include <asm/flippies.h>
++
++#include "flippies.h"
++
++#define TIMER_COUNTER_LO	0x00
++#define TIMER_COUNTER_HI	0x04
++#define TIMER_PERIOD		0x08
++#define TIMER_CTRL		0x0c
++#define TIMER_STATUS		0x10
++
++#define TIMER_CTRL_ENABLE	BIT(0)
++#define TIMER_CTRL_IRQ_ENABLE	BIT(1)
++#define TIMER_CTRL_ONE_SHOT	BIT(2)
++#define TIMER_STATUS_EXPIRED	BIT(0)
++
++#define TIMER_HZ		1000000
++
++/*
++ * Longest countdown, 1 s. A tickless idle then wakes at least once a second: timekeeping catches
++ * up on an idle period with interrupts off, at about 20 us per idle second on a 25 MHz 68040,
++ * and after an hour of idle that would hold interrupts off long enough to overrun the 16-byte
++ * COM receive FIFOs.
++ */
++#define TIMER_MAX_DELTA		TIMER_HZ
++
++static void __iomem *const timer = (void __iomem *)FLIPPIES_TIMER_BASE;
++
++static struct resource timer_res = DEFINE_RES_MEM_NAMED(FLIPPIES_TIMER_BASE,
++							FLIPPIES_WINDOW_SIZE,
++							"flippies-timer");
++
++static u64 notrace flippies_timer_count(void)
++{
++	unsigned long flags;
++	u32 lo, hi;
++
++	/* reading COUNTER_LO latches COUNTER_HI: no other reader may come between */
++	raw_local_irq_save(flags);
++	lo = ioread32be(timer + TIMER_COUNTER_LO);
++	hi = ioread32be(timer + TIMER_COUNTER_HI);
++	raw_local_irq_restore(flags);
++
++	return (u64)hi << 32 | lo;
++}
++
++static u64 flippies_clocksource_read(struct clocksource *cs)
++{
++	return flippies_timer_count();
++}
++
++static struct clocksource flippies_clocksource = {
++	.name	= "flippies-timer",
++	.rating	= 300,
++	.read	= flippies_clocksource_read,
++	.mask	= CLOCKSOURCE_MASK(64),
++	.flags	= CLOCK_SOURCE_IS_CONTINUOUS,
++};
++
++static int flippies_timer_shutdown(struct clock_event_device *evt)
++{
++	iowrite32be(0, timer + TIMER_CTRL);
++	iowrite32be(TIMER_STATUS_EXPIRED, timer + TIMER_STATUS);
++	return 0;
++}
++
++static int flippies_timer_set_periodic(struct clock_event_device *evt)
++{
++	iowrite32be(DIV_ROUND_CLOSEST(TIMER_HZ, HZ), timer + TIMER_PERIOD);
++	iowrite32be(TIMER_CTRL_ENABLE | TIMER_CTRL_IRQ_ENABLE, timer + TIMER_CTRL);
++	return 0;
++}
++
++static int flippies_timer_set_next_event(unsigned long delta,
++					 struct clock_event_device *evt)
++{
++	iowrite32be(delta, timer + TIMER_PERIOD);
++	iowrite32be(TIMER_CTRL_ENABLE | TIMER_CTRL_IRQ_ENABLE | TIMER_CTRL_ONE_SHOT,
++		    timer + TIMER_CTRL);
++	return 0;
++}
++
++static struct clock_event_device flippies_clockevent = {
++	.name			= "flippies-timer",
++	.features		= CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT,
++	.rating			= 300,
++	.set_state_shutdown	= flippies_timer_shutdown,
++	.set_state_periodic	= flippies_timer_set_periodic,
++	.set_state_oneshot	= flippies_timer_shutdown,
++	.set_next_event		= flippies_timer_set_next_event,
++	.tick_resume		= flippies_timer_shutdown,
++};
++
++static irqreturn_t flippies_timer_interrupt(int irq, void *dev_id)
++{
++	struct clock_event_device *evt = dev_id;
++
++	iowrite32be(TIMER_STATUS_EXPIRED, timer + TIMER_STATUS);
++	evt->event_handler(evt);
++
++	return IRQ_HANDLED;
++}
++
++void __init flippies_sched_init(void)
++{
++	if (request_resource(&iomem_resource, &timer_res))
++		pr_err("flippies: cannot claim the timer window\n");
++
++	flippies_timer_shutdown(&flippies_clockevent);
++	if (request_irq(FLIPPIES_IRQ(FLIPPIES_LINE_TIMER), flippies_timer_interrupt,
++			IRQF_TIMER, "timer", &flippies_clockevent))
++		pr_err("flippies: cannot register the timer interrupt\n");
++
++	flippies_clockevent.cpumask = cpu_possible_mask;
++	clockevents_config_and_register(&flippies_clockevent, TIMER_HZ, 1, TIMER_MAX_DELTA);
++	clocksource_register_hz(&flippies_clocksource, TIMER_HZ);
++	sched_clock_register(flippies_timer_count, 64, TIMER_HZ);
++}
+diff --git a/arch/m68k/include/asm/config.h b/arch/m68k/include/asm/config.h
+index 9bb888a..b9f7019 100644
+--- a/arch/m68k/include/asm/config.h
++++ b/arch/m68k/include/asm/config.h
+@@ -31,5 +31,6 @@ extern void config_q40(void);
+ extern void config_sun3(void);
+ extern void config_sun3x(void);
+ extern void config_virt(void);
++extern void config_flippies(void);
+ 
+ #endif /* _M68K_CONFIG_H */
+diff --git a/arch/m68k/include/asm/flippies.h b/arch/m68k/include/asm/flippies.h
+new file mode 100644
+index 0000000..dbb2e57
+--- /dev/null
++++ b/arch/m68k/include/asm/flippies.h
+@@ -0,0 +1,57 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * The Create Flippies PC: physical memory map and interrupt controller lines of its 68040
++ * machine. Everything from 0xff000000 up is mapped one to one by a transparent translation
++ * register (head.S), so these addresses work before and after the MMU is on.
++ *
++ * Only #defines: head.S includes this file too.
++ */
++#ifndef __ASM_M68K_FLIPPIES_H
++#define __ASM_M68K_FLIPPIES_H
++
++/* Device register windows, 4 KiB each */
++#define FLIPPIES_SYSCON_BASE	0xfff00000
++#define FLIPPIES_PIC_BASE	0xfff01000
++#define FLIPPIES_COM1_BASE	0xfff02000
++#define FLIPPIES_COM2_BASE	0xfff03000
++#define FLIPPIES_PS2_BASE	0xfff04000
++#define FLIPPIES_HDD_BASE	0xfff05000
++#define FLIPPIES_VGA0_BASE	0xfff06000
++#define FLIPPIES_TIMER_BASE	0xfff07000
++#define FLIPPIES_RTC_BASE	0xfff08000
++#define FLIPPIES_COM3_BASE	0xfff09000
++#define FLIPPIES_FDC_BASE	0xfff0a000
++#define FLIPPIES_NIC_BASE	0xfff0b000
++#define FLIPPIES_VGA1_BASE	0xfff0c000
++#define FLIPPIES_VGA2_BASE	0xfff0d000
++#define FLIPPIES_WINDOW_SIZE	0x1000
++
++/* The two PS/2 ports share the PS/2 window */
++#define FLIPPIES_PS2_PORT_SIZE	0x10
++
++/* Framebuffers, one per display */
++#define FLIPPIES_VRAM0_BASE	0xffe00000
++#define FLIPPIES_VRAM1_BASE	0xffe80000
++#define FLIPPIES_VRAM2_BASE	0xffd80000
++#define FLIPPIES_VRAM_SIZE	0x80000
++
++/* Interrupt controller lines; line 0 does not exist */
++#define FLIPPIES_LINE_COM1	1
++#define FLIPPIES_LINE_COM2	2
++#define FLIPPIES_LINE_PS2_0	3
++#define FLIPPIES_LINE_PS2_1	4
++#define FLIPPIES_LINE_HDD	5
++#define FLIPPIES_LINE_VGA0	6
++#define FLIPPIES_LINE_TIMER	7
++#define FLIPPIES_LINE_COM3	8
++#define FLIPPIES_LINE_FDC	9
++#define FLIPPIES_LINE_NIC	10
++#define FLIPPIES_LINE_VGA1	11
++#define FLIPPIES_LINE_VGA2	12
++#define FLIPPIES_LINES		32
++
++/* Linux irq of a controller line: the lines follow the autovector irqs (IRQ_USER is 8) */
++#define FLIPPIES_IRQ_BASE	8
++#define FLIPPIES_IRQ(line)	(FLIPPIES_IRQ_BASE + (line))
++
++#endif /* __ASM_M68K_FLIPPIES_H */
+diff --git a/arch/m68k/include/asm/irq.h b/arch/m68k/include/asm/irq.h
+index 2263e92..caf0bc9 100644
+--- a/arch/m68k/include/asm/irq.h
++++ b/arch/m68k/include/asm/irq.h
+@@ -24,6 +24,8 @@
+ #define NR_IRQS 72
+ #elif defined(CONFIG_Q40)
+ #define NR_IRQS	43
++#elif defined(CONFIG_FLIPPIES)
++#define NR_IRQS	40	/* IRQ_USER plus 32 interrupt controller lines */
+ #elif defined(CONFIG_AMIGA) || !defined(CONFIG_MMU)
+ #define NR_IRQS	32
+ #elif defined(CONFIG_APOLLO)
+diff --git a/arch/m68k/include/asm/setup.h b/arch/m68k/include/asm/setup.h
+index e4ec169..392707d 100644
+--- a/arch/m68k/include/asm/setup.h
++++ b/arch/m68k/include/asm/setup.h
+@@ -38,7 +38,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_MVME16x) || defined(CONFIG_BVME6000)               \
+ 	|| defined(CONFIG_HP300) || defined(CONFIG_Q40)                      \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME147)                  \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_AMIGA (m68k_machtype == MACH_AMIGA)
+ #else
+ #  define MACH_AMIGA_ONLY
+@@ -52,7 +52,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_MVME16x) || defined(CONFIG_BVME6000)               \
+ 	|| defined(CONFIG_HP300) || defined(CONFIG_Q40)                      \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME147)                  \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_ATARI (m68k_machtype == MACH_ATARI)
+ #else
+ #  define MACH_ATARI_ONLY
+@@ -66,7 +66,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_MVME16x) || defined(CONFIG_BVME6000)                 \
+ 	|| defined(CONFIG_HP300) || defined(CONFIG_Q40)                        \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME147)                    \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_MAC (m68k_machtype == MACH_MAC)
+ #else
+ #  define MACH_MAC_ONLY
+@@ -88,7 +88,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_MVME16x) || defined(CONFIG_BVME6000)              \
+ 	|| defined(CONFIG_HP300) || defined(CONFIG_Q40)                     \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME147)                 \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_APOLLO (m68k_machtype == MACH_APOLLO)
+ #else
+ #  define MACH_APOLLO_ONLY
+@@ -102,7 +102,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_APOLLO) || defined(CONFIG_BVME6000)               \
+ 	|| defined(CONFIG_HP300) || defined(CONFIG_Q40)                     \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME16x)                 \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_MVME147 (m68k_machtype == MACH_MVME147)
+ #else
+ #  define MACH_MVME147_ONLY
+@@ -116,7 +116,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_APOLLO) || defined(CONFIG_BVME6000)               \
+ 	|| defined(CONFIG_HP300) || defined(CONFIG_Q40)                     \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME147)                 \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_MVME16x (m68k_machtype == MACH_MVME16x)
+ #else
+ #  define MACH_MVME16x_ONLY
+@@ -130,7 +130,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_APOLLO) || defined(CONFIG_MVME16x)                \
+ 	|| defined(CONFIG_HP300) || defined(CONFIG_Q40)                     \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME147)                 \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_BVME6000 (m68k_machtype == MACH_BVME6000)
+ #else
+ #  define MACH_BVME6000_ONLY
+@@ -144,7 +144,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_APOLLO) || defined(CONFIG_MVME16x) \
+ 	|| defined(CONFIG_BVME6000) || defined(CONFIG_Q40) \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME147) \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_HP300 (m68k_machtype == MACH_HP300)
+ #else
+ #  define MACH_HP300_ONLY
+@@ -158,7 +158,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_APOLLO) || defined(CONFIG_MVME16x)                \
+ 	|| defined(CONFIG_BVME6000) || defined(CONFIG_HP300)                \
+ 	|| defined(CONFIG_SUN3X) || defined(CONFIG_MVME147)                 \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_Q40 (m68k_machtype == MACH_Q40)
+ #else
+ #  define MACH_Q40_ONLY
+@@ -172,7 +172,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_APOLLO) || defined(CONFIG_MVME16x)                \
+ 	|| defined(CONFIG_BVME6000) || defined(CONFIG_HP300)                \
+ 	|| defined(CONFIG_Q40) || defined(CONFIG_MVME147)                   \
+-	|| defined(CONFIG_VIRT)
++	|| defined(CONFIG_VIRT) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_SUN3X (m68k_machtype == MACH_SUN3X)
+ #else
+ #  define CONFIG_SUN3X_ONLY
+@@ -186,7 +186,7 @@ extern unsigned long m68k_machtype;
+ 	|| defined(CONFIG_APOLLO) || defined(CONFIG_MVME16x)                \
+ 	|| defined(CONFIG_BVME6000) || defined(CONFIG_HP300)                \
+ 	|| defined(CONFIG_Q40) || defined(CONFIG_SUN3X)                     \
+-	|| defined(CONFIG_MVME147)
++	|| defined(CONFIG_MVME147) || defined(CONFIG_FLIPPIES)
+ #  define MACH_IS_VIRT (m68k_machtype == MACH_VIRT)
+ #else
+ #  define MACH_VIRT_ONLY
+@@ -194,6 +194,20 @@ extern unsigned long m68k_machtype;
+ #  define MACH_TYPE (MACH_VIRT)
+ #endif
+ 
++#if !defined(CONFIG_FLIPPIES)
++#  define MACH_IS_FLIPPIES (0)
++#elif defined(CONFIG_AMIGA) || defined(CONFIG_MAC) || defined(CONFIG_ATARI) \
++	|| defined(CONFIG_APOLLO) || defined(CONFIG_MVME16x)                \
++	|| defined(CONFIG_BVME6000) || defined(CONFIG_HP300)                \
++	|| defined(CONFIG_Q40) || defined(CONFIG_SUN3X)                     \
++	|| defined(CONFIG_MVME147) || defined(CONFIG_VIRT)
++#  define MACH_IS_FLIPPIES (m68k_machtype == MACH_FLIPPIES)
++#else
++#  define MACH_FLIPPIES_ONLY
++#  define MACH_IS_FLIPPIES (1)
++#  define MACH_TYPE (MACH_FLIPPIES)
++#endif
++
+ #ifndef MACH_TYPE
+ #  define MACH_TYPE (m68k_machtype)
+ #endif
+diff --git a/arch/m68k/include/uapi/asm/bootinfo.h b/arch/m68k/include/uapi/asm/bootinfo.h
+index 28d2d44..e796111 100644
+--- a/arch/m68k/include/uapi/asm/bootinfo.h
++++ b/arch/m68k/include/uapi/asm/bootinfo.h
+@@ -91,6 +91,7 @@ struct mem_info {
+ #define MACH_M54XX		12
+ #define MACH_M5441X		13
+ #define MACH_VIRT		14
++#define MACH_FLIPPIES		15
+ 
+ 
+     /*
+diff --git a/arch/m68k/kernel/head.S b/arch/m68k/kernel/head.S
+index 2e4ef03..b637d7c 100644
+--- a/arch/m68k/kernel/head.S
++++ b/arch/m68k/kernel/head.S
+@@ -260,6 +260,7 @@
+ #include <asm/bootinfo-q40.h>
+ #include <asm/bootinfo-virt.h>
+ #include <asm/bootinfo-vme.h>
++#include <asm/flippies.h>
+ #include <asm/setup.h>
+ #include <asm/entry.h>
+ #include <asm/page.h>
+@@ -532,6 +533,7 @@ func_define	putn,1
+ #define is_not_q40(lab) cmpl &MACH_Q40,%pc@(m68k_machtype); jne lab
+ #define is_not_sun3x(lab) cmpl &MACH_SUN3X,%pc@(m68k_machtype); jne lab
+ #define is_not_virt(lab) cmpl &MACH_VIRT,%pc@(m68k_machtype); jne lab
++#define is_not_flippies(lab) cmpl &MACH_FLIPPIES,%pc@(m68k_machtype); jne lab
+ 
+ #define hasnt_leds(lab) cmpl &MACH_HP300,%pc@(m68k_machtype); \
+ 			jeq 42f; \
+@@ -1250,6 +1252,14 @@ L(notsun3x):
+ L(novirt):
+ #endif
+ 
++#ifdef CONFIG_FLIPPIES
++	/* framebuffers, devices and boot ROM: the top 16 MB, one to one */
++	is_not_flippies(L(noflippies))
++	mmu_map_tt	#1,#0xFF000000,#0x01000000,#_PAGE_NOCACHE_S
++	jbra	L(mmu_init_done)
++L(noflippies):
++#endif
++
+ #ifdef CONFIG_APOLLO
+ 	is_not_apollo(L(notapollo))
+ 
+@@ -2982,6 +2992,18 @@ L(serial_init_not_mac):
+ L(serial_init_not_mvme16x):
+ #endif
+ 
++#ifdef CONFIG_FLIPPIES
++	is_not_flippies(L(serial_init_not_flippies))
++	lea	FLIPPIES_COM1_BASE,%a0
++	moveb	#0x83,%a0@(3)		/* LCR: divisor latch, 8N1 */
++	moveb	#1,%a0@(0)		/* DLL: 115200 baud */
++	clrb	%a0@(1)			/* DLM */
++	moveb	#0x03,%a0@(3)		/* LCR: 8N1 */
++	moveb	#0x07,%a0@(2)		/* FCR: FIFOs on and cleared */
++	jra	L(serial_init_done)
++L(serial_init_not_flippies):
++#endif
++
+ #ifdef CONFIG_APOLLO
+ /* We count on the PROM initializing SIO1 */
+ #endif
+@@ -3199,6 +3221,16 @@ func_start	serial_putc,%d0/%d1/%a0/%a1
+ 3:
+ #endif
+ 
++#ifdef CONFIG_FLIPPIES
++	is_not_flippies(2f)
++	lea	FLIPPIES_COM1_BASE,%a1
++1:	btst	#5,%a1@(5)		/* LSR: transmit holding register empty */
++	jeq	1b
++	moveb	%d0,%a1@		/* THR */
++	jbra	L(serial_putc_done)
++2:
++#endif
++
+ #ifdef CONFIG_VIRT
+ 	is_not_virt(1f)
+ 
+diff --git a/arch/m68k/kernel/setup_mm.c b/arch/m68k/kernel/setup_mm.c
+index c7e8de0..109c7bb 100644
+--- a/arch/m68k/kernel/setup_mm.c
++++ b/arch/m68k/kernel/setup_mm.c
+@@ -322,6 +322,11 @@ void __init setup_arch(char **cmdline_p)
+ 	case MACH_VIRT:
+ 		config_virt();
+ 		break;
++#endif
++#ifdef CONFIG_FLIPPIES
++	case MACH_FLIPPIES:
++		config_flippies();
++		break;
+ #endif
+ 	default:
+ 		panic("No configuration setup");
+diff --git a/arch/m68k/mm/kmap.c b/arch/m68k/mm/kmap.c
+index 7594a94..af6050b 100644
+--- a/arch/m68k/mm/kmap.c
++++ b/arch/m68k/mm/kmap.c
+@@ -185,6 +185,13 @@ void __iomem *__ioremap(unsigned long physaddr, unsigned long size, int cachefla
+ 			return (void __iomem *)physaddr;
+ 	}
+ #endif
++#ifdef CONFIG_FLIPPIES
++	/* head.S maps 0xff000000 and up one to one with a transparent translation register */
++	if (MACH_IS_FLIPPIES) {
++		if (physaddr >= 0xff000000 && cacheflag == IOMAP_NOCACHE_SER)
++			return (void __iomem *)physaddr;
++	}
++#endif
+ #ifdef CONFIG_COLDFIRE
+ 	if (__cf_internalio(physaddr))
+ 		return (void __iomem *) physaddr;
+@@ -308,6 +315,10 @@ void iounmap(void __iomem *addr)
+ 	if (MACH_IS_VIRT && (unsigned long)addr >= 0xff000000)
+ 		return;
+ #endif
++#ifdef CONFIG_FLIPPIES
++	if (MACH_IS_FLIPPIES && (unsigned long)addr >= 0xff000000)
++		return;
++#endif
+ #ifdef CONFIG_COLDFIRE
+ 	if (cf_internalio(addr))
+ 		return;

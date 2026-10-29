@@ -43,15 +43,17 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 
-import net.minecraftforge.network.PacketDistributor;
 
 import org.patryk3211.powergrid.electricity.sim.ElectricWire;
 import org.patryk3211.powergrid.electricity.sim.SwitchedWire;
 import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
 
 /**
- * One small PLC clipped to a rail: an emulated STM32F103CB running an Arduino sketch,
- * on a board that takes 24 V in and puts 24 V out.
+ * One small PLC, clipped to a rail or screwed to a panel: an emulated STM32F103CB
+ * running an Arduino sketch, on a board that takes 24 V in and puts 24 V out. The
+ * mounting is only where it stands and which item it is ({@link PlcSmallControlType}
+ * has a kind for each); everything here is the same for both, and every lookup goes
+ * through {@link ControlRackHolder}, so a rail, a panel and a bare host are alike.
  *
  * The emulator is {@link Stm32f103} and the board's arithmetic is {@link PlcBoard};
  * this class is the glue between them and the world. Once a server tick it reads
@@ -67,7 +69,7 @@ import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
  * Built in a fixed order — the logic load, eight inputs, RESET, nine outputs —
  * because Power Grid streams switched-wire states to the client positionally, and a
  * control whose wires came and went would shift every later control's readings on
- * the same rail. Every wire exists for the life of the circuit and is switched or
+ * the same host. Every wire exists for the life of the circuit and is switched or
  * re-valued instead:
  *
  * <ul>
@@ -94,7 +96,7 @@ import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
  * what was uploaded.
  *
  * The host syncs one tag for both disk and the network, so whatever is saved also
- * goes to every client in range whenever anything on the rail changes. The source is
+ * goes to every client in range whenever anything on the host changes. The source is
  * therefore stored deflated — deflated once per edit and the bytes reused, since a
  * sync can come every couple of seconds — and the rest of the synced state is the
  * little the goggles need. (Keeping the source out of the network copy altogether
@@ -127,7 +129,7 @@ public class PlcSmallControl extends HostedControl {
     /**
      * The fewest ticks between two goggle syncs for a change of state, and for a
      * drift in power. A PLC whose RESET is wired to a clock would otherwise sync the
-     * whole rail on every edge.
+     * whole host on every edge.
      */
     private static final int SYNC_INTERVAL = 10;
     private static final int POWER_SYNC_INTERVAL = 40;
@@ -649,7 +651,7 @@ public class PlcSmallControl extends HostedControl {
     /** Tells the player who uploaded how it went. */
     public void reply(ServerPlayer player, PlcUploadResultPacket.Outcome outcome, List<String> lines) {
         if (host() != null)
-            ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+            ModPackets.sendToPlayer(player,
                     new PlcUploadResultPacket(host().pos(), mount(), outcome, lines));
     }
 
@@ -727,7 +729,7 @@ public class PlcSmallControl extends HostedControl {
         // read() already refuses a longer text, but a string the packet cannot carry
         // would throw out of the click on the server thread, every click, and the
         // menu would never open — so it is clipped here too rather than trusted
-        ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+        ModPackets.sendToPlayer(player,
                 new OpenPlcPacket(host().pos(), mount(), clipSource(source), status()));
         return true;
     }
@@ -1022,7 +1024,7 @@ public class PlcSmallControl extends HostedControl {
     /**
      * One text and its deflated form, remembered as a pair so that writing the same
      * text again costs a comparison instead of a deflate, and reading the same bytes
-     * again (a client receiving every sync of the rail) costs a comparison instead of
+     * again (a client receiving every sync of the host) costs a comparison instead of
      * an inflate.
      */
     private static final class Packed {

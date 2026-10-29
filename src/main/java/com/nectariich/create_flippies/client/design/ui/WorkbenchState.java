@@ -9,7 +9,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.client.design.DesignGeometry;
+import com.nectariich.create_flippies.client.design.screen.ObjUvFrame;
+import com.nectariich.create_flippies.client.design.screen.ScreenPattern;
 import com.nectariich.create_flippies.content.design_workbench.BreakerIndicator;
 import com.nectariich.create_flippies.content.design_workbench.BreakerMode;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
@@ -18,18 +21,24 @@ import com.nectariich.create_flippies.content.design_workbench.DesignKind;
 import com.nectariich.create_flippies.content.design_workbench.DesignMaterial;
 import com.nectariich.create_flippies.content.design_workbench.DesignOcclusion;
 import com.nectariich.create_flippies.content.design_workbench.DesignText;
+import com.nectariich.create_flippies.content.design_workbench.PlacementDraft;
 import com.nectariich.create_flippies.content.design_workbench.annunciator.AnnunciatorDraft;
 import com.nectariich.create_flippies.content.design_workbench.annunciator.AnnunciatorRack;
 import com.nectariich.create_flippies.content.design_workbench.blueprint.Blueprint;
 import com.nectariich.create_flippies.content.design_workbench.gauge.GaugeDial;
 import com.nectariich.create_flippies.content.design_workbench.gauge.GaugeDraft;
 import com.nectariich.create_flippies.content.design_workbench.gauge.ObjUvBounds;
+import com.nectariich.create_flippies.content.design_workbench.screen.ScreenDraft;
+import com.nectariich.create_flippies.content.design_workbench.screen.ScreenSurface;
+import com.nectariich.create_flippies.content.display.element.ScreenElements;
+import com.nectariich.create_flippies.content.display.element.Viewport;
 import com.nectariich.create_flippies.content.indicator.IndicatorAction;
 import com.nectariich.create_flippies.content.indicator.IndicatorRating;
 
 import dev.nectariich.hypergraphical.api.MeshInfo;
 import dev.nectariich.hypergraphical.api.MeshUnit;
 import dev.nectariich.hypergraphical.mesh.MeshBounds;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 
 /**
@@ -49,6 +58,12 @@ import net.minecraft.resources.ResourceLocation;
  * The gauge mode ({@link #forGauge}) is a control on an imported model like any
  * other, with {@link #gauge} on top: the face printed for it, the submesh the face
  * is drawn on, and how the needle (the moving parts) follows the reading.
+ *
+ * The screen mode ({@link #forScreen}) is a control on an imported model with nothing
+ * moving, with {@link #screen} on top: the submesh that is the glass, where the
+ * viewport sits on it, the supply, and the layout a placed screen starts with. The
+ * gauge's face and the screen's glass are given a submesh the same way, through
+ * {@link #placed()}.
  */
 public final class WorkbenchState {
 
@@ -136,6 +151,12 @@ public final class WorkbenchState {
     /** The gauge's face, the submesh it is drawn on and its needle's motion, in gauge mode; null otherwise. */
     public GaugeDraft gauge;
 
+    /** The screen's glass, viewport, supply and layout, in screen mode; null otherwise. */
+    public ScreenDraft screen;
+
+    /** What the screen mode's preview shows on the glass. Never saved. */
+    public ScreenPattern pattern = ScreenPattern.LAYOUT;
+
     /** The window being edited in rack mode, as an index into the rack's cells. */
     public int selectedWindow;
 
@@ -172,6 +193,14 @@ public final class WorkbenchState {
         return state;
     }
 
+    /** A state for the screen mode, starting from a fresh screen, with no model yet. */
+    public static WorkbenchState forScreen() {
+        WorkbenchState state = new WorkbenchState();
+        state.screen = ScreenDraft.fresh();
+        state.setKind(DesignKind.SCREEN);
+        return state;
+    }
+
     /** A generated model is already in authored pixels: one pixel per unit, where it was written. */
     private void holdAuthored() {
         unit = MeshUnit.PIXELS;
@@ -183,11 +212,13 @@ public final class WorkbenchState {
     /**
      * Whether there is enough to save: a model, and a moving part, or a rack that
      * can be built. A gauge also needs a scale that can be printed and a submesh to
-     * print it on.
+     * print it on; a screen needs only its submesh, since nothing on it moves.
      */
     public boolean canSave() {
         if (info == null)
             return false;
+        if (kind.isScreen())
+            return screenError() == null;
         if (kind.isGauge())
             return !moving.isEmpty() && gaugeError() == null;
         return kind.isRack() ? rack != null && rack.build().error() == null : !moving.isEmpty();
@@ -201,6 +232,31 @@ public final class WorkbenchState {
         if (error != null)
             return error;
         return gauge.face == null || !elementKeys().contains(gauge.face) ? "gauge.error.face" : null;
+    }
+
+    /** What a screen still lacks, as a translation key under the workbench's strings, or null when nothing. */
+    public String screenError() {
+        if (screen == null)
+            return "screen.error.face";
+        if (screen.face().isEmpty() || !elementKeys().contains(screen.face()))
+            return "screen.error.face";
+        if (screen.frame == null)
+            return "screen.error.fit";
+        // The fitted plane, carried over a rectangle it does not reach as far as (the
+        // whole texture, or a model scaled up past the cell), would be swapped for the
+        // placeholder frame when built, silently, so it is refused here instead
+        return screenShape().refusedFrame(screen.authoredFrame(scale(), offsetX, offsetY, offsetZ))
+                ? "screen.error.reach" : null;
+    }
+
+    /**
+     * Whether the screen's viewport reaches past its glass: past the UV rectangle the
+     * glass was fitted to, when known, which Whole texture leaves smaller than the
+     * rectangle the screen is placed in.
+     */
+    public boolean screenOverhangs() {
+        ScreenSurface shape = screenShape();
+        return shape != null && shape.overhangs(screen.glassUv != null ? screen.glassUv : shape.uv());
     }
 
     // ---------------------------------------------------------------- sizing
@@ -288,10 +344,17 @@ public final class WorkbenchState {
         Set<String> elements = elementKeys();
         lights.removeIf(light -> !parts.contains(light) && !elements.contains(light));
         materials.keySet().retainAll(elements);
-        if (moving.isEmpty() && !parts.isEmpty() && !kind.isGenerated())
+        // Nothing on a screen moves, so there is nothing to guess
+        if (moving.isEmpty() && !parts.isEmpty() && !kind.isGenerated() && !kind.isScreen())
             moving.add(kind.isGauge() ? guessNeedle(parts) : guessMoving(parts));
         if (gauge != null && gauge.face != null && !elements.contains(gauge.face))
             gauge.face = "";
+        if (screen != null && !elements.contains(screen.face()))
+            screen.setFace("");
+        // The glass's fit is of the old geometry: an edited model may have moved,
+        // resized or re-unwrapped it under the same name, so it is fitted again
+        if (screen != null && !screen.face().isEmpty())
+            refitScreen();
         guessedUnit = MeshUnit.guess(info.bounds(), kind.frontWidth() / 16f);
         if (Float.isFinite(pendingScale)) {
             unit = null;
@@ -319,15 +382,38 @@ public final class WorkbenchState {
         return guessMoving(parts);
     }
 
-    // ---------------------------------------------------------------- gauge
+    // ------------------------------------------------------- gauge and screen
 
     /**
-     * Prints the gauge's face on one material element of the model, in place of
-     * whatever had it. The face fills the element's UV bounds, read from the model
-     * file when this client has it, else the whole texture square; an edgewise face
-     * takes the element's shape so its printing is not stretched.
+     * What is placed on a submesh by UV in this mode: the gauge's face, the screen's
+     * glass, or null in the modes with neither.
+     */
+    public PlacementDraft placed() {
+        if (kind.isGauge())
+            return gauge;
+        if (kind.isScreen())
+            return screen;
+        return null;
+    }
+
+    /**
+     * Gives one material element of the model the gauge's face or the screen's glass,
+     * in place of whatever had it.
      */
     public void assignFace(String part, String material) {
+        if (kind.isScreen())
+            assignScreen(part, material);
+        else
+            assignDial(part, material);
+    }
+
+    /**
+     * Prints the gauge's face on one material element of the model. The face fills
+     * the element's UV bounds, read from the model file when this client has it, else
+     * the whole texture square; an edgewise face takes the element's shape so its
+     * printing is not stretched.
+     */
+    private void assignDial(String part, String material) {
         if (gauge == null || info == null)
             return;
         String key = ControlDesign.elementKey(part, material);
@@ -350,15 +436,115 @@ public final class WorkbenchState {
             }
     }
 
-    /** Takes the face off the model; it is printed on nothing until another element is given it. */
-    public void clearFace() {
-        if (gauge != null)
-            gauge.face = "";
+    /**
+     * Makes one material element of the model the screen's glass: the plane its front
+     * faces are fitted to and the UV rectangle they cover, read from the model file
+     * ({@link ObjUvFrame}). Without the file (a blueprint whose model this client has
+     * only installed) the same element keeps the frame it was saved with, but another
+     * element is left with no frame, since the old one belongs to the old glass; a
+     * screen with no frame cannot be saved ({@link #screenError}).
+     *
+     * A layout nobody has touched yet (the one line of lettering over the whole
+     * viewport a fresh screen starts with) is laid out again over the new viewport,
+     * so it still fills it; anything authored is left as it is.
+     */
+    private void assignScreen(String part, String material) {
+        if (screen == null || info == null)
+            return;
+        boolean untouched = sameLayout(screen.layout, ScreenElements.defaults(screenViewport()));
+        String key = ControlDesign.elementKey(part, material);
+        boolean same = key.equals(screen.face());
+        screen.setFace(key);
+        if (blob != null)
+            fitScreen(part, material);
+        else if (!same)
+            unfitScreen();
+        if (untouched) {
+            CompoundTag fresh = new CompoundTag();
+            ScreenElements.defaults(screenViewport()).write(fresh);
+            screen.layout.read(fresh, screenViewport(), null);
+        }
     }
 
-    /** Whether the gauge's face is printed on this element. */
+    /**
+     * Fits the screen again to its glass in the current model file, after the model was
+     * replaced. Without the file the frame is kept: that is a blueprint's model being
+     * brought back, the geometry the frame was saved from.
+     */
+    private void refitScreen() {
+        if (blob == null || info == null)
+            return;
+        for (MeshInfo.Element element : info.elements())
+            if (ControlDesign.elementKey(element.part(), element.material()).equals(screen.face())) {
+                fitScreen(element.part(), element.material());
+                return;
+            }
+    }
+
+    /**
+     * Fits the screen to one element of the model file. An element that cannot be
+     * fitted (no UVs, or UVs all on one point or line, as a plain coloured glass often
+     * has) leaves the screen with no frame rather than the previous glass's, which
+     * {@link #screenError} then reports.
+     */
+    private void fitScreen(String part, String material) {
+        ObjUvFrame.Fit fit = null;
+        try {
+            fit = ObjUvFrame.of(DesignBundle.decode(blob), part, material);
+        } catch (Exception e) {
+            CreateFlippies.LOGGER.warn("Could not fit the screen to {}#{}", part, material, e);
+        }
+        if (fit == null) {
+            unfitScreen();
+            return;
+        }
+        screen.uv = fit.uv();
+        screen.glassUv = fit.uv().clone();
+        screen.frame = fit.frame();
+        screen.residual = fit.residual();
+    }
+
+    private void unfitScreen() {
+        screen.uv = null;
+        screen.glassUv = null;
+        screen.frame = null;
+        screen.residual = Double.NaN;
+    }
+
+    private static boolean sameLayout(ScreenElements a, ScreenElements b) {
+        CompoundTag ta = new CompoundTag(), tb = new CompoundTag();
+        a.write(ta);
+        b.write(tb);
+        ta.remove("Gen");
+        tb.remove("Gen");
+        return ta.equals(tb);
+    }
+
+    /** Takes the face or the glass off the model; it is on nothing until another element is given it. */
+    public void clearFace() {
+        PlacementDraft placed = placed();
+        if (placed != null)
+            placed.setFace("");
+    }
+
+    /** Whether the gauge's face or the screen's glass is on this element. */
     public boolean isFace(String part, String material) {
-        return gauge != null && kind.isGauge() && ControlDesign.elementKey(part, material).equals(gauge.face);
+        PlacementDraft placed = placed();
+        return placed != null && ControlDesign.elementKey(part, material).equals(placed.face());
+    }
+
+    /**
+     * The screen as it would be saved now, with no layout: its viewport, how that maps
+     * onto the model, and whether it hangs off its glass. Null outside screen mode.
+     */
+    public ScreenSurface screenShape() {
+        return screen == null ? null : screen.shape(scale(), offsetX, offsetY, offsetZ);
+    }
+
+    /** The viewport the screen's layout is edited in, in tenths of a pixel. */
+    public Viewport screenViewport() {
+        ScreenSurface shape = screenShape();
+        return shape == null ? ScreenSurface.defaults().viewport() : shape.viewport();
     }
 
     /**
@@ -527,12 +713,17 @@ public final class WorkbenchState {
         // A gauge's barrel and studs behind the plate are its rear, which the
         // footprint adds as it does a switch's contacts
         GaugeDial builtGauge = kind.isGauge() && gauge != null ? gauge.build() : null;
-        ControlDesign raw = new ControlDesign(kind, hash, name == null ? "" : name, new ArrayList<>(movingSet()),
+        ScreenSurface builtScreen = kind.isScreen() && screen != null
+                ? screen.build(scale(), offsetX, offsetY, offsetZ)
+                : null;
+        // Nothing on a screen moves, whatever the parts list was left saying
+        List<String> builtMoving = kind.isScreen() ? List.of() : new ArrayList<>(movingSet());
+        ControlDesign raw = new ControlDesign(kind, hash, name == null ? "" : name, builtMoving,
                 builtLights(), scale(), offsetX, offsetY, offsetZ, poseCopy,
                 pivot == null || slides() ? null : pivot.clone(), boxes.front(), boxes.moving(),
                 kind.isButton() ? action : IndicatorAction.SPRING_RETURN, rating, builtTexts(),
                 kind.isButton() ? 0 : springs, rack == null ? null : rack.build(), indicator(), occlusion,
-                builtMaterials(), builtGauge);
+                builtMaterials(), builtGauge, builtScreen);
         return ControlDesign.read(raw.write());
     }
 
@@ -588,6 +779,12 @@ public final class WorkbenchState {
         }
         if (design.gauge() != null)
             gauge = GaugeDraft.of(design.gauge());
+        if (design.screen() != null) {
+            // Its frame goes back to the model's units with the scale and offset it was saved at
+            screen = ScreenDraft.of(design.screen(), design.scale(), design.offsetX(), design.offsetY(),
+                    design.offsetZ());
+            pattern = ScreenPattern.LAYOUT;
+        }
     }
 
     public TextDraft selectedText() {

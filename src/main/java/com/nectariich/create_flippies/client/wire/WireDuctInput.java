@@ -5,13 +5,17 @@ import java.util.List;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.RenderStageCompat;
+import com.nectariich.create_flippies.compat.StackData;
+import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.content.wire_duct.DuctIndex;
 import com.nectariich.create_flippies.content.wire_duct.DuctRouting;
 import com.nectariich.create_flippies.content.wire_duct.DuctedWires;
+import com.nectariich.create_flippies.content.wire_duct.HangingDuctRoute;
 import com.nectariich.create_flippies.content.wire_duct.WireDuctEntity;
 import com.nectariich.create_flippies.content.wire_duct.WireDuctItem;
 import com.nectariich.create_flippies.content.wire_duct.WireDuctService;
-import com.nectariich.create_flippies.foundation.wire.duct.DuctPlacement;
+import com.nectariich.create_flippies.foundation.wire.bend.BendGeometry;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSegment;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctWires;
 import com.nectariich.create_flippies.network.DuctActionPacket;
@@ -45,13 +49,19 @@ import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-import com.simibubi.create.content.equipment.wrench.WrenchItem;
 
+//? if neoforge {
+/*import org.patryk3211.powergrid.collections.ModdedDataComponents;
+*///?}
+import org.patryk3211.powergrid.electricity.wire.BlockWireEndpoint;
 import org.patryk3211.powergrid.electricity.wire.BlockWireEntity;
 import org.patryk3211.powergrid.electricity.wire.BlockWireEntityEndpoint;
 import org.patryk3211.powergrid.electricity.wire.BlockWireRenderer;
 import org.patryk3211.powergrid.electricity.wire.IWireEndpoint;
 import org.patryk3211.powergrid.electricity.wire.WireEndpointType;
+//? if neoforge {
+/*import org.patryk3211.powergrid.electricity.wire.WireConnection;
+*///?}
 import org.patryk3211.powergrid.electricity.wire.registry.WireItemEntry;
 import org.patryk3211.powergrid.electricity.wire.registry.WireRegistry;
 import org.patryk3211.powergrid.utility.BlockTrace;
@@ -69,13 +79,19 @@ import org.patryk3211.powergrid.utility.PlayerUtilities;
  * of the duct through the side facing the block, then on as Power Grid takes the
  * click ({@code DuctRouting.exit});</li>
  * <li>use, with a dye: recolour the duct's run;</li>
- * <li>attack: break the duct;</li>
- * <li>use while sneaking, with a wrench: take the duct back;</li>
+ * <li>use while sneaking, with a screwdriver in either hand: take the duct back
+ * (the only way a duct comes off; aimed anywhere else, the click opens the
+ * screwdriver's menu as before);</li>
  * <li>use while sneaking, with wire cutters, on a placeable wire that runs
  * through ducts (anywhere along it, or on a duct holding it): cut the whole
  * wire.</li>
  * </ul>
- * It also previews what a click on a duct would lay, the same plan the server
+ * A hanging wire being laid (Power Grid's alternate placement) is taken into ducts
+ * the same way, by a use on a duct ({@link HangingDuctRoute}); its way so far is
+ * drawn as lines, and Power Grid's own preview hangs from where it got to.
+ *
+ * It also previews the duct a screwdriver click would lay with a duct item in
+ * the other hand ({@code ScrewdriverActions}), and what a click on a duct would lay, the same plan the server
  * then lays ({@link DuctRouting#plan}), draws the wire's way through the ducts as a
  * dashed line on their lids while it is being laid, says what the next click will
  * do while its end is in a duct, and keeps Power Grid's own preview true when the
@@ -105,6 +121,7 @@ public final class WireDuctInput {
     private static Vec3 previewAt;
     private static WireItemEntry previewEntry;
     private static Vec3 exitFrom, exitTo;
+    private static HangingDuctRoute.Plan hangingPreview;
 
     private static long lastCut = Long.MIN_VALUE;
     private static long lastHint = Long.MIN_VALUE;
@@ -219,24 +236,21 @@ public final class WireDuctInput {
             return;
         ItemStack held = player.getMainHandItem();
 
-        if (event.isAttack()) {
-            DuctPick pick = pickUncovered(minecraft);
-            if (pick != null)
-                send(event, DuctActionPacket.Action.BREAK, pick.duct(), pick.at());
-            return;
-        }
         if (!event.isUseItem())
             return;
 
+        // A duct half laid is cancelled by this click instead (ScrewdriverItem), so it takes nothing off
+        if (player.isShiftKeyDown() && ScrewdriverItem.heldBy(player) != null && WireDuctItem.pending(player) == null) {
+            DuctPick pick = pickDuct(minecraft, 1);
+            if (pick != null)
+                send(event, DuctActionPacket.Action.REMOVE, pick.duct(), pick.at());
+            return;
+        }
         if (player.isShiftKeyDown()) {
             if (WireDuctService.isCutters(held)) {
                 WirePick pick = pickDuctedWire(minecraft);
                 if (pick != null)
                     send(event, DuctActionPacket.Action.CUT, pick.wire(), pick.at());
-            } else if (held.getItem() instanceof WrenchItem) {
-                DuctPick pick = pickDuct(minecraft, 1);
-                if (pick != null)
-                    send(event, DuctActionPacket.Action.WRENCH, pick.duct(), pick.at());
             }
             return;
         }
@@ -258,7 +272,7 @@ public final class WireDuctInput {
                     && block.getType() == HitResult.Type.BLOCK) {
                 event.setCanceled(true);
                 event.setSwingHand(true);
-                ModPackets.CHANNEL.sendToServer(new DuctActionPacket(DuctActionPacket.Action.EXIT, wire.getId(),
+                ModPackets.sendToServer(new DuctActionPacket(DuctActionPacket.Action.EXIT, wire.getId(),
                         block.getLocation(), block));
             }
         }
@@ -268,7 +282,7 @@ public final class WireDuctInput {
             Entity entity, Vec3 at) {
         event.setCanceled(true);
         event.setSwingHand(true);
-        ModPackets.CHANNEL.sendToServer(new DuctActionPacket(action, entity.getId(), at));
+        ModPackets.sendToServer(new DuctActionPacket(action, entity.getId(), at));
     }
 
     /**
@@ -290,7 +304,7 @@ public final class WireDuctInput {
             return false;
         lastCut = now;
         player.swing(InteractionHand.MAIN_HAND);
-        ModPackets.CHANNEL.sendToServer(new DuctActionPacket(DuctActionPacket.Action.CUT, pick.wire().getId(),
+        ModPackets.sendToServer(new DuctActionPacket(DuctActionPacket.Action.CUT, pick.wire().getId(),
                 pick.at()));
         return true;
     }
@@ -307,6 +321,7 @@ public final class WireDuctInput {
         previewDuct = null;
         previewEntry = null;
         exitFrom = exitTo = null;
+        hangingPreview = null;
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
         ClientLevel level = minecraft.level;
@@ -315,6 +330,15 @@ public final class WireDuctInput {
         ItemStack held = player.getMainHandItem();
         if (!layingWire(level, held))
             return false;
+        if (HangingDuctRoute.laying(level, player, held)) {
+            DuctPick pick = pickUncovered(minecraft);
+            if (pick == null || aimedPast(minecraft, pick.duct()))
+                return false;
+            hangingPreview = HangingDuctRoute.plan(level, held, pick.duct(), pick.at());
+            previewDuct = pick.duct();
+            previewAt = pick.at();
+            return true;
+        }
         hint(level, player, held);
         DuctPick pick = routePick(minecraft, level, held);
         if (pick == null)
@@ -371,8 +395,14 @@ public final class WireDuctInput {
         ClientLevel level = minecraft.level;
         if (level == null || minecraft.player == null)
             return null;
+        //? if forge {
         CompoundTag connection = minecraft.player.getMainHandItem().getTagElement(DuctRouting.CONNECTION_KEY);
         IWireEndpoint endpoint = connection == null ? null : WireEndpointType.deserialize(connection);
+        //?} else {
+        /*// Power Grid keeps the pending connection in a data component of its own here
+        WireConnection connection = minecraft.player.getMainHandItem().get(ModdedDataComponents.CONNECTION_DATA.get());
+        IWireEndpoint endpoint = connection == null ? null : connection.endpoint();
+        *///?}
         if (!(endpoint instanceof BlockWireEntityEndpoint end) || !end.getEnd())
             return null;
         BlockWireEntity wire = end.getEntity(level);
@@ -402,6 +432,19 @@ public final class WireDuctInput {
         return exitTo;
     }
 
+    /** Where a hanging wire being laid through ducts hangs on from, or null when it has no way through ducts. */
+    public static Vec3 hangingFrom() {
+        Minecraft minecraft = Minecraft.getInstance();
+        LocalPlayer player = minecraft.player;
+        if (player == null || minecraft.level == null)
+            return null;
+        ItemStack held = player.getMainHandItem();
+        if (!HangingDuctRoute.laying(minecraft.level, player, held))
+            return null;
+        List<Vec3> points = HangingDuctRoute.points(held);
+        return points.isEmpty() ? null : points.get(points.size() - 1);
+    }
+
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS)
@@ -417,15 +460,16 @@ public final class WireDuctInput {
         ItemStack held = player.getMainHandItem();
 
         drawRoute(ms, buffers, level, camera, held);
+        drawHanging(ms, buffers, level, camera, player, held);
         if (preview != null && previewDuct != null && !previewDuct.isRemoved())
             drawPreview(ms, buffers, level, camera, held);
         if (exitFrom != null && exitTo != null && previewEntry != null)
             drawLeg(ms, buffers, camera, exitFrom, exitTo, PREVIEW_OK);
 
         boolean dye = held.getItem() instanceof DyeItem;
-        boolean tool = held.getItem() instanceof WrenchItem && player.isShiftKeyDown();
+        boolean tool = player.isShiftKeyDown() && ScrewdriverItem.heldBy(player) != null;
         if (dye || tool) {
-            DuctPick pick = dye ? pickUncovered(minecraft) : pickDuct(minecraft, event.getPartialTick());
+            DuctPick pick = dye ? pickUncovered(minecraft) : pickDuct(minecraft, RenderStageCompat.partialTick(event));
             if (pick != null) {
                 VertexConsumer lines = buffers.getBuffer(RenderType.lines());
                 for (WireDuctEntity piece : dye ? WireDuctService.run(level, pick.duct()) : List.of(pick.duct()))
@@ -434,8 +478,9 @@ public final class WireDuctInput {
                 buffers.endBatch(RenderType.lines());
             }
         }
-        if (held.getItem() instanceof WireDuctItem item)
-            drawPlacement(minecraft, ms, buffers, level, camera, held, item);
+        ItemStack duct = WireDuctItem.placing(player);
+        if (duct != null)
+            drawPlacement(minecraft, ms, buffers, level, camera, duct, (WireDuctItem) duct.getItem());
     }
 
     /** The duct under the crosshair, and what clicking it would lay: the wire's way there and its strokes inside. */
@@ -494,6 +539,78 @@ public final class WireDuctInput {
             drawDashes(ms, buffers, camera, drawn.strokes(), ROUTE_LAID);
     }
 
+    /**
+     * A hanging wire being laid through ducts: its way so far, and what a click on
+     * the duct under the crosshair would add, as lines (the legs in ducts just over
+     * their lids), with the duct outlined green or red.
+     */
+    private static void drawHanging(PoseStack ms, MultiBufferSource.BufferSource buffers, ClientLevel level,
+            Vec3 camera, LocalPlayer player, ItemStack held) {
+        if (!layingWire(level, held) || !HangingDuctRoute.laying(level, player, held))
+            return;
+        WireItemEntry entry = WireRegistry.forItem(level, held.getItem());
+        BlockWireEndpoint start = HangingDuctRoute.start(held);
+        if (entry == null || start == null)
+            return;
+        List<Vec3> way = new java.util.ArrayList<>();
+        way.add(start.getExactPosition(level));
+        way.addAll(HangingDuctRoute.points(held));
+        VertexConsumer lines = buffers.getBuffer(RenderType.lines());
+        polyline(ms, lines, level, camera, way, entry, ROUTE_LAID);
+        HangingDuctRoute.Plan plan = hangingPreview;
+        if (plan != null && previewDuct != null && !previewDuct.isRemoved()) {
+            boolean ok = plan.ok();
+            LevelRenderer.renderLineBox(ms, lines, previewDuct.ductBox().inflate(0.004).move(camera.reverse()),
+                    ok ? 0.2f : 1f, ok ? 0.9f : 0.3f, ok ? 1f : 0.3f, 0.8f);
+            if (ok) {
+                List<Vec3> next = new java.util.ArrayList<>();
+                next.add(way.get(way.size() - 1));
+                next.addAll(plan.points());
+                polyline(ms, lines, level, camera, next, entry, ROUTE_NEXT);
+            }
+        }
+        buffers.endBatch(RenderType.lines());
+    }
+
+    /** A hanging wire's path as lines: legs in a duct straight and lifted over its lid, the rest hanging. */
+    private static void polyline(PoseStack ms, VertexConsumer lines, ClientLevel level, Vec3 camera,
+            List<Vec3> path, WireItemEntry entry, int color) {
+        long ducted = DuctedWires.ductLegs(level, path);
+        for (int leg = 0; leg + 1 < path.size(); leg++) {
+            Vec3 from = path.get(leg), to = path.get(leg + 1);
+            List<Vec3> vertices = BendGeometry.isDucted(ducted, leg) ? List.of(overLid(level, from), overLid(level, to))
+                    : BendGeometry.legVertices(from, to, entry.horizontalCoefficient(), entry.verticalCoefficient(),
+                            entry.wireThickness(), 0.25);
+            for (int i = 1; i < vertices.size(); i++)
+                line(ms, lines, vertices.get(i - 1).subtract(camera), vertices.get(i).subtract(camera), color);
+        }
+    }
+
+    /** A point inside a duct moved out to just over its lid. */
+    private static Vec3 overLid(ClientLevel level, Vec3 p) {
+        WireDuctEntity duct = DuctedWires.ductAt(level, p);
+        if (duct == null)
+            return p;
+        DuctSegment s = duct.segment();
+        return p.add(s.normal().scale(Math.max(0, s.size().depth() - DuctWires.WIRE_DEPTH) + 0.01));
+    }
+
+    private static void line(PoseStack ms, VertexConsumer lines, Vec3 a, Vec3 b, int color) {
+        Vec3 d = b.subtract(a);
+        if (d.lengthSqr() < 1e-12)
+            return;
+        d = d.normalize();
+        PoseStack.Pose pose = ms.last();
+        for (Vec3 p : new Vec3[] {a, b})
+            //? if forge {
+            lines.vertex(pose.pose(), (float) p.x, (float) p.y, (float) p.z).color(color)
+                    .normal(pose.normal(), (float) d.x, (float) d.y, (float) d.z).endVertex();
+            //?} else {
+            /*lines.addVertex(pose.pose(), (float) p.x, (float) p.y, (float) p.z).setColor(color)
+                    .setNormal(pose, (float) d.x, (float) d.y, (float) d.z);
+            *///?}
+    }
+
     /** Dashes drawn fully lit just above where a wire's strokes lie, plain, in one colour. */
     private static void drawDashes(PoseStack ms, MultiBufferSource.BufferSource buffers, Vec3 camera,
             List<DuctWires.Dash> dashes, int color) {
@@ -530,17 +647,17 @@ public final class WireDuctInput {
     /** With the first point of a duct chosen, the duct that clicking here would lay. */
     private static void drawPlacement(Minecraft minecraft, PoseStack ms, MultiBufferSource.BufferSource buffers,
             ClientLevel level, Vec3 camera, ItemStack held, WireDuctItem item) {
-        CompoundTag start = held.getTagElement("DuctStart");
+        CompoundTag start = StackData.sub(held, WireDuctItem.TAG_START);
         if (start == null || !(minecraft.hitResult instanceof BlockHitResult hit)
                 || hit.getType() == HitResult.Type.MISS)
             return;
         Vec3 from = new Vec3(start.getDouble("X"), start.getDouble("Y"), start.getDouble("Z"));
         Direction face = hit.getDirection();
-        Vec3 to = WireDuctService.snapPoint(level, hit.getLocation(), face, item.size());
-        List<DuctSegment> pieces = DuctPlacement.plan(from, to, face, item.size());
+        Vec3 to = WireDuctService.snapPoint(level, minecraft.player.getEyePosition(), hit.getLocation(), face,
+                item.size());
         int f = start.getInt("Face");
-        if (pieces.isEmpty() && f >= 0 && f < 6)
-            pieces = DuctPlacement.plan(from, to, Direction.from3DDataValue(f), item.size());
+        Direction firstFace = f >= 0 && f < 6 ? Direction.from3DDataValue(f) : face;
+        List<DuctSegment> pieces = WireDuctService.plan(level, from, firstFace, to, face, item.size());
         boolean ok = !pieces.isEmpty();
         VertexConsumer lines = buffers.getBuffer(RenderType.lines());
         if (pieces.isEmpty())

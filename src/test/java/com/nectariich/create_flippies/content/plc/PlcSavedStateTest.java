@@ -94,7 +94,7 @@ class PlcSavedStateTest {
     }
 
     private static PlcSmallControl builtPlc(PlcCore core) {
-        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.INSTANCE.create();
+        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.DIN.create();
         FloatingNode[] terminals = new FloatingNode[PlcSmallGeometry.TERMINALS];
         for (int i = 0; i < terminals.length; i++)
             terminals[i] = new FloatingNode();
@@ -241,7 +241,7 @@ class PlcSavedStateTest {
 
     @Test
     void theSketchIsDeflatedOncePerEditNotOncePerWrite() {
-        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.INSTANCE.create();
+        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.DIN.create();
         plc.upload(SKETCH, false, UUID.randomUUID());
         byte[] first = written(plc).getByteArray("Source");
         for (int i = 0; i < 5; i++)
@@ -256,7 +256,7 @@ class PlcSavedStateTest {
 
     @Test
     void aTagReadBackIsWrittenWithoutDeflatingAgain() {
-        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.INSTANCE.create();
+        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.DIN.create();
         CompoundTag tag = new CompoundTag();
         tag.putByteArray("Source", deflate(SKETCH));
         tag.putByteArray("FlashedSource", deflate("void setup(){}void loop(){}"));
@@ -269,7 +269,7 @@ class PlcSavedStateTest {
 
     @Test
     void writtenArraysAreNotTheCachesOwn() {
-        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.INSTANCE.create();
+        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.DIN.create();
         plc.upload(SKETCH, false, UUID.randomUUID());
         byte[] first = written(plc).getByteArray("Source");
         byte[] copy = first.clone();
@@ -299,7 +299,7 @@ class PlcSavedStateTest {
 
     @Test
     void anOversizedFlashedSourceAloneIsDropped() {
-        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.INSTANCE.create();
+        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.DIN.create();
         CompoundTag tag = new CompoundTag();
         tag.putByteArray("Source", deflate(SKETCH));
         tag.putByteArray("FlashedSource", deflate("y".repeat(PlcToolchain.MAX_SOURCE_CHARS + 1)));
@@ -312,7 +312,7 @@ class PlcSavedStateTest {
     @Test
     void aSketchAtTheLimitIsKept() {
         String atLimit = "z".repeat(PlcToolchain.MAX_SOURCE_CHARS);
-        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.INSTANCE.create();
+        PlcSmallControl plc = (PlcSmallControl) PlcSmallControlType.DIN.create();
         plc.read(flashedTag(atLimit));
         assertEquals(atLimit, plc.source());
         assertFalse(plc.status().notRestored());

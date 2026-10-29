@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.content.wire_duct;
 
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.SpawnDataEntity;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctColor;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSegment;
 import com.nectariich.create_flippies.foundation.wire.duct.DuctSize;
@@ -11,20 +12,15 @@ import com.nectariich.create_flippies.registry.ModItems;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.entity.IEntityAdditionalSpawnData;
-import net.minecraftforge.network.NetworkHooks;
 
 /**
  * One straight stretch of wire duct lying flat on a face ({@link DuctSegment}). It
@@ -39,9 +35,9 @@ import net.minecraftforge.network.NetworkHooks;
  *
  * The game never targets it (it is not pickable): it would otherwise steal clicks
  * from the block it lies on. This mod picks it itself, client side, for running
- * wires through it, dyeing it and breaking it ({@code WireDuctInput}).
+ * wires through it, dyeing it and taking it off with a screwdriver ({@code WireDuctInput}).
  */
-public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData {
+public class WireDuctEntity extends SpawnDataEntity {
 
     /** How far the box reaches past each end; see {@code DuctNetwork.jointExtensions}. */
     private static final EntityDataAccessor<Float> EXTEND_FROM =
@@ -54,7 +50,7 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
     private Vec3 from;
     private Vec3 to;
     private Direction face = Direction.UP;
-    private DuctSize size = DuctSize.SMALL;
+    private DuctSize size = DuctSize.PX_4;
     /** The duct items this stretch cost, and gives back. */
     private int items = 1;
     /** Shared by the stretches laid together by one placement. */
@@ -133,6 +129,11 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         return segment == null ? getBoundingBox() : segment.box(extendFrom(), extendTo());
     }
 
+    /** {@link #ductBox} as far out of the face as it holds wires ({@link DuctSegment#holdBox}). */
+    public AABB holdBox() {
+        return segment == null ? getBoundingBox() : segment.holdBox(extendFrom(), extendTo());
+    }
+
     private void placed() {
         segment = new DuctSegment(from, to, face, size);
         Vec3 mid = from.add(to).scale(0.5);
@@ -144,15 +145,24 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         if (segment == null)
             return super.makeBoundingBox();
         double reach = size.width() / 2;
-        return segment.box(reach, reach);
+        return segment.holdBox(reach, reach);
     }
 
+    //? if forge {
     @Override
     protected void defineSynchedData() {
         entityData.define(EXTEND_FROM, 0f);
         entityData.define(EXTEND_TO, 0f);
         entityData.define(COLOR, DuctColor.WHITE);
     }
+    //?} else {
+    /*@Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(EXTEND_FROM, 0f);
+        builder.define(EXTEND_TO, 0f);
+        builder.define(COLOR, DuctColor.WHITE);
+    }
+    *///?}
 
     /** Whatever changes about a duct after it is placed changes how the wires in it are drawn. */
     @Override
@@ -165,6 +175,17 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
     @Override
     public void tick() {
         // Nothing moves a duct, and nothing about it changes by itself
+    }
+
+    /**
+     * Lit by the air just in front of its lid. The game would look at eye height above
+     * the centre, which for a duct on a ceiling is inside the ceiling, and dark.
+     */
+    @Override
+    public Vec3 getLightProbePosition(float partialTicks) {
+        if (segment == null)
+            return super.getLightProbePosition(partialTicks);
+        return position().add(segment.normal().scale(size.depth() / 2 + 0.01));
     }
 
     @Override
@@ -206,7 +227,7 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         to = readVec(tag, "To");
         int f = tag.getInt("Face");
         face = f >= 0 && f < 6 ? Direction.from3DDataValue(f) : Direction.UP;
-        size = DuctSize.byOrdinal(tag.getInt("Size"));
+        size = tag.contains("SizeId") ? DuctSize.byId(tag.getString("SizeId")) : DuctSize.legacy(tag.getInt("Size"));
         items = Math.max(1, tag.getInt("Items"));
         entityData.set(EXTEND_FROM, tag.getFloat("ExtendFrom"));
         entityData.set(EXTEND_TO, tag.getFloat("ExtendTo"));
@@ -224,7 +245,7 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         writeVec(tag, "From", from);
         writeVec(tag, "To", to);
         tag.putInt("Face", face.get3DDataValue());
-        tag.putInt("Size", size.ordinal());
+        tag.putString("SizeId", size.id());
         tag.putInt("Items", items);
         tag.putFloat("ExtendFrom", extendFrom());
         tag.putFloat("ExtendTo", extendTo());
@@ -264,10 +285,8 @@ public class WireDuctEntity extends Entity implements IEntityAdditionalSpawnData
         face = f >= 0 && f < 6 ? Direction.from3DDataValue(f) : Direction.UP;
         size = DuctSize.byOrdinal(buffer.readByte());
         placed();
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
+        // Forge adds a spawned entity to the client's level before reading this, so
+        // it joined with no shape and was not filed then
+        DuctIndex.file(this);
     }
 }

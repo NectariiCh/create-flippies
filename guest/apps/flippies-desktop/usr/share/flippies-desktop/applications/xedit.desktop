@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Xedit
+Comment=A simple text editor
+Exec=xedit
+TryExec=xedit
+Categories=Utility;TextEditor;

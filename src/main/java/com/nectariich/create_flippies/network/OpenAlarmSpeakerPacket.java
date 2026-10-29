@@ -1,21 +1,17 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
+import com.nectariich.create_flippies.compat.ClientOnly;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Tells one player's client to open the menu of one mounted alarm speaker, for the
  * reason {@link OpenAlphanumDisplayPacket} gives: a host hands clicks to its controls
  * on the server alone.
  */
-public class OpenAlarmSpeakerPacket {
+public class OpenAlarmSpeakerPacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final ControlMount mount;
@@ -35,9 +31,8 @@ public class OpenAlarmSpeakerPacket {
         mount.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> ClientOnly.run(
                 () -> () -> com.nectariich.create_flippies.client.AlarmSpeakerScreen.open(pos, mount)));
-        context.get().setPacketHandled(true);
     }
 }

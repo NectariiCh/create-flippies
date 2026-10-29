@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.content.design_workbench;
 
 import java.util.List;
 
+import com.nectariich.create_flippies.content.display.DisplayPins;
 import com.nectariich.create_flippies.content.indicator.IndicatorLamp;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralGaugeBlock;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchBlock;
@@ -12,7 +13,8 @@ import com.nectariich.create_flippies.foundation.control.ControlFootprint;
  * The space a designed control takes: the rear of the control it is built on,
  * exactly, and a front that is the box around its model. A rack has no rear yet,
  * so it is its front alone. A gauge's rear is the procedural gauges' barrel and
- * studs, in the mounted frame, whatever its face.
+ * studs, in the mounted frame, whatever its face. A screen's rear is the
+ * alphanumeric displays' barrel and pins.
  */
 public final class DesignedFootprints {
 
@@ -48,6 +50,11 @@ public final class DesignedFootprints {
         return ControlFootprint.of(front, gaugeBarrel(), studs.get(0), studs.get(1), studs.get(2));
     }
 
+    /** A screen's front over the displays' barrel, contacts and unwired pins. */
+    public static ControlFootprint screen(double[] front) {
+        return DisplayPins.rearFootprint(front);
+    }
+
     /** The footprint of a design of any kind, from its front. */
     public static ControlFootprint of(ControlDesign design) {
         if (design.kind().isRack())
@@ -56,6 +63,8 @@ public final class DesignedFootprints {
             return gauge(design.front());
         if (design.kind().isButton())
             return button(design.front());
+        if (design.kind().isScreen())
+            return screen(design.front());
         return rotary(design.rotary(), design.front());
     }
 }

@@ -18,6 +18,7 @@ import com.nectariich.create_flippies.content.screwdriver.ScrewdriverAim;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverMode;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverSettings;
+import com.nectariich.create_flippies.content.wire_duct.WireDuctItem;
 import com.nectariich.create_flippies.foundation.control.ControlTypes;
 import com.nectariich.create_flippies.foundation.control.SpannedControlType;
 import com.nectariich.create_flippies.foundation.protection.BreakArea;
@@ -41,7 +42,11 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.ClientTickEvent;
+*///?}
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -131,9 +136,13 @@ public final class ScrewdriverOverlay {
     private ScrewdriverOverlay() {}
 
     @SubscribeEvent
+    //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END)
             return;
+    //?} else {
+    /*public static void onClientTick(ClientTickEvent.Post event) {
+    *///?}
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
         if (player == null || minecraft.level == null)
@@ -142,6 +151,11 @@ public final class ScrewdriverOverlay {
         if (hand == null)
             return;
         ScrewdriverSettings settings = ScrewdriverSettings.read(player.getItemInHand(hand));
+        // SCHEMATIC ARROWS: taking a colour for the arrow menu outlines the arrow it would come from, whatever the mode
+        if (com.nectariich.create_flippies.client.schematic_arrow.ArrowColourPick.active()) {
+            com.nectariich.create_flippies.client.schematic_arrow.ArrowOverlay.drawPick(player);
+            return;
+        }
         // The idle mode has nothing to preview, and saying so here is the only place
         // it can be said. Every path below draws something: with no ruling of its own
         // the mode falls back to one cell per face, so the tool that does nothing was
@@ -188,6 +202,11 @@ public final class ScrewdriverOverlay {
             drawProtection(player, settings, panel);
             return;
         }
+
+        // A wire duct is laid on the face whichever placement mode is set and draws
+        // its own preview (WireDuctInput); a cell ruling would only mislead
+        if (WireDuctItem.placing(player) != null)
+            return;
 
         // A control that is drawn to size is aimed corner to corner rather than into
         // a cell, so it wants mode 2's preview whichever placement mode is set

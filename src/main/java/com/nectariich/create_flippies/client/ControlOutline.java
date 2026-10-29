@@ -205,10 +205,17 @@ public final class ControlOutline {
             ny /= length;
             nz /= length;
 
+            //? if forge {
             lines.vertex(pose.pose(), (float) (x1 + dx), (float) (y1 + dy), (float) (z1 + dz))
                     .color(0, 0, 0, ALPHA).normal(pose.normal(), nx, ny, nz).endVertex();
             lines.vertex(pose.pose(), (float) (x2 + dx), (float) (y2 + dy), (float) (z2 + dz))
                     .color(0, 0, 0, ALPHA).normal(pose.normal(), nx, ny, nz).endVertex();
+            //?} else {
+            /*lines.addVertex(pose.pose(), (float) (x1 + dx), (float) (y1 + dy), (float) (z1 + dz))
+                    .setColor(0, 0, 0, ALPHA).setNormal(pose, nx, ny, nz);
+            lines.addVertex(pose.pose(), (float) (x2 + dx), (float) (y2 + dy), (float) (z2 + dz))
+                    .setColor(0, 0, 0, ALPHA).setNormal(pose, nx, ny, nz);
+            *///?}
         }
     }
 }

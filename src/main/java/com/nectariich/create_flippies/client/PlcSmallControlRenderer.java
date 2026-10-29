@@ -15,16 +15,17 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Draws a small PLC clipped to a rail.
+ * Draws a small PLC, clipped to a rail or screwed to a panel.
  *
- * One model and nothing that moves, so unlike the breaker there is no separate
- * drawing class to share between a block form and a mounted form: the panel PLC
- * is a block with a block state, and is drawn from that rather than from here.
+ * One model per mounting and nothing that moves, so unlike the breaker there is no
+ * separate drawing class to share between a block form and a mounted form: neither
+ * mounting has a block form, and both are drawn from here.
  *
- * Everything about where it goes is read off the control's {@link ControlMount} —
- * the face the rail is on, the quarter turn its rails run at, and the displacement
- * that puts the PLC on one module of one rail — which is the same mount its
- * footprint and hitboxes are built from, so it cannot be drawn anywhere it is not.
+ * Everything about where it goes is read off the control's {@link ControlMount}:
+ * the face it is on, the quarter turn it is placed at, and the displacement that
+ * puts it on one module of one rail or at the spot on a plate it was screwed to,
+ * which is the same mount its footprint and hitboxes are built from, so it cannot
+ * be drawn anywhere it is not.
  */
 public class PlcSmallControlRenderer implements ControlRenderer {
 
@@ -34,7 +35,8 @@ public class PlcSmallControlRenderer implements ControlRenderer {
     private PlcSmallControlRenderer() {}
 
     public static void register() {
-        ControlRenderers.register(PlcSmallControlType.INSTANCE, INSTANCE);
+        ControlRenderers.register(PlcSmallControlType.DIN, INSTANCE);
+        ControlRenderers.register(PlcSmallControlType.PANEL, INSTANCE);
     }
 
     @Override
@@ -43,6 +45,7 @@ public class PlcSmallControlRenderer implements ControlRenderer {
         if (!(control instanceof PlcSmallControl plc))
             return;
         ControlMount mount = plc.mount();
+        boolean panel = plc.type() == PlcSmallControlType.PANEL;
 
         // T(offset) . Ry(yaw) . Rx(tilt) . Ry(spin), the transform ControlMount.point
         // puts a hitbox corner through. A SuperByteBuffer accumulates into a
@@ -53,7 +56,8 @@ public class PlcSmallControlRenderer implements ControlRenderer {
         // Cutout rather than solid: the body texture is a placeholder waiting to be
         // painted, and the first thing anyone drills into a front panel is a hole.
         VertexConsumer vertices = buffer.getBuffer(RenderType.cutout());
-        CachedBuffers.partial(ModPartialModels.PLC_S32F103_D_DIN, referenceState())
+        CachedBuffers.partial(panel ? ModPartialModels.PLC_S32F103_D_PANEL : ModPartialModels.PLC_S32F103_D_DIN,
+                referenceState(panel))
                 .translate(mount.offset())
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(mount.face(), mount.yaw()))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(mount.face()))
@@ -63,12 +67,16 @@ public class PlcSmallControlRenderer implements ControlRenderer {
     }
 
     /**
-     * The state the partial is buffered from. Catnip caches a buffered partial
+     * The state a partial is buffered from. Catnip caches a buffered partial
      * under the partial alone, so the state the first caller passes is the state
-     * every later caller silently gets — and this one is only ever drawn on a rail,
-     * so the rail's own state is the one to bake it against.
+     * every later caller silently gets. Each mounting has its own partial and so
+     * its own cache entry, baked against one fixed state rather than whichever host
+     * came into view first. The DIN one is meant for a rail and is baked against the
+     * rail's state, though nothing stops it being screwed to a panel too, where it
+     * draws the same; the panel one is drawn on a bare host or a panel cell, so it is
+     * baked against the bare host's, as the labels are.
      */
-    private static BlockState referenceState() {
-        return ModBlocks.DIN_RAIL.get().defaultBlockState();
+    private static BlockState referenceState(boolean panel) {
+        return panel ? ModBlocks.CONTROL_HOST.get().defaultBlockState() : ModBlocks.DIN_RAIL.get().defaultBlockState();
     }
 }

@@ -34,8 +34,9 @@ import net.minecraft.world.phys.Vec3;
  * <h2>How high</h2>
  *
  * The bottom of the walls is the plate's surface and the top is the arrow's height
- * above it, which is at least a quarter of a pixel and so always clear of paint at a
- * tenth of one. Arrows that overlap on one surface are stacked a further fraction
+ * above it, which is at least a tenth of a pixel. At that least height the top is
+ * level with paint, which is drawn a tenth of a pixel up, and the two fight where
+ * they overlap. Arrows that overlap on one surface are stacked a further fraction
  * apart in the order they were put on, so where a branch meets a bus at the same
  * height the two tops do not fight over the same pixels.
  *

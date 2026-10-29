@@ -4,10 +4,10 @@ import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.foundation.wire.gauge.WireGaugeCompat;
 import com.nectariich.create_flippies.foundation.wire.gauge.WireGauges;
 
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import org.patryk3211.powergrid.electricity.wire.WireItem;
 
@@ -21,7 +21,7 @@ import org.patryk3211.powergrid.electricity.wire.WireItem;
  */
 public class ModWires {
     public static final DeferredRegister<Item> ITEMS =
-            DeferredRegister.create(ForgeRegistries.ITEMS, CreateFlippies.MOD_ID);
+            DeferredRegister.create(Registries.ITEM, CreateFlippies.MOD_ID);
 
     public static void register(IEventBus modBus) {
         if (WireGaugeCompat.ppgLoaded())

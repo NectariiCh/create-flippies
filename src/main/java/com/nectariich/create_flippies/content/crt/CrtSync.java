@@ -16,9 +16,7 @@ import com.nectariich.create_flippies.network.ModPackets;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * Sends every loaded CRT's picture to the players near it (spec 11.2.14). Runs on
@@ -34,18 +32,18 @@ import net.minecraftforge.network.PacketDistributor;
  */
 public final class CrtSync {
 
-    private final Set<CrtBlockEntity> loaded = new HashSet<>();
+    private final Set<CrtEntity> loaded = new HashSet<>();
     private final Map<UUID, CrtRateLimit.Bucket> buckets = new HashMap<>();
 
-    public void add(CrtBlockEntity crt) {
+    public void add(CrtEntity crt) {
         loaded.add(crt);
     }
 
-    public void remove(CrtBlockEntity crt) {
+    public void remove(CrtEntity crt) {
         loaded.remove(crt);
     }
 
-    private record Watch(ServerPlayer player, CrtBlockEntity crt, double distanceSqr) {}
+    private record Watch(ServerPlayer player, CrtEntity crt, double distanceSqr) {}
 
     public void tick(long gameTime) {
         int radius = ServerConfig.displaySyncRadius();
@@ -54,8 +52,8 @@ public final class CrtSync {
         int allowance = ServerConfig.displaySyncBytesPerPlayerPerTick();
 
         Map<ServerPlayer, List<Watch>> byPlayer = new HashMap<>();
-        for (CrtBlockEntity crt : List.copyOf(loaded)) {
-            if (crt.isRemoved() || !(crt.getLevel() instanceof ServerLevel level)) {
+        for (CrtEntity crt : List.copyOf(loaded)) {
+            if (crt.isRemoved() || !(crt.level() instanceof ServerLevel level)) {
                 loaded.remove(crt);
                 continue;
             }
@@ -72,9 +70,9 @@ public final class CrtSync {
                 stream.clear();
                 continue;
             }
-            Vec3 centre = Vec3.atCenterOf(crt.getBlockPos());
+            Vec3 centre = crt.getBoundingBox().getCenter();
             Set<UUID> watching = new HashSet<>();
-            for (ServerPlayer player : level.getChunkSource().chunkMap.getPlayers(new ChunkPos(crt.getBlockPos()),
+            for (ServerPlayer player : level.getChunkSource().chunkMap.getPlayers(crt.chunkPosition(),
                     false)) {
                 double d = player.distanceToSqr(centre);
                 if (d > radiusSqr)
@@ -99,8 +97,8 @@ public final class CrtSync {
                 byte[] payload = w.crt().stream().updateFor(player.getUUID(), gameTime, interval);
                 if (payload == null)
                     continue;
-                ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                        new CrtFramePacket(w.crt().getBlockPos(), payload));
+                ModPackets.sendToPlayer(player,
+                        new CrtFramePacket(w.crt().getId(), payload));
                 bucket.spend(payload.length);
             }
         }

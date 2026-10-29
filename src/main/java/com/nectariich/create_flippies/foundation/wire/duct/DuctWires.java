@@ -31,7 +31,7 @@ import net.minecraft.world.phys.Vec3;
  * lies inside the duct's box. Its parts inside that box are hidden and drawn as
  * strokes on the lid instead ({@link #hidden}, {@link #strokes}).
  *
- * A duct holds a cross-section, not a number of wires ({@link #capacity}): each wire
+ * A duct holds a width of wires, not a number of them ({@link #capacity}): each wire
  * running along a stretch of it takes up its own gauge's share there
  * ({@link #occupancy}, {@link #fit}). Where a wire runs across the duct is only an
  * order, kept from where it went in; its stroke on the lid is laid out with the
@@ -54,7 +54,7 @@ public final class DuctWires {
     /** Power Grid's own wires, and any wire whose gauge is not known, count as this gauge. */
     public static final int DEFAULT_AWG = 12;
 
-    /** Kept clear along each side of a lid, blocks; the strokes share what is left. */
+    /** Kept clear along each side of a lid, blocks, or an eighth of a narrower lid; the strokes share what is left. */
     public static final double STROKE_MARGIN = 0.5 / 16;
 
     /** The narrowest a stroke is drawn when there is room, blocks. */
@@ -70,11 +70,11 @@ public final class DuctWires {
 
     private DuctWires() {}
 
-    /** A duct as a wire sees it: its centre line and the box it fills (with its ends cut back or extended). */
+    /** A duct as a wire sees it: its centre line and the box it holds wires in (with its ends cut back or extended). */
     public record Duct(DuctSegment segment, AABB box) {
 
         public static Duct of(DuctSegment segment) {
-            return new Duct(segment, segment.box());
+            return new Duct(segment, segment.holdBox());
         }
     }
 
@@ -100,8 +100,9 @@ public final class DuctWires {
      */
     public record Occupant(DuctSegment segment, double from, double to, double offset, int travel, int awg, long tie) {
 
-        public double area() {
-            return DuctWires.area(awg);
+        /** How much of the duct's width this wire takes: its thickness, blocks. */
+        public double span() {
+            return DuctWires.diameter(awg);
         }
 
         public double diameter() {
@@ -241,19 +242,39 @@ public final class DuctWires {
     }
 
     /**
-     * A wire's cross-section by its gauge, in square millimetres of the square on its
-     * diameter: a measure proportional to its area, which is all a comparison needs.
-     * The gauge data has no outer (insulated) diameter, so an insulated wire counts
-     * by its conductor like a bare one of the same gauge.
+     * Blocks per millimetre of conductor: the scale the gauged wires are drawn at
+     * (their {@code wireThickness}, 0.19925781 blocks for 1/0 AWG), and so the one
+     * a wire is measured against a duct at.
      */
-    public static double area(int awg) {
-        double d = awgDiameter(awg);
-        return d * d;
+    public static final double BLOCKS_PER_MM = 0.19925781 / awgDiameter(0);
+
+    /** How thick a wire of gauge {@code awg} is, blocks. */
+    public static double diameter(int awg) {
+        return awgDiameter(awg) * BLOCKS_PER_MM;
     }
 
-    /** What one stretch of a duct holds: the cross-section of one wire of its {@link DuctSize#capacityAwg}. */
+    /**
+     * How thick the wires along one stretch of a duct may add up to, blocks:
+     * {@link DuctSize#capacity}. The gauge data has no outer (insulated) diameter, so
+     * an insulated wire counts by its conductor like a bare one of the same gauge.
+     */
     public static double capacity(DuctSize size) {
-        return area(size.capacityAwg());
+        return size.capacity();
+    }
+
+    /** Whether a wire of gauge {@code awg} is thin enough to go into a duct of {@code size} at all. */
+    public static boolean thinEnough(DuctSize size, int awg) {
+        return diameter(awg) <= size.maxWireDiameter() + 1e-12;
+    }
+
+    /**
+     * How many wires of gauge {@code awg}, and nothing else, one stretch of a duct of
+     * {@code size} holds: none if one is too thick, else as many as fit side by side.
+     */
+    public static int howMany(DuctSize size, int awg) {
+        if (!thinEnough(size, awg))
+            return 0;
+        return (int) Math.floor(capacity(size) / diameter(awg) * (1 + 1e-9));
     }
 
     /**
@@ -269,13 +290,14 @@ public final class DuctWires {
 
     /**
      * Whether wires of gauge {@code awg} laid along {@code adding} fit among the wires
-     * {@code present}: at every point of every stretch added, the cross-sections of
-     * the other wires there and of the one added must not pass the duct's capacity.
-     * A wire is counted once at a point however many times it passes it.
+     * {@code present}: the wire must be thin enough for the duct at all, and at every
+     * point of every stretch added, the thicknesses of the other wires there and of
+     * the one added must not add up past the duct's capacity. A wire is counted once
+     * at a point however many times it passes it.
      */
     public static Fit fit(DuctSize size, int awg, Collection<Occupant> adding, Collection<Occupant> present) {
         double capacity = capacity(size);
-        if (area(awg) > capacity * (1 + 1e-9))
+        if (!thinEnough(size, awg))
             return Fit.TOO_THICK;
         for (Occupant a : adding) {
             List<Double> points = new ArrayList<>(List.of(a.from(), a.to()));
@@ -288,12 +310,12 @@ public final class DuctWires {
                     points.add(o.to());
             }
             for (double at : points) {
-                double used = area(awg);
+                double used = diameter(awg);
                 Set<Long> counted = new HashSet<>();
                 counted.add(a.tie());
                 for (Occupant o : present)
                     if (o.segment().equals(a.segment()) && o.covers(at) && counted.add(o.tie()))
-                        used += o.area();
+                        used += o.span();
                 if (used > capacity * (1 + 1e-9))
                     return Fit.FULL;
             }
@@ -307,7 +329,7 @@ public final class DuctWires {
      * Where the strokes of the wires running along {@code s} lie across its lid: in
      * the order the wires run in (their offsets, the side they went in by), side by
      * side and centred, each one's share of the width in proportion to its diameter.
-     * At full size a wire filling the duct alone spans its whole lid; when more are
+     * At full size wires filling the duct ({@link #capacity}) span its whole lid; when more are
      * present than fit at that scale, all shrink alike so they still fit.
      */
     public static List<Slot> layout(DuctSegment s, Collection<Occupant> present) {
@@ -317,11 +339,11 @@ public final class DuctWires {
                 along.add(o);
         along.sort(Comparator.comparingDouble((Occupant o) -> Math.round(o.offset() / 1e-6) * 1e-6)
                 .thenComparingLong(o -> o.travel() * o.tie()));
-        double usable = s.size().width() - 2 * STROKE_MARGIN;
+        double usable = s.size().width() - 2 * strokeMargin(s.size());
         double total = 0;
         for (Occupant o : along)
             total += o.diameter();
-        double scale = usable / awgDiameter(s.size().capacityAwg());
+        double scale = usable / (capacity(s.size()) / BLOCKS_PER_MM);
         if (total * scale > usable)
             scale = usable / total;
         double[] shares = new double[along.size()];
@@ -339,6 +361,11 @@ public final class DuctWires {
             at += share;
         }
         return slots;
+    }
+
+    /** What is kept clear along each side of a lid of this size, blocks: {@link #STROKE_MARGIN}, or an eighth of a narrow one. */
+    public static double strokeMargin(DuctSize size) {
+        return Math.min(STROKE_MARGIN, size.width() / 8);
     }
 
     // A wire's chain
@@ -724,7 +751,9 @@ public final class DuctWires {
     private static boolean inside(DuctSegment s, Vec3 p) {
         double side = s.lateralOffset(p);
         double up = p.subtract(s.from()).dot(s.normal());
-        return Math.abs(side) < s.size().width() / 2 - EPS && Math.abs(up) < s.size().depth() / 2 - EPS;
+        // Measured from the face up to as far as the duct holds wires; see DuctSize#holdDepth
+        double out = up + s.size().depth() / 2;
+        return Math.abs(side) < s.size().width() / 2 - EPS && out > EPS && out < s.size().holdDepth() - EPS;
     }
 
     /** How far {@code p} is from the nearest point of a path. */

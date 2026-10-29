@@ -1,12 +1,12 @@
 package com.nectariich.create_flippies.client.pc;
 
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.pc.PcStatus;
 import com.nectariich.create_flippies.network.ModPackets;
 import com.nectariich.create_flippies.network.PcActionPacket;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
@@ -15,7 +15,7 @@ import net.minecraft.network.chat.Component;
  * port's peer. It polls the server every 10 ticks while open, as the PLC's menu does;
  * there are no settings to change.
  */
-public class PcCaseScreen extends Screen {
+public class PcCaseScreen extends FlippiesScreen {
 
     private static final int POLL_TICKS = 10;
     private static final int LINE_HEIGHT = 11;
@@ -42,7 +42,7 @@ public class PcCaseScreen extends Screen {
     @Override
     public void tick() {
         if (++ticks % POLL_TICKS == 0)
-            ModPackets.CHANNEL.sendToServer(new PcActionPacket(pos, PcActionPacket.Action.POLL));
+            ModPackets.sendToServer(new PcActionPacket(pos, PcActionPacket.Action.POLL));
     }
 
     @Override
@@ -52,7 +52,7 @@ public class PcCaseScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         int lines = status.lines().size();
         int top = Math.max(8, (height - (lines + 2) * LINE_HEIGHT) / 2);
         graphics.drawCenteredString(font, title, width / 2, top, 0xFFFFFF);

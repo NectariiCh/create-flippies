@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.client.design.ui;
 
 import static com.nectariich.create_flippies.client.design.ui.Lang.t;
 
+import com.nectariich.create_flippies.compat.Checkboxes;
 import com.nectariich.create_flippies.content.design_workbench.BreakerIndicator;
 import com.nectariich.create_flippies.content.design_workbench.BreakerMode;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
@@ -36,8 +37,8 @@ import net.minecraft.network.chat.Component;
  * same convention as the handle's, and the flag's own pivot.
  *
  * A gauge's needle has a section of its own ({@link #needle}): a rotary needle turns
- * about the pivot across the dial's sweep, so only the angle it is modelled at and
- * which way the face runs are set; an edgewise needle slides or swings between a
+ * about the pivot across the dial's sweep, so the sweep itself, the angle it is
+ * modelled at and which way the face runs are set; an edgewise needle slides or swings between a
  * pose at the minimum and one at the maximum, which can be fitted to the ends of
  * the printed scale. The pivot is set as a switch's is.
  */
@@ -94,14 +95,10 @@ public final class MotionTab {
 
         if (!button) {
             boolean custom = state.pivot != null;
-            panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom) {
-                @Override
-                public void onPress() {
-                    super.onPress();
-                    state.pivot = selected() ? DesignMotion.DEFAULT_PIVOT.clone() : null;
-                    host.rebuild();
-                }
-            }).setTooltip(Tooltip.create(t("pivot.custom.tooltip")));
+            panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom, on -> {
+                state.pivot = on ? DesignMotion.DEFAULT_PIVOT.clone() : null;
+                host.rebuild();
+            })).setTooltip(Tooltip.create(t("pivot.custom.tooltip")));
             panel.row();
             float[] pivot = custom ? state.pivot : DesignMotion.DEFAULT_PIVOT;
             for (int axis = 0; axis < 3; axis++) {
@@ -160,6 +157,11 @@ public final class MotionTab {
         boolean pivoted;
         if (!gauge.edgewise) {
             panel.label(t("needle.rotary"), 0xE0E0E0);
+            panel.label(t("gauge.sweep"), 0xA0A0A0);
+            panel.number(0, 2, gauge.startAngle, DialTab.any(host, value -> gauge.startAngle = value),
+                    t("gauge.start"));
+            panel.number(1, 2, gauge.endAngle, DialTab.any(host, value -> gauge.endAngle = value), t("gauge.end"));
+            panel.row();
             panel.number(0, 2, gauge.needleZero, DialTab.any(host, value -> gauge.needleZero = value),
                     t("needle.zero"));
             panel.button(t(gauge.reverse ? "needle.reverse.on" : "needle.reverse.off"), 1, 2,
@@ -205,14 +207,10 @@ public final class MotionTab {
 
         if (pivoted) {
             boolean custom = state.pivot != null;
-            panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom) {
-                @Override
-                public void onPress() {
-                    super.onPress();
-                    state.pivot = selected() ? DesignMotion.DEFAULT_PIVOT.clone() : null;
-                    host.rebuild();
-                }
-            }).setTooltip(Tooltip.create(t("needle.pivot.tooltip")));
+            panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom, on -> {
+                state.pivot = on ? DesignMotion.DEFAULT_PIVOT.clone() : null;
+                host.rebuild();
+            })).setTooltip(Tooltip.create(t("needle.pivot.tooltip")));
             panel.row();
             float[] pivot = custom ? state.pivot : DesignMotion.DEFAULT_PIVOT;
             for (int axis = 0; axis < 3; axis++) {
@@ -266,15 +264,11 @@ public final class MotionTab {
         boolean forced = state.kind.isBreaker();
         for (int position : RotarySwitchSpring.springable(kind)) {
             boolean checked = forced || RotarySwitchSpring.springsFrom(kind, state.springs, position);
-            Checkbox box = panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20,
-                    RotarySwitchSpring.label(kind, position), checked) {
-                @Override
-                public void onPress() {
-                    super.onPress();
-                    state.springs = RotarySwitchSpring.with(kind, state.springs, position, selected());
-                    host.changed();
-                }
-            });
+            Checkbox box = panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20,
+                    RotarySwitchSpring.label(kind, position), checked, on -> {
+                        state.springs = RotarySwitchSpring.with(kind, state.springs, position, on);
+                        host.changed();
+                    }));
             if (forced) {
                 box.active = false;
                 box.setTooltip(Tooltip.create(t("springs.breaker.tooltip")));
@@ -314,14 +308,10 @@ public final class MotionTab {
         }
 
         boolean custom = state.indicatorPivot != null;
-        panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom) {
-            @Override
-            public void onPress() {
-                super.onPress();
-                state.indicatorPivot = selected() ? DesignMotion.DEFAULT_PIVOT.clone() : null;
-                host.rebuild();
-            }
-        }).setTooltip(Tooltip.create(t("indicator.pivot.custom.tooltip")));
+        panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20, t("pivot.custom"), custom, on -> {
+            state.indicatorPivot = on ? DesignMotion.DEFAULT_PIVOT.clone() : null;
+            host.rebuild();
+        })).setTooltip(Tooltip.create(t("indicator.pivot.custom.tooltip")));
         panel.row();
         float[] pivot = custom ? state.indicatorPivot : DesignMotion.DEFAULT_PIVOT;
         for (int axis = 0; axis < 3; axis++) {

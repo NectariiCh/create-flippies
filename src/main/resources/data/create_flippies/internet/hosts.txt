@@ -1,0 +1,4 @@
+# The hosts the jar's built-in pages answer (docs/PC_SPEC.md 12.4.1, 12.4.3), one per line, each a
+# folder beside this file. Big content (OS images, the apt archive) is not in the jar: it comes in
+# content packs (*.flippack) that the server loads, served over these pages.
+get.flip

@@ -2,6 +2,9 @@ package com.nectariich.create_flippies.content.pc;
 
 import java.util.UUID;
 
+import com.nectariich.create_flippies.compat.StackData;
+
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -17,15 +20,17 @@ public final class PcDiskItems {
 
     /** The disk's id, or null if it has never been used. */
     public static UUID idOf(ItemStack stack) {
-        return stack.hasTag() && stack.getTag().hasUUID(TAG_DISK_ID) ? stack.getTag().getUUID(TAG_DISK_ID) : null;
+        CompoundTag tag = stack.isEmpty() ? null : StackData.peek(stack);
+        return tag != null && tag.hasUUID(TAG_DISK_ID) ? tag.getUUID(TAG_DISK_ID) : null;
     }
 
     /** The disk's id, assigning a fresh one first if it has none. */
     public static UUID assignId(ItemStack stack) {
         UUID id = idOf(stack);
         if (id == null) {
-            id = UUID.randomUUID();
-            stack.getOrCreateTag().putUUID(TAG_DISK_ID, id);
+            UUID fresh = UUID.randomUUID();
+            StackData.edit(stack, tag -> tag.putUUID(TAG_DISK_ID, fresh));
+            id = fresh;
         }
         return id;
     }

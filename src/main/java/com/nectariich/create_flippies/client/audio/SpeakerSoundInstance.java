@@ -69,8 +69,13 @@ final class SpeakerSoundInstance extends AbstractTickableSoundInstance {
 
     @Override
     public WeighedSoundEvents resolve(SoundManager manager) {
+        //? if forge {
         sound = new Sound(LOCATION.toString(), ConstantFloat.of(1), ConstantFloat.of(1), 1, Sound.Type.FILE, true,
                 false, RANGE);
+        //?} else {
+        /*sound = new Sound(LOCATION, ConstantFloat.of(1), ConstantFloat.of(1), 1, Sound.Type.FILE, true,
+                false, RANGE);
+        *///?}
         return new WeighedSoundEvents(LOCATION, SUBTITLE);
     }
 

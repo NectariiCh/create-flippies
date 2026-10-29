@@ -2,6 +2,8 @@ package com.nectariich.create_flippies.content.pc;
 
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.StackData;
+
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
@@ -32,8 +34,8 @@ public class PcCpuItem extends PcPartItem {
     }
 
     public static boolean strictFpu(ItemStack stack) {
-        return stack.getItem() instanceof PcCpuItem cpu && cpu.type.hasStrictFpuOption() && stack.hasTag()
-                && stack.getTag().getBoolean(TAG_STRICT_FPU);
+        return stack.getItem() instanceof PcCpuItem cpu && cpu.type.hasStrictFpuOption() && StackData.peek(stack) != null
+                && StackData.peek(stack).getBoolean(TAG_STRICT_FPU);
     }
 
     @Override
@@ -43,7 +45,7 @@ public class PcCpuItem extends PcPartItem {
             return InteractionResultHolder.pass(stack);
         if (!level.isClientSide) {
             boolean strict = !strictFpu(stack);
-            stack.getOrCreateTag().putBoolean(TAG_STRICT_FPU, strict);
+            StackData.edit(stack, tag -> tag.putBoolean(TAG_STRICT_FPU, strict));
             player.displayClientMessage(Component.translatable(strict
                     ? "gui.create_flippies.pc.tooltip.strict_fpu_on" : "gui.create_flippies.pc.tooltip.strict_fpu_off"),
                     true);

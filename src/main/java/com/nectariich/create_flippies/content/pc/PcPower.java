@@ -26,6 +26,8 @@ public final class PcPower {
     public static final double HDD_IDLE_WATTS = 3, HDD_ACTIVE_WATTS = 6;
     /** The built-in floppy drive, motor stopped and running. */
     public static final double FLOPPY_IDLE_WATTS = 0.3, FLOPPY_MOTOR_WATTS = 3;
+    /** A network modem powered over the ethernet cord (PoE, spec 12.4.5), taken from the PC's rails. */
+    public static final double MODEM_WATTS = 2.5;
     /** Input watts per rail watt is 1 / this. */
     public static final double EFFICIENCY = 0.8;
     /** Draw while plugged in and off (the standby rail). */
@@ -106,6 +108,11 @@ public final class PcPower {
         if (d.motherboard())
             watts += d.floppyMotor() ? FLOPPY_MOTOR_WATTS : FLOPPY_IDLE_WATTS;
         return watts;
+    }
+
+    /** Rail watts with a modem linked to the ethernet port or not: the modem draws only while the PC runs. */
+    public static double railWatts(Draw d, boolean modemLinked) {
+        return railWatts(d) + (modemLinked ? MODEM_WATTS : 0);
     }
 
     /** Watts taken from the cord: the rails through the supply when running, standby when off. */

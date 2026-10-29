@@ -97,6 +97,13 @@ public final class ArrowOverlay {
         }
     }
 
+    /** While the arrow menu waits for a colour: the arrow a right click would take it from. */
+    public static void drawPick(LocalPlayer player) {
+        PanelArrow under = ArrowColourPick.arrowUnder(player);
+        if (under != null)
+            outline(under, PICK_COLOUR, new Lines());
+    }
+
     private static void drawDraft(ArrowSettings arrows, ArrowDraft draft, ScrewdriverAim.Surface surface,
             BlockHitResult hit, Lines lines) {
         double depth = draft.depth() / (double) PanelPlane.UNITS_PER_BLOCK;

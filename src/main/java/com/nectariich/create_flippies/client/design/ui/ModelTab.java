@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import com.nectariich.create_flippies.compat.Checkboxes;
 import com.nectariich.create_flippies.content.design_workbench.DesignKind;
 import com.nectariich.create_flippies.content.design_workbench.DesignOcclusion;
 import com.nectariich.create_flippies.content.indicator.IndicatorAction;
@@ -14,7 +15,6 @@ import com.nectariich.create_flippies.content.indicator.IndicatorRating;
 import dev.nectariich.hypergraphical.api.MeshUnit;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 
@@ -26,6 +26,10 @@ import net.minecraft.network.chat.Component;
  * The gauge mode has the same tab, with the choice of a rotary or an edgewise gauge
  * in place of the controls; there the moving parts are the needle, and the parts
  * list is also where the dial face is given to a submesh.
+ *
+ * So does the screen mode, where nothing moves: no kind to choose (a screen is only a
+ * screen), a supply rating in place of a button's, and the parts list is where the
+ * screen's glass is given to a submesh.
  */
 public final class ModelTab {
 
@@ -34,20 +38,25 @@ public final class ModelTab {
     public static void build(Panel panel, WorkbenchHost host) {
         WorkbenchState state = host.state();
 
-        // What the control is built on. The rack and the gauges are modes of their own, so
-        // a gauge chooses only between the gauges, and a control never offers them
-        boolean gauge = state.kind.isGauge();
+        // What the control is built on. The rack, the gauges and the screen are modes of
+        // their own, so a gauge chooses only between the gauges, a screen is only a
+        // screen, and a control never offers any of them
+        boolean gauge = state.kind.isGauge(), screen = state.kind.isScreen();
         List<DesignKind> kinds = Arrays.stream(DesignKind.values())
-                .filter(kind -> !kind.isGenerated() && kind.isGauge() == gauge).toList();
-        for (int i = 0; i < kinds.size(); i++) {
-            DesignKind option = kinds.get(i);
-            Button choice = panel.button(option.label(), i, kinds.size(), b -> {
-                state.setKind(option);
-                host.rebuild();
-            });
-            choice.active = option != state.kind;
+                .filter(kind -> !kind.isGenerated() && kind.isGauge() == gauge && kind.isScreen() == screen)
+                .toList();
+        // A row of one button that is already chosen says nothing
+        if (kinds.size() > 1) {
+            for (int i = 0; i < kinds.size(); i++) {
+                DesignKind option = kinds.get(i);
+                Button choice = panel.button(option.label(), i, kinds.size(), b -> {
+                    state.setKind(option);
+                    host.rebuild();
+                });
+                choice.active = option != state.kind;
+            }
+            panel.row();
         }
-        panel.row();
 
         panel.button(t("browse"), 0, 1, t("browse.tooltip"), b -> host.browse());
         panel.row();
@@ -112,13 +121,21 @@ public final class ModelTab {
             });
             panel.row();
         }
+        if (screen && state.screen != null) {
+            panel.button(t("screen.supply", state.screen.supply.label()), 0, 2, t("screen.supply.tooltip"), b -> {
+                state.screen.supply = state.screen.supply.next();
+                b.setMessage(t("screen.supply", state.screen.supply.label()));
+                host.changed();
+            });
+            panel.row();
+        }
 
         occlusion(panel, host, state);
 
         panel.label(() -> {
             if (state.info == null)
                 return null;
-            if (state.moving.isEmpty())
+            if (state.moving.isEmpty() && !screen)
                 return t(gauge ? "needle.none" : "moving.none").withStyle(s -> s.withColor(0xFF8060));
             double[] front = state.boxes().front();
             return t("hitbox", NumberBox.format((float) (front[3] - front[0])),
@@ -139,14 +156,11 @@ public final class ModelTab {
         DesignOcclusion occlusion = state.occlusion;
         panel.gap(2);
         panel.label(t("ao"), 0xE0E0E0);
-        panel.add(new Checkbox(Panel.X, panel.y, Panel.WIDTH, 20, t("ao.enabled"), occlusion.enabled()) {
-            @Override
-            public void onPress() {
-                super.onPress();
-                state.occlusion = state.occlusion.withEnabled(selected());
-                host.rebuild();
-            }
-        }).setTooltip(Tooltip.create(t("ao.enabled.tooltip")));
+        panel.add(Checkboxes.create(Panel.X, panel.y, Panel.WIDTH, 20, t("ao.enabled"), occlusion.enabled(),
+                selected -> {
+                    state.occlusion = state.occlusion.withEnabled(selected);
+                    host.rebuild();
+                })).setTooltip(Tooltip.create(t("ao.enabled.tooltip")));
         panel.row();
 
         AbstractSliderButton strength = panel.add(new AbstractSliderButton(Panel.X, panel.y, Panel.WIDTH, 20,

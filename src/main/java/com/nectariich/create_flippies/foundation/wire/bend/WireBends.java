@@ -28,8 +28,14 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class WireBends {
 
-    /** The most bend points one wire may carry. */
+    /** The most bend points a player may give one wire by hand. */
     public static final int MAX_POINTS = 16;
+
+    /**
+     * The most bend points one wire may carry at all: a wire routed through ducts
+     * takes a point for every turn of its way, and a leg mask is 64 bits.
+     */
+    public static final int MAX_STORED = 62;
 
     /**
      * How much longer than the wire type's maximum span a bent path may be. A wire
@@ -190,7 +196,7 @@ public final class WireBends {
             return List.of();
         ListTag list = tag.getList(NBT_KEY, Tag.TAG_DOUBLE);
         List<Vec3> points = new ArrayList<>();
-        for (int i = 0; i + 2 < list.size() && points.size() < MAX_POINTS; i += 3) {
+        for (int i = 0; i + 2 < list.size() && points.size() < MAX_STORED; i += 3) {
             Vec3 p = new Vec3(list.getDouble(i), list.getDouble(i + 1), list.getDouble(i + 2));
             if (finite(p))
                 points.add(p);
@@ -209,10 +215,10 @@ public final class WireBends {
         }
     }
 
-    /** Reads a list sent by {@link #write(FriendlyByteBuf, List)}, never more than the cap. */
+    /** Reads a list sent by {@link #write(FriendlyByteBuf, List)}, never more than {@link #MAX_STORED}. */
     public static List<Vec3> read(FriendlyByteBuf buffer) {
         int count = buffer.readVarInt();
-        if (count < 0 || count > MAX_POINTS)
+        if (count < 0 || count > MAX_STORED)
             throw new IllegalArgumentException("Bad bend point count " + count);
         List<Vec3> points = new ArrayList<>(count);
         for (int i = 0; i < count; i++)

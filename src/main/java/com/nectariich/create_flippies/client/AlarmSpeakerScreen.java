@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.function.Consumer;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.FlippiesScreen;
 import com.nectariich.create_flippies.content.speaker.AlarmSpeaker;
 import com.nectariich.create_flippies.content.speaker.AlarmSpeakerBlockEntity;
 import com.nectariich.create_flippies.content.speaker.AlarmSpeakerControl;
@@ -22,7 +23,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
@@ -41,7 +41,7 @@ import net.minecraft.network.chat.Component;
  * tune a sound is by listening to it. A box holding something out of range or
  * unreadable turns red and sends nothing.
  */
-public class AlarmSpeakerScreen extends Screen {
+public class AlarmSpeakerScreen extends FlippiesScreen {
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".alarm_speaker_menu.";
 
@@ -383,7 +383,7 @@ public class AlarmSpeakerScreen extends Screen {
     // ---- helpers ------------------------------------------------------------------------
 
     private void send(boolean turn) {
-        ModPackets.CHANNEL.sendToServer(new ConfigureAlarmSpeakerPacket(pos, settings.copy(), turn, mount));
+        ModPackets.sendToServer(new ConfigureAlarmSpeakerPacket(pos, settings.copy(), turn, mount));
     }
 
     private void label(String key, int cx, int y) {
@@ -431,7 +431,7 @@ public class AlarmSpeakerScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTicks);
         graphics.drawCenteredString(font, title, width / 2, top(), 0xFFFFFF);
         for (Label label : labels)
             graphics.drawString(font, label.text(), label.x(), label.y(), label.colour());

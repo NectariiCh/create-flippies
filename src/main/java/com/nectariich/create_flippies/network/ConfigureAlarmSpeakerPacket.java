@@ -1,7 +1,5 @@
 package com.nectariich.create_flippies.network;
 
-import java.util.function.Supplier;
-
 import com.nectariich.create_flippies.content.speaker.AlarmSpeaker;
 import com.nectariich.create_flippies.content.speaker.AlarmSpeakerBlock;
 import com.nectariich.create_flippies.content.speaker.AlarmSpeakerBlockEntity;
@@ -14,7 +12,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 
 /**
  * Applies the menu's settings — all four channels — to one alarm speaker, in either
@@ -22,7 +19,7 @@ import net.minecraftforge.network.NetworkEvent;
  * like {@link ConfigureAlphanumDisplayPacket}, turn included. Every field is clamped
  * by {@link SpeakerSettings#decode}.
  */
-public class ConfigureAlarmSpeakerPacket {
+public class ConfigureAlarmSpeakerPacket implements FlippiesPacket {
 
     private final BlockPos pos;
     private final SpeakerSettings settings;
@@ -52,9 +49,9 @@ public class ConfigureAlarmSpeakerPacket {
             mount.write(buffer);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> context) {
-        context.get().enqueueWork(() -> {
-            ServerPlayer player = context.get().getSender();
+    public void handle(PacketContext context) {
+        context.enqueueWork(() -> {
+            ServerPlayer player = context.sender();
             if (player == null)
                 return;
             Level level = player.level();
@@ -72,6 +69,5 @@ public class ConfigureAlarmSpeakerPacket {
             if (turn)
                 AlarmSpeakerBlock.turn(level, pos);
         });
-        context.get().setPacketHandled(true);
     }
 }

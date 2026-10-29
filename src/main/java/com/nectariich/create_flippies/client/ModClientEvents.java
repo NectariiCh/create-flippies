@@ -1,5 +1,7 @@
 package com.nectariich.create_flippies.client;
 
+import java.util.function.Supplier;
+
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.registry.ModBlockEntities;
 
@@ -46,6 +48,11 @@ public class ModClientEvents {
     }
 
     @SubscribeEvent
+    public static void registerKeys(net.minecraftforge.client.event.RegisterKeyMappingsEvent event) {
+        event.register(com.nectariich.create_flippies.client.pc.PcKeyMappings.PC_MOUSE_TOGGLE);
+    }
+
+    @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.UNIVERSAL_GAUGE.get(), UniversalGaugeRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.SQUARE_PROCEDURAL_VOLTMETER.get(),
@@ -73,12 +80,18 @@ public class ModClientEvents {
         // PC
         event.registerBlockEntityRenderer(ModBlockEntities.PC_CASE.get(),
                 com.nectariich.create_flippies.client.pc.PcCaseRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.NETWORK_MODEM.get(),
+                com.nectariich.create_flippies.client.pc.NetworkModemRenderer::new);
         event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.DATA_CORD.get(),
                 com.nectariich.create_flippies.client.pc.DataCordRenderer::new);
         // PC end
         // CRT
-        event.registerBlockEntityRenderer(ModBlockEntities.CRT.get(),
+        event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.CRT.get(),
                 com.nectariich.create_flippies.client.pc.CrtRenderer::new);
+        event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.KEYBOARD.get(),
+                com.nectariich.create_flippies.client.pc.KeyboardRenderer::new);
+        event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.KEYBOARD_AND_MOUSE.get(),
+                com.nectariich.create_flippies.client.pc.KeyboardMouseRenderer::new);
         // CRT end
         // WIRE DUCTS
         event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.WIRE_DUCT.get(),
@@ -92,8 +105,9 @@ public class ModClientEvents {
     public static void registerItemColors(net.minecraftforge.client.event.RegisterColorHandlersEvent.Item event) {
         event.register((stack, tint) -> tint == 0
                 ? 0xFF000000 | com.nectariich.create_flippies.content.wire_duct.WireDuctItem.color(stack) : -1,
-                com.nectariich.create_flippies.registry.ModItems.WIRE_DUCT.get(),
-                com.nectariich.create_flippies.registry.ModItems.LARGE_WIRE_DUCT.get());
+                com.nectariich.create_flippies.registry.ModItems.WIRE_DUCTS.values().stream()
+                        .map(Supplier::get)
+                        .toArray(net.minecraft.world.item.Item[]::new));
     }
     // WIRE DUCTS 2 end
 

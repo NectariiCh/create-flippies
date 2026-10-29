@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.design_workbench.ControlDesign;
 import com.nectariich.create_flippies.content.design_workbench.DesignKind;
 import com.nectariich.create_flippies.content.design_workbench.DesignMotion;
@@ -97,6 +98,8 @@ class DesignedGaugeTest {
             draft.name = "Load";
             draft.face = "body#glass";
             draft.uv = new float[] { 0.5f, 0, 1, 0.5f };
+            draft.placement = new float[] { 0.1f, -0.2f, 1.5f, 0.8f, 30 };
+            draft.flipX = true;
             draft.needleZero = -90;
             draft.reverse = true;
             draft.slide = false;
@@ -109,6 +112,9 @@ class DesignedGaugeTest {
             assertEquals(built, read);
             assertEquals("body#glass", read.face);
             assertArrayEquals(new float[] { 0.5f, 0, 1, 0.5f }, read.uv());
+            assertArrayEquals(new float[] { 0.1f, -0.2f, 1.5f, 0.8f, 30 }, read.placement());
+            assertTrue(read.flipX);
+            assertFalse(read.flipY);
             // The draft loses nothing either
             assertEquals(built.write(), GaugeDraft.of(read).build().write());
         }
@@ -144,6 +150,34 @@ class DesignedGaugeTest {
         assertEquals(1, 0.75f * t[0] + t[2], 1e-6f);
         assertEquals(0, 0.5f * t[1] + t[3], 1e-6f);
         assertEquals(1, 1 * t[1] + t[3], 1e-6f);
+    }
+
+    @Test
+    void movesAndScalesTheFaceWithinItsUvRectangle() {
+        float[] rect = { 0.25f, 0.5f, 0.75f, 1 };
+        // Twice as large: the rectangle's centre stays on the texture's, its corners reach a quarter in
+        float[] t = new GaugeDial(null, null, null, "a#b", rect, new float[] { 0, 0, 2, 2, 0 }, false, false, 0, false, true)
+                .uvTransform();
+        assertEquals(0.5f, 0.5f * t[0] + t[2], 1e-6f);
+        assertEquals(0.25f, 0.25f * t[0] + t[2], 1e-6f);
+        assertEquals(0.75f, 1 * t[1] + t[3], 1e-6f);
+        // A quarter right and a quarter up: the rectangle's centre samples left of and below the texture's
+        t = new GaugeDial(null, null, null, "a#b", rect, new float[] { 0.25f, 0.25f, 1, 1, 0 }, false, false, 0, false,
+                true)
+                .uvTransform();
+        assertEquals(0.25f, 0.5f * t[0] + t[2], 1e-6f);
+        assertEquals(0.75f, 0.75f * t[1] + t[3], 1e-6f);
+        // Mirrored left to right: the dial's centre stays put and its left edge samples the texture's right
+        t = new GaugeDial(null, null, null, "a#b", rect, null, true, false, 0, false, true).uvTransform();
+        assertEquals(0.5f, 0.5f * t[0] + t[2], 1e-6f);
+        assertEquals(1, 0.25f * t[0] + t[2], 1e-6f);
+        assertEquals(0, 0.5f * t[1] + t[3], 1e-6f);
+        // Nonsense is held to what a saved gauge keeps
+        assertArrayEquals(new float[] { 0, 99, GaugeDial.MIN_SCALE, 1, -360 },
+                GaugeDial.sanitisePlacement(new float[] { Float.NaN, 99, 0, Float.POSITIVE_INFINITY, -1000 }));
+        // A large scale is kept as it is
+        assertEquals(50, GaugeDial.sanitisePlacement(new float[] { 0, 0, 50, 200, 0 })[2]);
+        assertEquals(200, GaugeDial.sanitisePlacement(new float[] { 0, 0, 50, 200, 0 })[3]);
     }
 
     @Test
@@ -362,7 +396,7 @@ class DesignedGaugeTest {
     void agreesWithHypergraphicalOnUvs() throws Exception {
         byte[] obj = OBJ.getBytes(StandardCharsets.UTF_8);
         MeshData mesh = ObjMeshReader.read(new ByteArrayInputStream(obj),
-                new ResourceLocation("create_flippies", "designs/test/gauge.obj"), ObjImportSettings.DEFAULT,
+                Ids.of("create_flippies", "designs/test/gauge.obj"), ObjImportSettings.DEFAULT,
                 mtl -> null).mesh();
         int checked = 0;
         for (MeshData.SubMesh sub : mesh.subMeshes()) {

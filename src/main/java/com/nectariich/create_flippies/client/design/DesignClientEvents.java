@@ -7,7 +7,11 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RenderHandEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
+//? if forge {
 import net.minecraftforge.event.TickEvent;
+//?} else {
+/*import net.neoforged.neoforge.client.event.RenderFrameEvent;
+*///?}
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -19,12 +23,19 @@ public final class DesignClientEvents {
     private DesignClientEvents() {}
 
     @SubscribeEvent
+    //? if forge {
     public static void onRenderTick(TickEvent.RenderTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             DesignedModels.sweep();
             ClientDesigns.sweepVariants();
         }
     }
+    //?} else {
+    /*public static void onRenderTick(RenderFrameEvent.Post event) {
+        DesignedModels.sweep();
+        ClientDesigns.sweepVariants();
+    }
+    *///?}
 
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
@@ -32,10 +43,13 @@ public final class DesignClientEvents {
         if (stage == RenderLevelStageEvent.Stage.AFTER_SKY) {
             // Before the block entity pass: placed controls' text is recorded from here
             DesignTextRenderer.beginLevel();
+            DesignScreenRenderer.beginLevel();
         } else if (stage == RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
             // After Hypergraphical's opaque pass, which always comes before translucent
-            // blocks, so the text of placed controls and of the preview lands on the model
+            // blocks, so the text and screens of placed controls and of the preview land
+            // on the model
             DesignTextRenderer.flushPlaced(Minecraft.getInstance().renderBuffers().bufferSource());
+            DesignScreenRenderer.flushPlaced(Minecraft.getInstance().renderBuffers().bufferSource());
             DesignPreview.render(event.getPoseStack(), event.getCamera().getPosition());
         }
     }

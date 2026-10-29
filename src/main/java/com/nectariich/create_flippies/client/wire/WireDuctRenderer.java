@@ -6,6 +6,7 @@ import org.joml.Matrix4f;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.compat.Verts;
 import com.nectariich.create_flippies.content.wire_duct.WireDuctEntity;
 
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -83,12 +84,8 @@ public class WireDuctRenderer extends EntityRenderer<WireDuctEntity> {
             int color, int light) {
         Matrix4f matrix = pose.pose();
         Matrix3f normal = pose.normal();
-        buffer.vertex(matrix, (float) p.x, (float) p.y, (float) p.z)
-                .color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >>> 24) & 0xFF)
-                .uv(u, v)
-                .overlayCoords(OverlayTexture.NO_OVERLAY)
-                .uv2(light)
-                .normal(normal, (float) n.x, (float) n.y, (float) n.z)
-                .endVertex();
+        Verts.block(buffer, matrix, normal, (float) p.x, (float) p.y, (float) p.z,
+                (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >>> 24) & 0xFF,
+                u, v, OverlayTexture.NO_OVERLAY, light, (float) n.x, (float) n.y, (float) n.z);
     }
 }

@@ -11,7 +11,6 @@ import com.nectariich.create_flippies.network.DesignDataPacket;
 import com.nectariich.create_flippies.network.ModPackets;
 
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.PacketDistributor;
 
 /**
  * Moving blobs between clients and the world's {@link DesignStore}, in chunks that
@@ -134,7 +133,7 @@ public final class DesignTransfers {
         for (int i = 0; i < total; i++) {
             int from = i * DOWNLOAD_CHUNK;
             byte[] chunk = java.util.Arrays.copyOfRange(blob, from, Math.min(blob.length, from + DOWNLOAD_CHUNK));
-            ModPackets.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+            ModPackets.sendToPlayer(player,
                     new DesignDataPacket(hash, i, total, chunk));
         }
     }
