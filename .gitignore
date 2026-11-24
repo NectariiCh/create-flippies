@@ -30,3 +30,17 @@ eclipse/
 
 # Local reference clone
 /hypergraphical-lib/
+
+# Local reference files, kept out of the repo
+/local/
+/historical/
+
+# Local Claude Code setup (Discord bridge holds the bot token)
+/.claude/discord-bridge/
+/.claude/settings.local.json
+/.mcp.json
+
+# Python bytecode and locally built jars
+__pycache__/
+*.pyc
+/*.jar
