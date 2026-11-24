@@ -25,7 +25,8 @@ import net.minecraftforge.fml.common.Mod;
  * hold, and holding the attack button on the same device for its
  * {@link DeviceEntity#breakTicks} breaks it, as mining a block does, with the arm
  * swinging and the device's hit sound as it goes. Letting go, or looking off it,
- * starts over. In creative a click breaks it.
+ * starts over. In creative a click breaks it, unless it breaks slowly there too
+ * ({@link DeviceEntity#breaksAtOnce}), when the hold is the same as in survival.
  */
 @Mod.EventBusSubscriber(modid = CreateFlippies.MOD_ID, value = Dist.CLIENT)
 public final class DeviceInput {
@@ -34,6 +35,17 @@ public final class DeviceInput {
     private static int held;
 
     private DeviceInput() {}
+
+    /**
+     * How far this player has got breaking {@code device}, as the ten stages of the
+     * block-breaking cracks, 0 to 9, or -1 when they are not breaking it.
+     */
+    public static int breakStage(DeviceEntity device) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (device != holding || held <= 0 || player == null || device.breaksAtOnce(player))
+            return -1;
+        return Math.min(9, held * 10 / Math.max(1, device.breakTicks(player)));
+    }
 
     @SubscribeEvent
     public static void onKey(InputEvent.InteractionKeyMappingTriggered event) {
@@ -68,7 +80,7 @@ public final class DeviceInput {
             holding = null;
             return;
         }
-        if (player.getAbilities().instabuild)
+        if (holding.breaksAtOnce(player))
             return;
         held++;
         player.swing(InteractionHand.MAIN_HAND);

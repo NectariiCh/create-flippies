@@ -124,13 +124,15 @@ tasks.named<ProcessResources>("processResources") {
         expand(replaceProperties)
     }
 
-    // The Blockbench exports the breaker models are cut from live beside the models
-    // they produce, because that is where they are authored and re-exported. They
-    // are not resources: Minecraft resource paths may hold only [a-z0-9/._-], so
+    // The Blockbench exports the breaker and PSU models are cut from live beside the
+    // models they produce, because that is where they are authored and re-exported.
+    // They are not resources: Minecraft resource paths may hold only [a-z0-9/._-], so
     // every one of them is rejected by the loader with an ignorable error, and a
     // dozen of those at every startup is a dozen places for a real error to hide.
-    // tools/gen_circuit_breaker.py reads them from the source tree, not from here.
+    // tools/gen_circuit_breaker.py and tools/gen_psu.py read them from the source
+    // tree, not from here.
     exclude("assets/*/models/block/CB*-DIN-WO-*.json")
+    exclude("assets/*/models/block/PSU-DCDC-*.json")
 
     // The netinstall floppy (docs/PC_SPEC.md 12.5), taken from the guest build's output when it
     // exists. It is a build output, not a source, so it never goes into src/main/resources (git); a

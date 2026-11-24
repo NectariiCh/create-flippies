@@ -63,13 +63,21 @@ class PcPowerTest {
     void windowWithHysteresis() {
         assertFalse(PcPower.canStart(94));
         assertTrue(PcPower.canStart(95));
-        assertTrue(PcPower.canStart(270));
-        assertFalse(PcPower.canStart(271));
-        // Once running it holds on from 90 to 280 V
+        assertTrue(PcPower.canStart(135));
+        assertFalse(PcPower.canStart(136));
+        assertFalse(PcPower.canStart(194));
+        assertTrue(PcPower.canStart(195));
+        assertTrue(PcPower.canStart(260));
+        assertFalse(PcPower.canStart(261));
+        // Once running it holds on 5 V past either window
         assertEquals(PcPower.Event.NONE, PcPower.check(92));
-        assertEquals(PcPower.Event.NONE, PcPower.check(278));
+        assertEquals(PcPower.Event.NONE, PcPower.check(138));
+        assertEquals(PcPower.Event.NONE, PcPower.check(192));
+        assertEquals(PcPower.Event.NONE, PcPower.check(263));
         assertEquals(PcPower.Event.BROWN_OUT, PcPower.check(89.9));
-        assertEquals(PcPower.Event.OVER_VOLTAGE, PcPower.check(280.1));
+        assertEquals(PcPower.Event.OVER_VOLTAGE, PcPower.check(140.1));
+        assertEquals(PcPower.Event.BROWN_OUT, PcPower.check(189.9));
+        assertEquals(PcPower.Event.OVER_VOLTAGE, PcPower.check(265.1));
     }
 
     @Test

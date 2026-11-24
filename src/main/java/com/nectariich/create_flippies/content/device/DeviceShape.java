@@ -35,6 +35,8 @@ public final class DeviceShape {
     private final double[][] solid;
     /** Boxes that are only hit (ports too small to stand on), px. */
     private final double[][] pickOnly;
+    /** Boxes collided with: {@link #solid}, unless given apart from it. */
+    private final double[][] collide;
     /** The yaw of the model's front at turn 0 plus this is the turn applied to the model, degrees. */
     private final double frontOffset;
     /** The size it stands at, as a fraction of the model's. */
@@ -55,6 +57,18 @@ public final class DeviceShape {
      * @param scale the size it stands at, as a fraction of the model's
      */
     public DeviceShape(double[][] solid, double[][] pickOnly, int front, double scale) {
+        this(solid, pickOnly, solid, front, scale);
+    }
+
+    /**
+     * A shape collided with as boxes of its own, coarser than the ones clicks are
+     * traced against: a cabinet wall drilled full of round holes is hit to the quarter
+     * pixel and stood on to the pixel.
+     *
+     * @param collide the boxes collided with, px, in place of {@code solid}
+     */
+    public DeviceShape(double[][] solid, double[][] pickOnly, double[][] collide, int front, double scale) {
+        this.collide = collide;
         this.solid = solid;
         this.pickOnly = pickOnly;
         this.frontOffset = front > 0 ? -90 : 90;
@@ -139,9 +153,12 @@ public final class DeviceShape {
 
     private VoxelShape buildShape(int step) {
         List<VoxelShape> parts = new ArrayList<>();
-        for (double[] b : solid) {
+        for (double[] b : collide) {
             if (step % (STEPS / 4) == 0) {
-                Vec3 p = toLocal(new Vec3(b[0], b[1], b[2]), step), q = toLocal(new Vec3(b[3], b[4], b[5]), step);
+                // A quarter turn's sine and cosine are not exactly 0 and 1, so the corners
+                // come out ~1e-16 off; rounded, the faces of neighbouring boxes meet exactly
+                Vec3 p = clean(toLocal(new Vec3(b[0], b[1], b[2]), step));
+                Vec3 q = clean(toLocal(new Vec3(b[3], b[4], b[5]), step));
                 parts.add(Shapes.create(new AABB(p, q)));
                 continue;
             }
@@ -151,6 +168,11 @@ public final class DeviceShape {
         for (VoxelShape part : parts)
             shape = Shapes.joinUnoptimized(shape, part, BooleanOp.OR);
         return shape.optimize();
+    }
+
+    /** {@code v} with its rounding noise taken off, to a billionth of a block. */
+    private static Vec3 clean(Vec3 v) {
+        return new Vec3(Math.round(v.x * 1e9) / 1e9, Math.round(v.y * 1e9) / 1e9, Math.round(v.z * 1e9) / 1e9);
     }
 
     /** {@code b} turned and filled in pixel columns, each run of columns along z one box. */

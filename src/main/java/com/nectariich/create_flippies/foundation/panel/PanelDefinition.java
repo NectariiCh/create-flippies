@@ -493,7 +493,7 @@ public record PanelDefinition(PanelPlane plane, int minU, int minV, int maxU, in
      * rectangle into diamonds rather than into rows, and a walk that samples a grid of
      * rows and columns steps over some of them and lands twice in others.
      *
-     * So the world is asked instead of the rectangle. The plate is flat and lies level,
+     * So the world is asked instead of the rectangle. The plate is flat and square to an axis,
      * so its blocks are a footprint repeated over the few layers it is thick, and a
      * block is in that footprint exactly when its square meets the rectangle. Two
      * convex shapes in a plane miss each other only if some axis separates them, and
@@ -507,63 +507,78 @@ public record PanelDefinition(PanelPlane plane, int minU, int minV, int maxU, in
         double vLow = minV / scale;
         double vHigh = maxV / scale;
 
-        double faceAt = plane.at(0, 0, 0).y;
-        double backAt = plane.at(0, 0, -THICKNESS / scale).y;
-        int lowY = Mth.floor(Math.min(faceAt, backAt) + BOUNDARY);
-        int highY = Mth.floor(Math.max(faceAt, backAt) - BOUNDARY);
+        // The spin's axis is the plate's normal, so the layers are counted along it and
+        // the footprint lies across the other two: x and z for a floor, as before
+        int held = plane.turnAxis().ordinal();
+        int first = held == 0 ? 1 : 0;
+        int second = 3 - held - first;
+
+        double faceAt = component(plane.at(0, 0, 0), held);
+        double backAt = component(plane.at(0, 0, -THICKNESS / scale), held);
+        int lowLayer = Mth.floor(Math.min(faceAt, backAt) + BOUNDARY);
+        int highLayer = Mth.floor(Math.max(faceAt, backAt) - BOUNDARY);
 
         // The corners of the plate, which bound the blocks worth asking about
-        double lowX = Double.MAX_VALUE, highX = -Double.MAX_VALUE;
-        double lowZ = Double.MAX_VALUE, highZ = -Double.MAX_VALUE;
+        double lowA = Double.MAX_VALUE, highA = -Double.MAX_VALUE;
+        double lowB = Double.MAX_VALUE, highB = -Double.MAX_VALUE;
         for (int corner = 0; corner < 4; corner++) {
             Vec3 point = plane.at((corner & 1) == 0 ? uLow : uHigh, (corner & 2) == 0 ? vLow : vHigh, 0);
-            lowX = Math.min(lowX, point.x);
-            highX = Math.max(highX, point.x);
-            lowZ = Math.min(lowZ, point.z);
-            highZ = Math.max(highZ, point.z);
+            lowA = Math.min(lowA, component(point, first));
+            highA = Math.max(highA, component(point, first));
+            lowB = Math.min(lowB, component(point, second));
+            highB = Math.max(highB, component(point, second));
         }
 
-        for (int x = Mth.floor(lowX); x <= Mth.floor(highX); x++)
-            for (int z = Mth.floor(lowZ); z <= Mth.floor(highZ); z++) {
-                if (!meetsSquare(x, z, uLow, uHigh, vLow, vHigh))
+        int[] at = new int[3];
+        for (int a = Mth.floor(lowA); a <= Mth.floor(highA); a++)
+            for (int b = Mth.floor(lowB); b <= Mth.floor(highB); b++) {
+                if (!meetsSquare(first, a, second, b, uLow, uHigh, vLow, vHigh))
                     continue;
-                for (int y = lowY; y <= highY; y++)
-                    cells.accept(new BlockPos(x, y, z));
+                at[first] = a;
+                at[second] = b;
+                for (int layer = lowLayer; layer <= highLayer; layer++) {
+                    at[held] = layer;
+                    cells.accept(new BlockPos(at[0], at[1], at[2]));
+                }
             }
     }
 
     /**
-     * Whether the panel rectangle meets one block square of the world, seen from
-     * above.
+     * Whether the panel rectangle meets one block square of the world, seen along the
+     * plate's normal.
      *
      * The four axes that can separate them are u and v, on which the rectangle is its
-     * own bounds, and x and z, on which the square is. Each side is projected onto the
-     * other two and the intervals compared; touching along an edge counts as missing,
-     * which is what stops a panel ending exactly on a boundary from claiming the block
-     * beyond it.
+     * own bounds, and the two world axes across the normal, on which the square is.
+     * Each side is projected onto the other two and the intervals compared; touching
+     * along an edge counts as missing, which is what stops a panel ending exactly on a
+     * boundary from claiming the block beyond it.
      */
-    private boolean meetsSquare(int x, int z, double uLow, double uHigh, double vLow, double vHigh) {
+    private boolean meetsSquare(int firstAxis, int a, int secondAxis, int b, double uLow, double uHigh, double vLow,
+            double vHigh) {
         double squareLowU = Double.MAX_VALUE, squareHighU = -Double.MAX_VALUE;
         double squareLowV = Double.MAX_VALUE, squareHighV = -Double.MAX_VALUE;
-        double panelLowX = Double.MAX_VALUE, panelHighX = -Double.MAX_VALUE;
-        double panelLowZ = Double.MAX_VALUE, panelHighZ = -Double.MAX_VALUE;
+        double panelLowA = Double.MAX_VALUE, panelHighA = -Double.MAX_VALUE;
+        double panelLowB = Double.MAX_VALUE, panelHighB = -Double.MAX_VALUE;
 
         for (int corner = 0; corner < 4; corner++) {
-            Vec3 stone = new Vec3(x + (corner & 1), 0, z + ((corner >> 1) & 1));
+            double[] p = new double[3];
+            p[firstAxis] = a + (corner & 1);
+            p[secondAxis] = b + ((corner >> 1) & 1);
+            Vec3 stone = new Vec3(p[0], p[1], p[2]);
             squareLowU = Math.min(squareLowU, plane.u(stone));
             squareHighU = Math.max(squareHighU, plane.u(stone));
             squareLowV = Math.min(squareLowV, plane.v(stone));
             squareHighV = Math.max(squareHighV, plane.v(stone));
 
             Vec3 point = plane.at((corner & 1) == 0 ? uLow : uHigh, (corner & 2) == 0 ? vLow : vHigh, 0);
-            panelLowX = Math.min(panelLowX, point.x);
-            panelHighX = Math.max(panelHighX, point.x);
-            panelLowZ = Math.min(panelLowZ, point.z);
-            panelHighZ = Math.max(panelHighZ, point.z);
+            panelLowA = Math.min(panelLowA, component(point, firstAxis));
+            panelHighA = Math.max(panelHighA, component(point, firstAxis));
+            panelLowB = Math.min(panelLowB, component(point, secondAxis));
+            panelHighB = Math.max(panelHighB, component(point, secondAxis));
         }
 
         return meets(uLow, uHigh, squareLowU, squareHighU) && meets(vLow, vHigh, squareLowV, squareHighV)
-                && meets(panelLowX, panelHighX, x, x + 1) && meets(panelLowZ, panelHighZ, z, z + 1);
+                && meets(panelLowA, panelHighA, a, a + 1) && meets(panelLowB, panelHighB, b, b + 1);
     }
 
     private static boolean meets(double lowA, double highA, double lowB, double highB) {

@@ -52,6 +52,7 @@ public class PsuControlRenderer implements ControlRenderer {
         VertexConsumer vertices = buffer.getBuffer(RenderType.cutout());
         CachedBuffers.partial(model, referenceState())
                 .translate(mount.offset())
+                .rotateCentered(SurfaceMount.tipping(mount.yaw()))
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(mount.face(), mount.yaw()))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(mount.face()))
                 .rotateYCenteredDegrees(SurfaceMount.spinDegrees(mount.rotation()))

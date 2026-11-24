@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.nectariich.create_flippies.content.cabinet.CabinetDoorWires;
 import com.nectariich.create_flippies.client.wire.DuctWireRenderer;
 
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -25,6 +26,11 @@ public class BlockWireRendererDuctMixin {
             at = @At("HEAD"), cancellable = true)
     private void create_flippies$renderDucted(BlockWireEntity entity, float yaw, float partialTicks, PoseStack ms,
             MultiBufferSource buffers, int light, CallbackInfo ci) {
+        // A wire to a control on a shut cabinet door would run to where the door hangs open
+        if (CabinetDoorWires.hidden(entity)) {
+            ci.cancel();
+            return;
+        }
         if (DuctWireRenderer.render(entity, ms, buffers))
             ci.cancel();
     }

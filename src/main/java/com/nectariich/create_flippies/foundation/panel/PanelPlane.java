@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.foundation.panel;
 
+import com.nectariich.create_flippies.foundation.SurfaceMount;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid;
 
 import net.minecraft.core.BlockPos;
@@ -76,6 +77,21 @@ import net.minecraft.world.phys.Vec3;
  * within {@code 1/512} of a block of a lattice point rather than on one, which is
  * a fortieth of a pixel and answers to nothing anyone can see. The panel's
  * <i>surface</i>, which is the alignment that shows, stays exact.
+ *
+ * <h2>Turns about the horizontal axes</h2>
+ *
+ * {@code yaw} names which axis the eighth turn is about as well as whether there
+ * is one: {@link #TURN_Y} is the turn about the vertical described above, and
+ * {@link #TURN_X} and {@link #TURN_Z} are the same eighth about x and about z, in
+ * the same right-handed sense {@link SurfaceMount} turns a control by. Kept in the
+ * one field so that a save written before the other two existed reads back
+ * unchanged, a yaw of one still meaning what it always meant.
+ *
+ * Each turn treats the faces exactly as the vertical one does: a face square to the
+ * axis is spun in place, and the other four tip onto the two diagonal families that
+ * contain the axis, {@code (0, 1, +-1)} about x and {@code (1, +-1, 0)} about z. On
+ * those diagonals u runs along the axis itself and v up the slope, so the frame is
+ * still named by the plane and never by which side faces out.
  */
 public record PanelPlane(Direction face, int yaw, int offset) {
 
@@ -88,8 +104,23 @@ public record PanelPlane(Direction face, int yaw, int offset) {
 
     public static final int UNITS_PER_PIXEL = UNITS_PER_BLOCK / PlacementGrid.PIXELS_PER_BLOCK;
 
-    /** A yaw is half a quarter turn, so there are only two before the face changes. */
+    /**
+     * A turn about the vertical is half a quarter turn, so there are only two before
+     * the face changes. What a chamfer counts its octants in.
+     */
     public static final int YAW_STEPS = 2;
+
+    /** An eighth turn about the vertical; see the class comment. */
+    public static final int TURN_Y = 1;
+
+    /** An eighth turn about x. */
+    public static final int TURN_X = 2;
+
+    /** An eighth turn about z. */
+    public static final int TURN_Z = 3;
+
+    /** How many values {@link #yaw} may take: none, and one per axis. */
+    public static final int TURNS = 4;
 
     /**
      * Correctly rounded by IEEE 754 and therefore identical on every machine, which
@@ -100,7 +131,7 @@ public record PanelPlane(Direction face, int yaw, int offset) {
     /** Why a plane was refused, or {@link #NONE} if it was not. */
     public enum Problem {
         NONE,
-        /** Yaw outside the two steps a face admits. */
+        /** Yaw outside the turns a face admits. */
         BAD_YAW;
 
         public boolean ok() {
@@ -119,7 +150,22 @@ public record PanelPlane(Direction face, int yaw, int offset) {
     }
 
     public Problem check() {
-        return yaw < 0 || yaw >= YAW_STEPS ? Problem.BAD_YAW : Problem.NONE;
+        return yaw < 0 || yaw >= TURNS ? Problem.BAD_YAW : Problem.NONE;
+    }
+
+    /** The axis this plane's eighth turn is about, or null if it is not turned. */
+    public Axis turnAxis() {
+        return turnAxis(yaw);
+    }
+
+    /** The axis a yaw turns about, or null for none; see the class comment. */
+    public static Axis turnAxis(int yaw) {
+        return switch (yaw) {
+            case TURN_Y -> Axis.Y;
+            case TURN_X -> Axis.X;
+            case TURN_Z -> Axis.Z;
+            default -> null;
+        };
     }
 
     /**
@@ -127,12 +173,13 @@ public record PanelPlane(Direction face, int yaw, int offset) {
      * whether the plane is turned, and the difference is the whole reason both
      * predicates exist.
      *
-     * A yaw is a turn about the vertical axis. Applied to a wall it swings the wall
+     * Take the turn about the vertical axis. Applied to a wall it swings the wall
      * round, so the plane itself ends up diagonal to the world. Applied to a floor it
      * cannot: turning a horizontal plane about the vertical axis leaves it exactly
      * where it was. What it turns instead is u and v <em>within</em> the plane, so a
      * flat panel comes out as a rectangle lying at forty-five degrees to the block
-     * grid on a plane that is still a plain block boundary.
+     * grid on a plane that is still a plain block boundary. The turns about x and z
+     * do the same to the faces square to their own axes.
      *
      * Both are worth having and they behave differently almost everywhere below, so
      * they are named apart rather than told from each other by re-testing the face.
@@ -141,20 +188,21 @@ public record PanelPlane(Direction face, int yaw, int offset) {
         return yaw != 0;
     }
 
-    /** Whether the plane itself lies diagonally: a turned wall, never a turned floor. */
+    /** Whether the plane itself lies diagonally: a face turned about an axis it lies along. */
     public boolean isDiagonal() {
-        return yaw != 0 && face.getAxis().isHorizontal();
+        return yaw != 0 && face.getAxis() != turnAxis();
     }
 
     /** Whether u and v are turned inside a plane that is itself a block boundary. */
     public boolean isSpun() {
-        return yaw != 0 && face.getAxis().isVertical();
+        return yaw != 0 && face.getAxis() == turnAxis();
     }
 
     /**
      * The eighth of a turn this facing occupies, counted the way
      * {@link Direction#get2DDataValue} counts: south, west, north, east. Meaningless
-     * for a floor or a ceiling, which have no facing to count.
+     * for a floor or a ceiling, which have no facing to count, and for a turn about
+     * any axis but the vertical.
      */
     public int octant() {
         return face.get2DDataValue() * YAW_STEPS + yaw;
@@ -175,6 +223,11 @@ public record PanelPlane(Direction face, int yaw, int offset) {
             Axis axis = face.getAxis();
             return new int[] { axis == Axis.X ? 1 : 0, axis == Axis.Y ? 1 : 0, axis == Axis.Z ? 1 : 0 };
         }
+        if (turnAxis() != Axis.Y) {
+            int[] n = tippedNormal();
+            int sign = firstSign(n);
+            return new int[] { n[0] * sign, n[1] * sign, n[2] * sign };
+        }
         // Octants 1 and 5 are the north-east/south-west family, 3 and 7 the other
         return octant() % 4 == 1 ? new int[] { 1, 0, -1 } : new int[] { 1, 0, 1 };
     }
@@ -183,8 +236,34 @@ public record PanelPlane(Direction face, int yaw, int offset) {
     public int outwardSign() {
         if (!isDiagonal())
             return face.getAxisDirection() == AxisDirection.POSITIVE ? 1 : -1;
+        if (turnAxis() != Axis.Y)
+            return firstSign(tippedNormal());
         // Octants 5 and 7 — north-east and south-east — are the positive halves
         return octant() >= 4 ? 1 : -1;
+    }
+
+    /**
+     * The outward normal of a face tipped about x or z, as the signs of its
+     * components: the face's own normal put through the turn, which lands it with
+     * plus or minus root a half on the two axes the turn is not about.
+     *
+     * Derived by turning rather than tabled the way the vertical's octants are,
+     * because there is no octant numbering to borrow for these and the turn is the
+     * same one a control's mount goes through, so the two cannot disagree.
+     */
+    private int[] tippedNormal() {
+        double[] p = { face.getStepX(), face.getStepY(), face.getStepZ() };
+        SurfaceMount.rotateEighths(p, turnAxis(), 1);
+        return new int[] { (int) Math.signum(Math.round(p[0] * 2)), (int) Math.signum(Math.round(p[1] * 2)),
+                (int) Math.signum(Math.round(p[2] * 2)) };
+    }
+
+    /** The sign of a vector's first non-zero component, which is what canonical asks to be positive. */
+    private static int firstSign(int[] n) {
+        for (int component : n)
+            if (component != 0)
+                return component > 0 ? 1 : -1;
+        return 1;
     }
 
     /** The length of the lattice normal: one for a cardinal plane, root two for a diagonal. */
@@ -201,21 +280,35 @@ public record PanelPlane(Direction face, int yaw, int offset) {
 
     /** The unit vector u increases along. */
     public Vec3 tangentU() {
-        if (isDiagonal())
+        if (isDiagonal()) {
+            // Tipped about x or z, u runs along the axis of the tip, which is the one
+            // world axis the plane still contains
+            if (turnAxis() != Axis.Y)
+                return unit(turnAxis());
             // Perpendicular to the lattice normal in the horizontal plane, first
             // non-zero component positive, which is the rule the cardinals follow too
             return octant() % 4 == 1 ? new Vec3(ROOT_HALF, 0, ROOT_HALF) : new Vec3(ROOT_HALF, 0, -ROOT_HALF);
+        }
         return spin(unit(PlacementGrid.uAxis(face.getAxis())));
     }
 
-    /** The unit vector v increases along: up, except on a floor or a ceiling. */
+    /** The unit vector v increases along: up, or up the slope, except on a floor or a ceiling. */
     public Vec3 tangentV() {
-        return isDiagonal() ? new Vec3(0, 1, 0) : spin(unit(PlacementGrid.vAxis(face.getAxis())));
+        if (!isDiagonal())
+            return spin(unit(PlacementGrid.vAxis(face.getAxis())));
+        if (turnAxis() == Axis.Y)
+            return new Vec3(0, 1, 0);
+        // Square to the lattice normal and to u, and climbing: the canonical normal has
+        // a positive first component, so its y is positive about x and may be either
+        // sign about z, and v is chosen to climb in both
+        int[] n = latticeNormal();
+        return turnAxis() == Axis.X ? new Vec3(0, ROOT_HALF, -n[2] * ROOT_HALF)
+                : new Vec3(-n[1] * ROOT_HALF, ROOT_HALF, 0);
     }
 
     /**
-     * An in-plane axis of a flat panel, turned an eighth of a turn about the vertical
-     * if this plane is spun, and returned untouched otherwise.
+     * An in-plane axis of a flat panel, turned an eighth of a turn about the plane's
+     * own normal if this plane is spun, and returned untouched otherwise.
      *
      * Both axes are turned the same way and by the same amount, so the frame stays
      * right-handed and every consumer that reasoned about handedness — the winding of
@@ -224,7 +317,11 @@ public record PanelPlane(Direction face, int yaw, int offset) {
     private Vec3 spin(Vec3 axis) {
         if (!isSpun())
             return axis;
-        return new Vec3((axis.x - axis.z) * ROOT_HALF, axis.y, (axis.x + axis.z) * ROOT_HALF);
+        if (turnAxis() == Axis.Y)
+            return new Vec3((axis.x - axis.z) * ROOT_HALF, axis.y, (axis.x + axis.z) * ROOT_HALF);
+        double[] p = { axis.x, axis.y, axis.z };
+        SurfaceMount.rotateEighths(p, turnAxis(), 1);
+        return new Vec3(p[0], p[1], p[2]);
     }
 
     /** The lattice normal dotted with a point, which is the quantity {@link #offset} scales. */

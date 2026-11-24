@@ -29,7 +29,7 @@ public final class DesignPose {
 
     /** The mount's whole rotation, with the handle turned {@code handleDegrees} about the mounting axis. */
     public static Quaternionf rotation(ControlMount mount, float handleDegrees) {
-        return new Quaternionf()
+        return SurfaceMount.tipping(mount.yaw())
                 .rotateY((float) Math.toRadians(SurfaceMount.yawDegrees(mount.face(), mount.yaw())))
                 .rotateX((float) Math.toRadians(SurfaceMount.tiltDegrees(mount.face())))
                 .rotateY((float) Math.toRadians(SurfaceMount.spinDegrees(mount.rotation()) + handleDegrees));

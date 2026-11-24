@@ -1,9 +1,10 @@
 {
-  "__generated": "tools/gen_relay.py from din_relay_mount_8pin.json; re-run after re-exporting",
+  "__generated": "tools/copy_relay_variants.py from em_relay_8pin_c24v_230v_16a; textures are hand-painted",
   "render_type": "minecraft:translucent",
   "textures": {
-    "3": "create_flippies:block/relay_8pin_230v16a_24cv",
-    "particle": "create_flippies:block/relay_8pin_230v16a_24cv"
+    "3": "create_flippies:block/em_relay_8pin_c24v_230v_16a",
+    "fill": "create_flippies:block/relay_8pin_inner",
+    "particle": "create_flippies:block/em_relay_8pin_c24v_230v_16a"
   },
   "elements": [
     {
@@ -738,7 +739,7 @@
             6,
             8
           ],
-          "texture": "#3"
+          "texture": "#fill"
         },
         "east": {
           "uv": [
@@ -747,7 +748,7 @@
             8,
             8
           ],
-          "texture": "#3"
+          "texture": "#fill"
         },
         "south": {
           "uv": [
@@ -756,7 +757,7 @@
             5,
             8
           ],
-          "texture": "#3"
+          "texture": "#fill"
         },
         "west": {
           "uv": [
@@ -765,7 +766,7 @@
             7,
             8
           ],
-          "texture": "#3"
+          "texture": "#fill"
         },
         "up": {
           "uv": [
@@ -774,7 +775,7 @@
             5,
             7
           ],
-          "texture": "#3"
+          "texture": "#fill"
         },
         "down": {
           "uv": [
@@ -783,7 +784,7 @@
             5,
             8
           ],
-          "texture": "#3"
+          "texture": "#fill"
         }
       }
     }

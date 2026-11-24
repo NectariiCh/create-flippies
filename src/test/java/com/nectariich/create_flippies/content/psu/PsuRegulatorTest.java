@@ -109,36 +109,38 @@ class PsuRegulatorTest {
     // ------------------------------------------------------------- input ---
 
     @Test
-    void startsAtEightyFivePercentAndDropsOutUnderSeventyFive() {
+    void startsAt195AndDropsOutUnder172() {
         PsuRegulator psu = psu();
-        psu.tick(195, 0, 0, 0);
-        assertFalse(psu.outputOn(), "195 V is under 195.5");
+        psu.tick(194.9, 0, 0, 0);
+        assertFalse(psu.outputOn(), "194.9 V is under 195");
         assertEquals(PsuRegulator.State.INPUT_LOW, psu.state());
-        psu.tick(195.5, 0, 0, 0);
-        assertTrue(psu.outputOn(), "195.5 V starts it");
+        psu.tick(195, 0, 0, 0);
+        assertTrue(psu.outputOn(), "195 V starts it");
         psu.tick(173, 0, 0, 0);
-        assertTrue(psu.outputOn(), "and it rides down to 172.5 V");
-        psu.tick(172.5, 0, 0, 0);
-        assertTrue(psu.outputOn(), "172.5 V is not under 172.5");
-        psu.tick(172.4, 0, 0, 0);
-        assertFalse(psu.outputOn(), "under 172.5 V it drops out");
+        assertTrue(psu.outputOn(), "and it rides down to 172 V");
+        psu.tick(172, 0, 0, 0);
+        assertTrue(psu.outputOn(), "172 V is not under 172");
+        psu.tick(171.9, 0, 0, 0);
+        assertFalse(psu.outputOn(), "under 172 V it drops out");
         assertEquals(PsuRegulator.State.INPUT_LOW, psu.state());
         psu.tick(190, 0, 0, 0);
-        assertFalse(psu.outputOn(), "and needs 195.5 V again to restart");
+        assertFalse(psu.outputOn(), "and needs 195 V again to restart");
     }
 
     @Test
-    void overVoltageTripsAboveOneTwentyAndRestartsAtOneFifteen() {
+    void overVoltageTripsAbove260AndRestartsAt248Point5() {
         PsuRegulator psu = psu();
-        psu.tick(276, 0, 0, 0);
-        assertTrue(psu.outputOn(), "276 V is not over 276");
-        psu.tick(276.1, 0, 0, 0);
+        psu.tick(240, 0, 0, 0);
+        assertTrue(psu.outputOn(), "a 230 V supply runs on 240 V");
+        psu.tick(260, 0, 0, 0);
+        assertTrue(psu.outputOn(), "260 V is not over 260");
+        psu.tick(260.1, 0, 0, 0);
         assertFalse(psu.outputOn());
         assertEquals(PsuRegulator.State.INPUT_HIGH, psu.state());
-        psu.tick(265, 0, 0, 0);
-        assertFalse(psu.outputOn(), "265 V is still over 264.5");
-        psu.tick(264.5, 0, 0, 0);
-        assertTrue(psu.outputOn(), "264.5 V restarts it");
+        psu.tick(250, 0, 0, 0);
+        assertFalse(psu.outputOn(), "250 V is still over 248.5");
+        psu.tick(248.5, 0, 0, 0);
+        assertTrue(psu.outputOn(), "248.5 V restarts it");
     }
 
     @Test
@@ -162,12 +164,32 @@ class PsuRegulatorTest {
     }
 
     @Test
-    void windowScalesWithTheNominalInput() {
+    void a120VoltInputRunsOn95To135() {
         PsuRegulator psu = new PsuRegulator(120, 24, 100);
-        psu.tick(101, 0, 0, 0);
-        assertFalse(psu.outputOn(), "101 V is under 0.85 × 120 = 102");
-        psu.tick(102, 0, 0, 0);
+        psu.tick(94.9, 0, 0, 0);
+        assertFalse(psu.outputOn(), "94.9 V is under 95");
+        psu.tick(95, 0, 0, 0);
         assertTrue(psu.outputOn());
+        psu.tick(125, 0, 0, 0);
+        assertTrue(psu.outputOn(), "a 120 V supply runs on 125 V");
+        psu.tick(135, 0, 0, 0);
+        assertTrue(psu.outputOn());
+        psu.tick(135.1, 0, 0, 0);
+        assertFalse(psu.outputOn(), "over 135 V it trips");
+        assertEquals(PsuRegulator.State.INPUT_HIGH, psu.state());
+    }
+
+    @Test
+    void anyOtherInputRunsWithinTwentyPercent() {
+        PsuRegulator psu = new PsuRegulator(48, 24, 100);
+        psu.tick(38.3, 0, 0, 0);
+        assertFalse(psu.outputOn(), "38.3 V is under 0.8 × 48 = 38.4");
+        psu.tick(38.5, 0, 0, 0);
+        assertTrue(psu.outputOn());
+        psu.tick(57.5, 0, 0, 0);
+        assertTrue(psu.outputOn());
+        psu.tick(57.7, 0, 0, 0);
+        assertFalse(psu.outputOn(), "over 1.2 × 48 = 57.6 V it trips");
     }
 
     // ------------------------------------------------------------ output ---

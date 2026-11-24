@@ -55,7 +55,7 @@ import net.minecraft.world.phys.Vec3;
  * which is what lets one anchor mean the same thing in both cases.
  *
  * @param face     a cardinal facing of the plate
- * @param yaw      eighths of a turn past it, as {@link PanelPlane#yaw} counts them
+ * @param yaw      the eighth turn past it, and about which axis, as {@link PanelPlane#yaw} names it
  * @param anchorU  the plate's centre along the surface's u, in 1/256 of a block
  * @param anchorV  the same along v
  * @param anchorD  the same along the plate's own facing

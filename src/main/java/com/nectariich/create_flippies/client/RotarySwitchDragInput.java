@@ -1,5 +1,7 @@
 package com.nectariich.create_flippies.client;
 
+import com.nectariich.create_flippies.client.cabinet.CabinetDoorControls;
+import com.nectariich.create_flippies.content.host.ControlHostBlockEntity;
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchAim;
@@ -248,7 +250,8 @@ public final class RotarySwitchDragInput {
         if (!(minecraft.hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK)
             return;
         // No grab where there is no crosshair to explain it
-        if (!RotarySwitchCrosshair.inRange(player, hit.getLocation()))
+        if (!RotarySwitchCrosshair.inRange(player,
+                CabinetDoorControls.asSeen(minecraft.level, hit.getBlockPos(), hit.getLocation())))
             return;
         // The same call the push gesture and the crosshair use, so a drag can be
         // started exactly where a push could have been made — the front of a switch,
@@ -314,6 +317,12 @@ public final class RotarySwitchDragInput {
     private static Double crosshairOffset(LocalPlayer player) {
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getViewVector(1f);
+        // A switch on a shut cabinet door is where the door hangs open; the sight line goes there with it
+        ControlHostBlockEntity shut = CabinetDoorControls.shutHost(player.level(), grabbedPos);
+        if (shut != null) {
+            eye = shut.door().toOpen(eye);
+            look = shut.door().directionToOpen(look);
+        }
 
         double facing = look.dot(planeNormal);
         if (Math.abs(facing) < MIN_FACING)

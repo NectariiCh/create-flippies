@@ -26,8 +26,8 @@ import net.minecraft.world.phys.Vec3;
  * in, and it decides by asking where the crosshair actually is.
  *
  * Through one point there are exactly three planes a panel may lie in — one per
- * allowed normal, which is the three axes for a cardinal panel and the two diagonals
- * plus the vertical for a turned one. The crosshair ray is intersected with all
+ * allowed normal, which is the three axes for a cardinal panel and, for a turned
+ * one, the two diagonals containing the turn's axis plus that axis itself. The crosshair ray is intersected with all
  * three and the nearest hit in front of the player wins. Nearest rather than any
  * other rule because it is the one the player can see: whichever surface their
  * crosshair reaches first is the one they are pointing at.
@@ -90,20 +90,23 @@ public final class PanelAim {
      * the player so that "in front" means what it says.
      *
      * A cardinal panel may stand on either horizontal axis or lie flat; a turned one
-     * may stand on either diagonal or lie flat. Either way it is three, and the flat
-     * one is in both sets because a floor or a ceiling has no yaw to turn.
+     * may lie on either diagonal containing the turn's axis, or square to that axis.
+     * Either way it is three, and the one square to the axis is in both sets because
+     * a turn cannot move a face about its own normal.
      */
     private static PanelPlane[] candidates(PanelPoint first, int yaw, Vec3 eye) {
-        // North and east name the two horizontal families, not two of four
-        // directions: at a yaw of one they become the two diagonals, and either way
-        // the facing is corrected below to whichever side the player is on
+        // North, east and up name the three families, not three of six directions:
+        // a turn tips the two it does not run along onto the diagonals and spins the
+        // third in place, and either way the facing is corrected below to whichever
+        // side the player is on
         Direction[] faces = { Direction.NORTH, Direction.EAST, Direction.UP };
         PanelPlane[] planes = new PanelPlane[faces.length];
         for (int i = 0; i < faces.length; i++) {
-            // The flat plane takes the yaw too. It cannot be turned out of true by it —
-            // spinning a floor about the vertical leaves the floor where it was — so
-            // what the yaw turns there is u and v, and the panel comes out lying at
-            // forty-five degrees to the block grid on an ordinary block boundary
+            // The plane square to the turn's axis takes the turn too. It cannot be
+            // turned out of true by it — spinning a floor about the vertical leaves the
+            // floor where it was — so what the turn moves there is u and v, and the
+            // panel comes out at forty-five degrees to the block grid on an ordinary
+            // block boundary
             PanelPlane bare = new PanelPlane(faces[i], yaw, 0);
             PanelPlane through = bare.withOffset(first.latticeDot(bare.latticeNormal()));
             planes[i] = facing(through, eye);

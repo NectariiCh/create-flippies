@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.nectariich.create_flippies.client.cabinet.CabinetDoorControls;
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchAim;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchSide;
@@ -107,7 +108,7 @@ public final class RotarySwitchCrosshair {
             return null;
         if (!(minecraft.hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK)
             return null;
-        if (!inRange(player, hit.getLocation()))
+        if (!inRange(player, CabinetDoorControls.asSeen(minecraft.level, hit.getBlockPos(), hit.getLocation())))
             return null;
         return RotarySwitchAim.sideAt(minecraft.level, hit);
     }

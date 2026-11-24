@@ -43,6 +43,7 @@ public class TerminalBlockControlRenderer implements ControlRenderer {
         // The PSU's chain, for the PSU's reasons
         CachedBuffers.partial(model, ModBlocks.DIN_RAIL.get().defaultBlockState())
                 .translate(mount.offset())
+                .rotateCentered(SurfaceMount.tipping(mount.yaw()))
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(mount.face(), mount.yaw()))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(mount.face()))
                 .rotateYCenteredDegrees(SurfaceMount.spinDegrees(mount.rotation()))

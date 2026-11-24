@@ -187,8 +187,16 @@ ITEM_MODELS = os.path.join(ASSETS, "models", "item")
 
 # One block per cap size and rated voltage. Nothing else about a unit is among them
 # -- the cap colour, whether it clicks and what is printed on it are per-unit state a
-# screwdriver sets -- so all five ratings of a size share every model here.
-RATINGS = ("6v", "12v", "24v", "125v", "230v")
+# screwdriver sets -- so all six ratings of a size share every model here. The
+# ladder is IndicatorRating's: 5/12/24/48 V control, 125/250 V mains.
+RATINGS = ("5v", "12v", "24v", "48v", "125v", "250v")
+
+# Ratings that were blocks once and are not any more. Their block states, item
+# models and loot tables are deleted on every run, so a stale file cannot name a
+# block that is no longer registered.
+RETIRED_RATINGS = ("6v", "230v")
+
+LOOT_TABLES = os.path.join("src", "main", "resources", "data", "create_flippies", "loot_tables", "blocks")
 
 # The stub the block states point at, one per size. A unit is drawn entirely from
 # partials by its block entity renderer, so a real model here would draw a second
@@ -246,6 +254,35 @@ def write_blockstates():
                         for facing in FACINGS for rotation in range(4)}
             write_json(os.path.join(BLOCKSTATES, f"indicator_{size}_{rating}.json"), {"variants": variants})
     print(f"blockstates: {len(SOURCES)} sizes x {len(RATINGS)} ratings")
+
+
+def write_loot_tables():
+    """Each block drops its own item, unless an explosion took it."""
+    for size in SOURCES:
+        for rating in RATINGS:
+            block = f"indicator_{size}_{rating}"
+            write_json(os.path.join(LOOT_TABLES, block + ".json"), {
+                "type": "minecraft:block",
+                "pools": [{
+                    "rolls": 1,
+                    "entries": [{"type": "minecraft:item", "name": f"create_flippies:{block}"}],
+                    "conditions": [{"condition": "minecraft:survives_explosion"}],
+                }],
+            })
+    print(f"loot tables: {len(SOURCES)} sizes x {len(RATINGS)} ratings")
+
+
+def remove_retired():
+    removed = 0
+    for size in SOURCES:
+        for rating in RETIRED_RATINGS:
+            block = f"indicator_{size}_{rating}.json"
+            for folder in (BLOCKSTATES, ITEM_MODELS, LOOT_TABLES):
+                path = os.path.join(folder, block)
+                if os.path.exists(path):
+                    os.remove(path)
+                    removed += 1
+    print(f"retired ratings {', '.join(RETIRED_RATINGS)}: {removed} files removed")
 
 
 def write_block_stubs():
@@ -334,7 +371,9 @@ def main():
         print(f"{size}: {len(COLOURS)} colours x 2 states, element {lens_index} is the cap")
 
     write_block_stubs()
+    remove_retired()
     write_blockstates()
+    write_loot_tables()
     write_item_models()
 
 

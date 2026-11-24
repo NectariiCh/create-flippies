@@ -1,5 +1,143 @@
 {
   "__generated": "tools/gen_psu.py from PSU-DCDC-230V-24V-100W-3M.json; re-run after re-exporting",
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        225,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.5,
+        1.5,
+        1.5
+      ]
+    },
+    "ground": {
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.6,
+        0.6,
+        0.6
+      ]
+    },
+    "fixed": {
+      "rotation": [
+        0,
+        180,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.2,
+        1.2,
+        1.2
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.9,
+        0.9,
+        0.9
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.9,
+        0.9,
+        0.9
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.95,
+        0.95,
+        0.95
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        0,
+        225,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.95,
+        0.95,
+        0.95
+      ]
+    },
+    "head": {
+      "rotation": [
+        0,
+        180,
+        0
+      ],
+      "translation": [
+        0,
+        13,
+        7
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  },
   "textures": {
     "0": "create_flippies:block/psu_dcdc_230v_24v_100w_3m",
     "2": "create_flippies:block/copper_contacts",
@@ -57,10 +195,10 @@
         },
         "west": {
           "uv": [
-            2,
-            12.5,
-            12,
-            16
+            6,
+            2.5,
+            16,
+            6
           ],
           "texture": "#0"
         },
@@ -1800,143 +1938,5 @@
         }
       }
     }
-  ],
-  "display": {
-    "gui": {
-      "rotation": [
-        30,
-        225,
-        0
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.5,
-        1.5,
-        1.5
-      ]
-    },
-    "ground": {
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "translation": [
-        0,
-        3,
-        0
-      ],
-      "scale": [
-        0.6,
-        0.6,
-        0.6
-      ]
-    },
-    "fixed": {
-      "rotation": [
-        0,
-        180,
-        0
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.2,
-        1.2,
-        1.2
-      ]
-    },
-    "thirdperson_righthand": {
-      "rotation": [
-        75,
-        45,
-        0
-      ],
-      "translation": [
-        0,
-        2.5,
-        0
-      ],
-      "scale": [
-        0.9,
-        0.9,
-        0.9
-      ]
-    },
-    "thirdperson_lefthand": {
-      "rotation": [
-        75,
-        45,
-        0
-      ],
-      "translation": [
-        0,
-        2.5,
-        0
-      ],
-      "scale": [
-        0.9,
-        0.9,
-        0.9
-      ]
-    },
-    "firstperson_righthand": {
-      "rotation": [
-        0,
-        45,
-        0
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        0.95,
-        0.95,
-        0.95
-      ]
-    },
-    "firstperson_lefthand": {
-      "rotation": [
-        0,
-        225,
-        0
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        0.95,
-        0.95,
-        0.95
-      ]
-    },
-    "head": {
-      "rotation": [
-        0,
-        180,
-        0
-      ],
-      "translation": [
-        0,
-        13,
-        7
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ]
-    }
-  }
+  ]
 }

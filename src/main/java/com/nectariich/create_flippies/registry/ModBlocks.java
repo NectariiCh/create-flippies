@@ -98,6 +98,25 @@ public class ModBlocks {
     public static final Supplier<Block> CONTROL_HOST = BLOCKS.register("control_host",
             () -> new ControlHostBlock(panelProperties()));
 
+    // ELECTRICAL CABINETS
+    /**
+     * The invisible cell a cabinet's DIN rail runs through, which hosts the gear on
+     * it. No item, no loot, never mined, blown up or moved: it is put there and taken
+     * away by its cabinet alone.
+     */
+    public static final Supplier<Block> CABINET_RAIL_HOST = BLOCKS.register("cabinet_rail_host",
+            () -> new com.nectariich.create_flippies.content.cabinet.CabinetRailHostBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.NONE)
+                    .strength(-1.0f, 3600000.0f)
+                    .sound(SoundType.METAL)
+                    .noOcclusion()
+                    .noLootTable()
+                    .pushReaction(net.minecraft.world.level.material.PushReaction.BLOCK)
+                    .isRedstoneConductor((state, level, pos) -> false)
+                    .isSuffocating((state, level, pos) -> false)
+                    .isViewBlocking((state, level, pos) -> false)));
+    // ELECTRICAL CABINETS end
+
     /**
      * One cell of a large panel. It has no item, for the reason the host has none:
      * a panel is put into the world a whole rectangle at a time by the screwdriver

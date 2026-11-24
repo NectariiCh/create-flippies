@@ -11,8 +11,11 @@ import net.minecraft.network.chat.Component;
  * that one's values are the gauges' and the displays' block variants, so adding the
  * mains ratings there would add mains gauges too.
  *
- * The tolerance is the gauges' — a quarter either way — so a rail that runs a 24 V
- * gauge runs a 24 V speaker. Outside it the amplifier is simply off: an
+ * The low-voltage ratings take the gauges' tolerance — a quarter either way — so a
+ * rail that runs a 24 V gauge runs a 24 V speaker. The two mains ratings take the
+ * mod's window for mains electronics instead, stated outright rather than as a
+ * fraction: 95 to 135 V for 120 V (so a 125 V line is fine) and 195 to 260 V for
+ * 230 V (so a 240 V line is). Outside its window the amplifier is simply off: an
  * undervolted speaker is silent rather than quiet, and an overvolted one is not
  * damaged, because nothing else in the mod is either.
  */
@@ -21,9 +24,10 @@ public enum SpeakerSupply {
     V12("12v", 12),
     V24("24v", 24),
     V48("48v", 48),
-    V120("120v", 120),
-    V240("240v", 240);
+    V120("120v", 120, 95, 135),
+    V230("230v", 230, 195, 260);
 
+    /** The low-voltage ratings' window, as a fraction either side of the rating. */
     private static final float TOLERANCE = 0.25f;
 
     /** What the amplifier draws at exactly its rating, in watts. */
@@ -31,10 +35,18 @@ public enum SpeakerSupply {
 
     private final String id;
     private final float rated;
+    private final float min;
+    private final float max;
 
     SpeakerSupply(String id, float rated) {
+        this(id, rated, rated * (1 - TOLERANCE), rated * (1 + TOLERANCE));
+    }
+
+    SpeakerSupply(String id, float rated, float min, float max) {
         this.id = id;
         this.rated = rated;
+        this.min = min;
+        this.max = max;
     }
 
     public String id() {
@@ -53,7 +65,7 @@ public enum SpeakerSupply {
     /** Whether the amplifier runs at this supply; the sign is not meaningful. */
     public boolean accepts(float volts) {
         float magnitude = Math.abs(volts);
-        return magnitude >= rated * (1 - TOLERANCE) && magnitude <= rated * (1 + TOLERANCE);
+        return magnitude >= min && magnitude <= max;
     }
 
     public Component label() {

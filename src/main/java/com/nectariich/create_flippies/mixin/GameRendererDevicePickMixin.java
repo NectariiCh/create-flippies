@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.mixin;
 
+import com.nectariich.create_flippies.client.cabinet.CabinetDoorControls;
 import com.nectariich.create_flippies.client.device.DevicePicker;
 
 import net.minecraft.client.renderer.GameRenderer;
@@ -26,5 +27,7 @@ public class GameRendererDevicePickMixin {
     *///?}
     private void create_flippies$pickDevices(float partialTicks, CallbackInfo ci) {
         DevicePicker.pickInto(partialTicks);
+        // Then the controls on shut cabinet doors, which stand in front of the door just picked
+        CabinetDoorControls.pickInto(partialTicks);
     }
 }

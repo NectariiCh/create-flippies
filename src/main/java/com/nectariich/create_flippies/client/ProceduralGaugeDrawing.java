@@ -92,6 +92,7 @@ public final class ProceduralGaugeDrawing {
     private static void place(PoseStack ms, Direction facing, int yaw, int rotation, Vec3 offset) {
         ms.translate(offset.x, offset.y, offset.z);
         ms.translate(0.5, 0.5, 0.5);
+        ms.mulPose(SurfaceMount.tipping(yaw));
         ms.mulPose(Axis.YP.rotationDegrees(SurfaceMount.yawDegrees(facing, yaw)));
         ms.mulPose(Axis.XP.rotationDegrees(SurfaceMount.tiltDegrees(facing)));
         ms.mulPose(Axis.YP.rotationDegrees(SurfaceMount.spinDegrees(rotation)));

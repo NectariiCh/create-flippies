@@ -17,8 +17,9 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * The 5-pin family built in Java against the files the Python tools made for it:
- * the same matrix is stated three times, and this is what notices if they drift.
+ * The 5-pin and 8-pin families built in Java against the files the Python tools
+ * made for them: each matrix is stated three times, and this is what notices if
+ * they drift.
  */
 class RelayFamilyTest {
 
@@ -45,6 +46,25 @@ class RelayFamilyTest {
     }
 
     @Test
+    void theEightPinMatrixCoversEveryEmFivePinRelay() {
+        List<RelayType> family = RelayType.eightPinFamily();
+        // 4 coils x 8 ratings at 24 and at 48 V, 5 x 5 at 120 and at 230 V
+        assertEquals(114, family.size());
+        Set<String> ids = family.stream().map(RelayType::id).collect(Collectors.toSet());
+        assertTrue(ids.contains("em_relay_8pin_c24v_230v_16a"), "the first 8-pin relay keeps its id");
+        for (RelayType relay : family) {
+            assertEquals(8, relay.pins());
+            assertFalse(relay.solidState(), relay.id());
+            int cap = relay.loadVolts() <= 48 ? 32 : 16;
+            assertTrue(relay.ratedAmps() <= cap, relay.id());
+        }
+        for (RelayType relay : RelayType.fivePinFamily())
+            if (!relay.solidState())
+                assertTrue(ids.contains(RelayType.eightPinId(relay.coilVolts(), relay.loadVolts(), relay.ratedAmps())),
+                        relay.id() + " has no 8-pin twin");
+    }
+
+    @Test
     void everyRelayHasItsModelsTextureAndName() throws IOException {
         String lang = Files.readString(ASSETS.resolve("lang/en_us.json"), StandardCharsets.UTF_8);
         for (RelayType relay : RelayType.all()) {
@@ -53,7 +73,8 @@ class RelayFamilyTest {
             assertTrue(Files.exists(ASSETS.resolve("models/item/" + id + ".json")), id + " item model");
             assertTrue(lang.contains("\"item.create_flippies." + id + "\""), id + " lang name");
         }
-        for (RelayType relay : RelayType.fivePinFamily())
+        for (RelayType relay : Stream.concat(RelayType.fivePinFamily().stream(),
+                RelayType.eightPinFamily().stream()).toList())
             assertTrue(Files.exists(ASSETS.resolve("textures/block/" + relay.id() + ".png")), relay.id() + " texture");
     }
 
@@ -63,7 +84,7 @@ class RelayFamilyTest {
         List<String> orphans = new ArrayList<>();
         try (Stream<Path> files = Files.list(ASSETS.resolve("textures/block"))) {
             files.map(p -> p.getFileName().toString())
-                    .filter(n -> n.matches("(ss|em)_relay_c\\d+v_\\d+v_\\d+a\\.png"))
+                    .filter(n -> n.matches("((ss|em)_relay|em_relay_8pin)_c\\d+v_\\d+v_\\d+a\\.png"))
                     .map(n -> n.substring(0, n.length() - 4))
                     .filter(id -> !ids.contains(id))
                     .forEach(orphans::add);

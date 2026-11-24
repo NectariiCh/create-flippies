@@ -7,28 +7,31 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.content.cabinet.CabinetDoorLink;
+import com.nectariich.create_flippies.content.cabinet.CabinetFace;
+import com.nectariich.create_flippies.content.cabinet.ElectricalCabinetEntity;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
-import com.nectariich.create_flippies.content.din_rail.DinRailBlockEntity;
 import com.nectariich.create_flippies.content.decal.PanelDecal;
+import com.nectariich.create_flippies.content.din_rail.RailHost;
+import com.nectariich.create_flippies.content.host.ControlHostBlockEntity;
 import com.nectariich.create_flippies.content.label.PanelLabelControl;
 import com.nectariich.create_flippies.content.label.PanelLabelStacking;
-import com.nectariich.create_flippies.content.wire_duct.WireDuctItem;
-import com.nectariich.create_flippies.content.panel.PanelAim;
-import com.nectariich.create_flippies.content.panel.PanelPoint;
 import com.nectariich.create_flippies.content.panel.LargePanelBlock;
 import com.nectariich.create_flippies.content.panel.LargePanelBlockEntity;
+import com.nectariich.create_flippies.content.panel.PanelAim;
 import com.nectariich.create_flippies.content.panel.PanelChamfer;
 import com.nectariich.create_flippies.content.panel.PanelEdit;
 import com.nectariich.create_flippies.content.panel.PanelEditKind;
 import com.nectariich.create_flippies.content.panel.PanelFold;
+import com.nectariich.create_flippies.content.panel.PanelPoint;
 import com.nectariich.create_flippies.content.schematic_arrow.SchematicArrowActions;
-import com.nectariich.create_flippies.foundation.panel.PanelDefinition;
-import com.nectariich.create_flippies.foundation.panel.PanelPlane;
+import com.nectariich.create_flippies.content.wire_duct.WireDuctItem;
 import com.nectariich.create_flippies.foundation.SurfaceMount;
+import com.nectariich.create_flippies.foundation.control.ControlFootprint;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
+import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.foundation.control.ControlType;
 import com.nectariich.create_flippies.foundation.control.ControlTypes;
-import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.foundation.control.HostedControl;
 import com.nectariich.create_flippies.foundation.control.PlacementRefusal;
 import com.nectariich.create_flippies.foundation.control.SpannedControlType;
@@ -36,6 +39,8 @@ import com.nectariich.create_flippies.foundation.grid.FaceRegion;
 import com.nectariich.create_flippies.foundation.grid.GridIndex;
 import com.nectariich.create_flippies.foundation.grid.GridStore;
 import com.nectariich.create_flippies.foundation.grid.PlacementGrid;
+import com.nectariich.create_flippies.foundation.panel.PanelDefinition;
+import com.nectariich.create_flippies.foundation.panel.PanelPlane;
 import com.nectariich.create_flippies.foundation.protection.BreakArea;
 import com.nectariich.create_flippies.foundation.protection.ProtectionStore;
 import com.nectariich.create_flippies.registry.ModBlocks;
@@ -105,6 +110,8 @@ public final class ScrewdriverActions {
             // The idle mode never claims the click, so a packet asking for one is a
             // client that disagrees with this build about what the tool does
             case NONE -> { }
+            // Cabinets are entities and take their own packet; a block clicked in this mode is nothing to it
+            case CUT_CABINET -> { }
             default -> mount(player, level, hand, stack, settings, panel, face, point);
         }
     }
@@ -310,6 +317,34 @@ public final class ScrewdriverActions {
 
     private static void mount(ServerPlayer player, ServerLevel level, InteractionHand hand, ItemStack tool,
             ScrewdriverSettings settings, BlockPos panel, Direction face, Vec3 point) {
+        mountOn(player, level, hand, tool, settings, null, panel, face, point);
+    }
+
+    /**
+     * A right click with the screwdriver on the outside of a cabinet's wall or door, at
+     * {@code point} on {@code on}: a control mounted there as on a block face, or a
+     * label drawn there. The placement modes only; see {@link CabinetFace#place} for
+     * where a control on the door is hosted.
+     */
+    public static void mountOnCabinet(ServerPlayer player, InteractionHand hand, CabinetFace on, Vec3 point) {
+        ItemStack stack = player.getItemInHand(hand);
+        if (!ScrewdriverItem.isScrewdriver(stack))
+            return;
+        ScrewdriverSettings settings = ScrewdriverSettings.read(stack);
+        if (!settings.mode().places())
+            return;
+        if (player.getItemInHand(ScrewdriverItem.otherHand(hand)).getItem() instanceof WireDuctItem) {
+            refuse(player, "no_control_held");
+            return;
+        }
+        Direction face = on.plane().face();
+        // The block the face belongs to, as a block face's would be: just behind it
+        BlockPos panel = BlockPos.containing(point.subtract(on.plane().outward().scale(1.0e-4)));
+        mountOn(player, player.serverLevel(), hand, stack, settings, on.surface(), panel, face, point);
+    }
+
+    private static void mountOn(ServerPlayer player, ServerLevel level, InteractionHand hand, ItemStack tool,
+            ScrewdriverSettings settings, ScrewdriverAim.Surface on, BlockPos panel, Direction face, Vec3 point) {
         InteractionHand holding = ScrewdriverItem.otherHand(hand);
         // A duct is laid point to point the same way in either placement mode: it
         // goes on the face itself, not into a cell, so neither ruling has a say
@@ -324,12 +359,12 @@ public final class ScrewdriverActions {
             return;
         }
         if (type instanceof SpannedControlType spanned) {
-            span(player, level, holding, tool, settings, spanned, panel, face, point);
+            span(player, level, holding, tool, settings, spanned, on, panel, face, point);
             return;
         }
 
-        ScrewdriverAim.Surface surface = ScrewdriverAim.surfaceAt(level, panel, face, point,
-                player.getEyePosition());
+        ScrewdriverAim.Surface surface = on != null ? on
+                : ScrewdriverAim.surfaceAt(level, panel, face, point, player.getEyePosition());
         ScrewdriverAim.Target target = ScrewdriverAim.resolve(GridStore.of(level).index(), settings, surface, panel,
                 face, point);
         if (target == null) {
@@ -338,9 +373,25 @@ public final class ScrewdriverActions {
         }
 
         int turn = turnFor(surface.plane(), player, settings);
-        ScrewdriverAim.Placement placement = ScrewdriverAim.placementFor(target, surface.depth(), turn);
+        CabinetFace cabinet = surface.cabinet();
+        HostedControl control = type.create(player.getItemInHand(holding));
+        if (cabinet == null) {
+            place(player, level, holding, control, ScrewdriverAim.placementFor(target, surface.depth(), turn), null);
+            return;
+        }
+        FaceRegion region = target.region();
+        double u = region.cellCentreU(target.cell()), v = region.cellCentreV(target.cell());
+        if (!cabinet.holds(u, v)) {
+            refuse(player, "off_face");
+            return;
+        }
+        double depth = surface.depth();
+        placeOnCabinet(player, level, holding, control, cabinet, host -> cabinet.place(u, v, depth, turn, host));
+    }
 
-        place(player, level, holding, type.create(player.getItemInHand(holding)), placement);
+    /** The door a control on {@code face} goes on, or null for anything else. */
+    private static CabinetDoorLink doorOf(CabinetFace face) {
+        return face != null && face.door() ? face.cabinet().doorLink() : null;
     }
 
     /**
@@ -737,9 +788,10 @@ public final class ScrewdriverActions {
      * useless for the one thing labels are for.
      */
     private static void span(ServerPlayer player, ServerLevel level, InteractionHand holding, ItemStack tool,
-            ScrewdriverSettings settings, SpannedControlType spanned, BlockPos panel, Direction face, Vec3 point) {
-        ScrewdriverAim.Surface surface = ScrewdriverAim.surfaceAt(level, panel, face, point,
-                player.getEyePosition());
+            ScrewdriverSettings settings, SpannedControlType spanned, ScrewdriverAim.Surface on, BlockPos panel,
+            Direction face, Vec3 point) {
+        ScrewdriverAim.Surface surface = on != null ? on
+                : ScrewdriverAim.surfaceAt(level, panel, face, point, player.getEyePosition());
         PanelPlane plane = surface.plane();
         GridCorner picked = ScrewdriverAim.corner(GridStore.of(level).index(), settings, plane, panel, point, true);
         GridCorner first = settings.corner();
@@ -772,7 +824,14 @@ public final class ScrewdriverActions {
         double centreV = (first.v() + picked.v()) / 2.0 / scale;
 
         int turn = turnFor(plane, player, settings);
-        ScrewdriverAim.Placement placement = ScrewdriverAim.at(plane, centreU, centreV, surface.depth(), turn);
+        CabinetFace cabinet = surface.cabinet();
+        if (cabinet != null && !cabinet.holds(centreU, centreV)) {
+            refuse(player, "off_face");
+            return;
+        }
+        double depth = surface.depth();
+        ScrewdriverAim.Placement placement = cabinet != null ? cabinet.place(centreU, centreV, depth, turn)
+                : ScrewdriverAim.at(plane, centreU, centreV, depth, turn);
         ControlMount mount = placement.mount();
 
         // The rectangle is measured in the plane's axes and the control is authored
@@ -793,8 +852,62 @@ public final class ScrewdriverActions {
 
         // Forgotten only on success: a rectangle refused for meeting something is
         // nearly always about to be drawn again from the same first corner
-        if (place(player, level, holding, control, placement))
+        boolean placed = cabinet == null ? place(player, level, holding, control, placement, null)
+                : placeOnCabinet(player, level, holding, control, cabinet,
+                        host -> cabinet.place(centreU, centreV, depth, turn, host));
+        if (placed)
             ScrewdriverSettings.setCorner(tool, null);
+    }
+
+    /**
+     * Puts a control on the outside of a cabinet, hosted by whichever cell can take
+     * it: its own cell if that is free, or else the nearest of the cells around it.
+     * A cabinet's face is often not on a block boundary, so the cell a control's
+     * centre falls in may be a wall, the cabinet's rails, or a host belonging to its
+     * door (or to another cabinet's); none of those refuse it any more. The control
+     * reaches back into its own cell from the host, as any protruding control does.
+     *
+     * @param at the placement with the given host, or its own cell's for null
+     */
+    private static boolean placeOnCabinet(ServerPlayer player, ServerLevel level, InteractionHand holding,
+            HostedControl control, CabinetFace cabinet, java.util.function.Function<BlockPos, ScrewdriverAim.Placement> at) {
+        CabinetDoorLink door = doorOf(cabinet);
+        ScrewdriverAim.Placement own = at.apply(null);
+        BlockPos home = own.host();
+        Vec3 centre = Vec3.atLowerCornerOf(home).add(own.mount().centre());
+        java.util.List<BlockPos> cells = new java.util.ArrayList<>();
+        for (BlockPos pos : BlockPos.betweenClosed(home.offset(-1, -1, -1), home.offset(1, 1, 1)))
+            cells.add(pos.immutable());
+        // Its own cell first, then the rest nearest the control's centre first
+        cells.sort(java.util.Comparator.comparingDouble(
+                (BlockPos pos) -> pos.equals(home) ? -1 : Vec3.atCenterOf(pos).distanceToSqr(centre)));
+        for (BlockPos cell : cells) {
+            if (!canHostOnCabinet(player, level, cell, door))
+                continue;
+            ScrewdriverAim.Placement placement = cell.equals(home) ? own : at.apply(cell);
+            if (control.footprint().reach(placement.mount()) > ControlFootprint.REACH_BUDGET)
+                continue;
+            if (level.getBlockEntity(cell) instanceof ControlRackHolder holder
+                    && !holder.rack().check(control.footprint(), control.terminalCount(), placement.mount(), true).ok())
+                continue;
+            return place(player, level, holding, control, placement, door, !cell.equals(home));
+        }
+        refuse(player, "obstructed");
+        return false;
+    }
+
+    /** Whether {@code cell} could host a control on a cabinet face, {@code door}'s or (null) not. */
+    private static boolean canHostOnCabinet(ServerPlayer player, ServerLevel level, BlockPos cell,
+            CabinetDoorLink door) {
+        if (level.getBlockEntity(cell) instanceof ControlRackHolder holder) {
+            if (holder instanceof RailHost)
+                return false;
+            if (holder instanceof ControlHostBlockEntity host)
+                return sameDoor(host.door(), door);
+            return door == null;
+        }
+        BlockState existing = level.getBlockState(cell);
+        return (existing.isAir() || existing.canBeReplaced()) && level.mayInteract(player, cell);
     }
 
     /**
@@ -808,9 +921,22 @@ public final class ScrewdriverActions {
      * @return whether it went on
      */
     private static boolean place(ServerPlayer player, ServerLevel level, InteractionHand holding, HostedControl control,
-            ScrewdriverAim.Placement placement) {
+            ScrewdriverAim.Placement placement, CabinetDoorLink door) {
+        return place(player, level, holding, control, placement, door, false);
+    }
+
+    /** @param centreElsewhere whether the host is not the cell the control's centre is in ({@link #placeOnCabinet}) */
+    private static boolean place(ServerPlayer player, ServerLevel level, InteractionHand holding, HostedControl control,
+            ScrewdriverAim.Placement placement, CabinetDoorLink door, boolean centreElsewhere) {
         ControlMount mount = placement.mount();
         BlockPos hostPos = placement.host();
+        // A cabinet door's controls have hosts of their own, which swing with it; they
+        // and anything else's never share a cell
+        if (level.getBlockEntity(hostPos) instanceof ControlHostBlockEntity existing
+                && !sameDoor(existing.door(), door)) {
+            refuse(player, "obstructed");
+            return false;
+        }
         // Whatever is already there and can carry controls does. On a block face that
         // is a frame, opened here if there is none; on a chamfer it is the panel cell
         // itself, because a diagonal surface runs through the middle of its own blocks
@@ -827,16 +953,22 @@ public final class ScrewdriverActions {
             CreateFlippies.LOGGER.error("Control host at {} has no block entity to mount into", hostPos);
             return false;
         }
-        // A DIN rail is a control host too, and a face aimed through the open part of
-        // its shape lands the host on the rail's own cell. It seats gear only by hand,
-        // through DinRailBlock.use, which keeps out kinds that are not DinRailMountable
-        // and snaps the rest to module positions; installing here would skip both
-        if (host instanceof DinRailBlockEntity) {
+        // A DIN rail is a control host too — a rail block, or a cell a cabinet's rail
+        // runs through — and a face aimed through the open part of its shape lands
+        // the host on the rail's own cell. It seats gear only by hand, which keeps out
+        // kinds that are not DinRailMountable and snaps the rest to module positions;
+        // installing here would skip both
+        if (host instanceof RailHost) {
             refuse(player, "rail_host");
             return false;
         }
 
-        PlacementRefusal refusal = host.install(control, mount, player);
+        if (door != null && !(host instanceof ControlHostBlockEntity)) {
+            refuse(player, "obstructed");
+            return false;
+        }
+
+        PlacementRefusal refusal = host.install(control, mount, player, centreElsewhere);
         if (!refusal.ok()) {
             // A host opened for a placement that was then refused would be an empty
             // frame nobody asked for, and an empty host answers for a run of dead
@@ -844,6 +976,11 @@ public final class ScrewdriverActions {
             if (opened && host.controls().isEmpty())
                 level.removeBlock(hostPos, false);
             return false;
+        }
+
+        if (door != null && level.getEntity(door.cabinet()) instanceof ElectricalCabinetEntity cabinet) {
+            ((ControlHostBlockEntity) host).setDoor(door, !cabinet.doorOpen());
+            cabinet.addDoorHost(hostPos);
         }
 
         if (!player.isCreative())
@@ -856,6 +993,10 @@ public final class ScrewdriverActions {
         level.playSound(null, hostPos, sound.getPlaceSound(), SoundSource.BLOCKS, (sound.getVolume() + 1) / 4,
                 sound.getPitch() * 0.8f);
         return true;
+    }
+
+    private static boolean sameDoor(CabinetDoorLink a, CabinetDoorLink b) {
+        return a == null ? b == null : b != null && a.cabinet().equals(b.cabinet());
     }
 
     /**

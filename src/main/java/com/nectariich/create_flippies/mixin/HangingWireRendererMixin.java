@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.nectariich.create_flippies.content.cabinet.CabinetDoorWires;
 import com.nectariich.create_flippies.client.wire.BentWireRenderer;
 import com.nectariich.create_flippies.foundation.wire.bend.BendableWire;
 
@@ -28,6 +29,11 @@ public class HangingWireRendererMixin {
             at = @At("HEAD"), cancellable = true)
     private void create_flippies$renderBent(HangingWireEntity entity, float yaw, float partialTicks, PoseStack ms,
             MultiBufferSource buffers, int light, CallbackInfo ci) {
+        // A wire to a control on a shut cabinet door would run to where the door hangs open
+        if (CabinetDoorWires.hidden(entity)) {
+            ci.cancel();
+            return;
+        }
         if (((BendableWire) entity).bendPoints().isEmpty())
             return;
         if (BentWireRenderer.render(entity, ms, buffers))

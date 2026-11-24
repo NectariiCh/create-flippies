@@ -19,10 +19,10 @@ import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
 
 /**
  * A CB-DIN-WO breaker as something that clips onto a run of DIN rail: one kind
- * per rating and pole count.
+ * per rating, supply voltage and pole count.
  *
- * A kind is a rating and a number of poles and nothing else — every other figure
- * about a breaker either follows from the pole count, which
+ * A kind is a rating, a rated voltage and a number of poles and nothing else —
+ * every other figure about a breaker either follows from the pole count, which
  * {@link CircuitBreakerModel} derives, or is the same on all of them. So the
  * catalogue below is the whole of what has to be stated to add one, and adding a
  * rating in another pole count is one entry plus an export.
@@ -37,22 +37,31 @@ public class CircuitBreakerType extends ControlType implements DinRailMountable 
     /** Ratings in amps, the IEC 60898 preferred series as far as this mod goes. */
     public static final int[] RATINGS = { 8, 10, 16, 20, 24, 32, 40, 48 };
 
+    /**
+     * Rated supply voltages, the mod's two mains ratings. A 120 V breaker is fine
+     * on 125 V and a 230 V one on 240 V, as the real ones are; the figure is what
+     * is printed and what the goggles show, and the trip curve does not use it.
+     */
+    public static final int[] VOLTAGES = { 230, 120 };
+
     private static final Map<String, CircuitBreakerType> BY_ID = catalogue();
 
     private final int rating;
+    private final int volts;
     private final CircuitBreakerPoles poles;
     private final ControlFootprint footprint;
 
-    private CircuitBreakerType(int rating, CircuitBreakerPoles poles) {
-        super(id(rating, poles));
+    private CircuitBreakerType(int rating, int volts, CircuitBreakerPoles poles) {
+        super(id(rating, volts, poles));
         this.rating = rating;
+        this.volts = volts;
         this.poles = poles;
         this.footprint = CircuitBreakerModel.footprint(poles.modules());
     }
 
     /** {@code cb16_din_wo_230v_2m_dp}, matching what the exports are named. */
-    public static String id(int rating, CircuitBreakerPoles poles) {
-        return "cb" + rating + "_din_wo_230v_" + poles.suffix();
+    public static String id(int rating, int volts, CircuitBreakerPoles poles) {
+        return "cb" + rating + "_din_wo_" + volts + "v_" + poles.suffix();
     }
 
     /** Every breaker there is a model for, in catalogue order. */
@@ -60,8 +69,8 @@ public class CircuitBreakerType extends ControlType implements DinRailMountable 
         return List.copyOf(BY_ID.values());
     }
 
-    public static CircuitBreakerType of(int rating, CircuitBreakerPoles poles) {
-        return BY_ID.get(id(rating, poles));
+    public static CircuitBreakerType of(int rating, int volts, CircuitBreakerPoles poles) {
+        return BY_ID.get(id(rating, volts, poles));
     }
 
     /** Adds every breaker to the catalogue of mountable controls. */
@@ -72,6 +81,11 @@ public class CircuitBreakerType extends ControlType implements DinRailMountable 
     /** What it says on the front, in amps, and what it trips above. */
     public int rating() {
         return rating;
+    }
+
+    /** The supply voltage it is rated for, as printed on the front. */
+    public int volts() {
+        return volts;
     }
 
     public CircuitBreakerPoles poles() {
@@ -131,22 +145,24 @@ public class CircuitBreakerType extends ControlType implements DinRailMountable 
     }
 
     /**
-     * The full matrix: every rating in every pole count. Ordered so the creative
-     * tab runs by rating and then by pole count.
+     * The full matrix: every rating at every voltage in every pole count. Ordered
+     * so the creative tab runs by voltage, then by rating, then by pole count.
      *
      * This must not run ahead of the exports — a kind with no model behind it is a
      * black item and a line of log noise rather than a helpful error. Every entry
      * here has one because {@code tools/copy_breaker_ratings.py} fills the matrix
-     * from the authored CB16s, so adding a rating means adding it to
-     * {@link #RATINGS}, running that script, and running the splitter.
+     * from the authored CB16s, reprinting the voltage on each copy's front, so
+     * adding a rating or a voltage means adding it to {@link #RATINGS} or
+     * {@link #VOLTAGES} and to that script, running it, and running the splitter.
      */
     private static Map<String, CircuitBreakerType> catalogue() {
         Map<String, CircuitBreakerType> kinds = new LinkedHashMap<>();
-        for (int rating : RATINGS)
-            for (CircuitBreakerPoles poles : CircuitBreakerPoles.values()) {
-                CircuitBreakerType type = new CircuitBreakerType(rating, poles);
-                kinds.put(type.id(), type);
-            }
+        for (int volts : VOLTAGES)
+            for (int rating : RATINGS)
+                for (CircuitBreakerPoles poles : CircuitBreakerPoles.values()) {
+                    CircuitBreakerType type = new CircuitBreakerType(rating, volts, poles);
+                    kinds.put(type.id(), type);
+                }
         return Collections.unmodifiableMap(kinds);
     }
 }

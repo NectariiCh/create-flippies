@@ -59,6 +59,7 @@ public class PlcSmallControlRenderer implements ControlRenderer {
         CachedBuffers.partial(panel ? ModPartialModels.PLC_S32F103_D_PANEL : ModPartialModels.PLC_S32F103_D_DIN,
                 referenceState(panel))
                 .translate(mount.offset())
+                .rotateCentered(SurfaceMount.tipping(mount.yaw()))
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(mount.face(), mount.yaw()))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(mount.face()))
                 .rotateYCenteredDegrees(SurfaceMount.spinDegrees(mount.rotation()))

@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "create_flippies:item/standing_electrical_cabinet",
+    "layer1": "create_flippies:item/standing_electrical_cabinet_detail"
+  }
+}

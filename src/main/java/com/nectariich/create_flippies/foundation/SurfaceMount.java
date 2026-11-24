@@ -3,7 +3,12 @@ package com.nectariich.create_flippies.foundation;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.joml.Quaternionf;
+
+import com.nectariich.create_flippies.foundation.panel.PanelPlane;
+
 import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -50,6 +55,11 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * property the wires actually need; what is given up is only that a point put
  * through {@link #point} and back through {@link #localPoint} returns within a
  * rounding rather than bit for bit, and nothing reads a local point that finely.
+ *
+ * A panel may also be tipped an eighth about x or about z, and a device screwed to
+ * it is tipped with it. That eighth is applied last of all, about the world axis it
+ * names, and is the same {@code sqrt(2)/2} construction; {@code yaw} carries which
+ * of the three axes it is, as {@link PanelPlane#turnAxis} reads it.
  */
 public final class SurfaceMount {
 
@@ -95,7 +105,27 @@ public final class SurfaceMount {
      * in its place and nothing else in the chain moves.
      */
     public static float yawDegrees(Direction facing, int yaw) {
-        return yawDegrees(facing) - 45f * yaw;
+        return yawDegrees(facing) - (yaw == PanelPlane.TURN_Y ? 45f : 0f);
+    }
+
+    /**
+     * The eighth turn about x or z that {@code yaw} names, as a rotation a renderer
+     * applies before everything else in its chain — outermost, because
+     * {@link #point} applies it last. None for a turn about the vertical, which
+     * {@link #yawDegrees(Direction, int)} has already folded into the yaw.
+     *
+     * Floats and a quaternion rather than the exact construction below, which is
+     * fine for drawing: what has to agree bit for bit between client and server is
+     * the terminal boxes, and those come from {@link #point}.
+     */
+    public static Quaternionf tipping(int yaw) {
+        Axis axis = PanelPlane.turnAxis(yaw);
+        float angle = (float) (-Math.PI / 4);
+        if (axis == Axis.X)
+            return new Quaternionf().rotationX(angle);
+        if (axis == Axis.Z)
+            return new Quaternionf().rotationZ(angle);
+        return new Quaternionf();
     }
 
     public static float tiltDegrees(Direction facing) {
@@ -132,7 +162,7 @@ public final class SurfaceMount {
         rotateY(p, spinQuarters(rotation));
         rotateX(p, tiltQuarters(facing));
         rotateY(p, yawQuarters(facing));
-        rotateYEighths(p, yaw);
+        rotateEighths(p, PanelPlane.turnAxis(yaw), 1);
         p[0] += MIDDLE;
         p[1] += MIDDLE;
         p[2] += MIDDLE;
@@ -158,7 +188,7 @@ public final class SurfaceMount {
         double[] p = { x - MIDDLE, y - MIDDLE, z - MIDDLE };
         // Each rotation is undone by its complement, and a complement of 4 lands on
         // the no-op branch, which is what undoing a turn of none has to do
-        rotateYEighths(p, -yaw);
+        rotateEighths(p, PanelPlane.turnAxis(yaw), -1);
         rotateY(p, 4 - yawQuarters(facing));
         rotateX(p, 4 - tiltQuarters(facing));
         rotateY(p, 4 - spinQuarters(rotation));
@@ -202,6 +232,36 @@ public final class SurfaceMount {
             } else {
                 p[0] = (x + z) * ROOT_HALF;
                 p[2] = (z - x) * ROOT_HALF;
+            }
+        }
+    }
+
+    /**
+     * Eighths of a turn about any world axis, in the sense {@link #rotateYEighths}
+     * fixes for the vertical: right-handed and negative, so a step is minus
+     * forty-five degrees about the positive axis. A null axis turns nothing, which is
+     * what a yaw of none reads as.
+     */
+    public static void rotateEighths(double[] p, Axis axis, int eighths) {
+        if (axis == null)
+            return;
+        if (axis == Axis.Y) {
+            rotateYEighths(p, eighths);
+            return;
+        }
+        // The two coordinates the axis turns, in the order that makes the step below
+        // the vertical's own: y then z about x, x then y about z
+        int a = axis == Axis.X ? 1 : 0;
+        int b = axis == Axis.X ? 2 : 1;
+        for (int step = 0; step < Math.abs(eighths); step++) {
+            double first = p[a];
+            double second = p[b];
+            if (eighths > 0) {
+                p[a] = (first + second) * ROOT_HALF;
+                p[b] = (second - first) * ROOT_HALF;
+            } else {
+                p[a] = (first - second) * ROOT_HALF;
+                p[b] = (first + second) * ROOT_HALF;
             }
         }
     }

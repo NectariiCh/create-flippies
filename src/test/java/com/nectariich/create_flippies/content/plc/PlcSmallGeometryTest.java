@@ -41,13 +41,14 @@ class PlcSmallGeometryTest {
 
     @Test
     void neighboursKeepAVisibleGap() {
-        // Same row, next pin: the boxes stay a twentieth of a pixel apart
+        // Same row, next pin: the padded boxes are a twentieth of a pixel apart, less
+        // what Power Grid adds to each
         for (int t = 0; t < PlcSmallGeometry.TERMINALS; t++) {
             if (t % 10 == 9)
                 continue;
             // Rows count down x, so the next pin is the one to the left
             double gap = PlcSmallGeometry.clickBox(t)[0] - PlcSmallGeometry.clickBox(t + 1)[3];
-            assertEquals(0.05, gap, 1e-9, "between terminals " + t + " and " + (t + 1));
+            assertEquals(0.05 - 2 * PlcSmallGeometry.CLICK_EXPAND, gap, 1e-9, "between terminals " + t + " and " + (t + 1));
         }
     }
 
@@ -88,7 +89,34 @@ class PlcSmallGeometryTest {
             assertFalse(terminals[PlcSmallGeometry.TERMINAL_VCC].check(at)
                     && terminals[PlcSmallGeometry.TERMINAL_GND].check(at), "both at x = " + x);
         }
-        assertTrue(PlcSmallGeometry.CLICK_EXPAND == 0, "Power Grid adds nothing to PAD");
+    }
+
+    /**
+     * Regression for pins that answered from some sides only. The contact boxes are
+     * part of the shape, so a ray stops exactly on a box's face, and Power Grid's
+     * {@code check} is half open ({@code >= min}, {@code < max}): with no expansion a
+     * click on any face the mount turned to +x, +y or +z found no terminal. Every
+     * face centre of every box, on every face and turn, must resolve to its own pin.
+     */
+    @Test
+    void everyFaceOfEveryContactBoxIsClickable() {
+        assertTrue(PlcSmallGeometry.CLICK_EXPAND > 0, "the boxes need some expansion to pass the half-open check");
+        for (Direction face : Direction.values())
+            for (int rotation = 0; rotation < 4; rotation++) {
+                ControlMount mount = ControlMount.centred(face, rotation);
+                TerminalBoundingBox[] terminals = PlcSmallGeometry.terminals(mount);
+                for (int t = 0; t < PlcSmallGeometry.TERMINALS; t++) {
+                    double[] box = PlcSmallGeometry.contactBox(t);
+                    for (int axis = 0; axis < 3; axis++)
+                        for (int side = 0; side < 2; side++) {
+                            double[] at = { (box[0] + box[3]) / 2, (box[1] + box[4]) / 2, (box[2] + box[5]) / 2 };
+                            at[axis] = box[axis + 3 * side];
+                            assertTrue(terminals[t].check(blockSpace(mount, at[0], at[1], at[2])),
+                                    "terminal " + t + ", axis " + axis + (side == 0 ? " min" : " max")
+                                            + " face, mounted " + face + " turn " + rotation);
+                        }
+                }
+            }
     }
 
     @Test

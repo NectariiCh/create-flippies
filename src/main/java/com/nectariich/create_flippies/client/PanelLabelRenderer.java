@@ -166,6 +166,7 @@ public class PanelLabelRenderer implements ControlRenderer {
         Vec3 offset = mount.offset();
         ms.translate(offset.x, offset.y, offset.z);
         ms.translate(0.5, 0.5, 0.5);
+        ms.mulPose(SurfaceMount.tipping(mount.yaw()));
         ms.mulPose(Axis.YP.rotationDegrees(SurfaceMount.yawDegrees(mount.face(), mount.yaw())));
         ms.mulPose(Axis.XP.rotationDegrees(SurfaceMount.tiltDegrees(mount.face())));
         ms.mulPose(Axis.YP.rotationDegrees(SurfaceMount.spinDegrees(mount.rotation())));

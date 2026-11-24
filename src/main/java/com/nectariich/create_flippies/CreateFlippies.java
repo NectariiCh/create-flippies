@@ -16,6 +16,9 @@ import com.nectariich.create_flippies.content.plc.PlcSmallControlType;
 import com.nectariich.create_flippies.content.psu.PsuType;
 import com.nectariich.create_flippies.content.relay.RelayMountType;
 import com.nectariich.create_flippies.content.terminal_block.TerminalBlockType;
+import com.nectariich.create_flippies.content.contactor.ContactorType;
+import com.nectariich.create_flippies.content.contactor.OpenContactorCoilType;
+import com.nectariich.create_flippies.content.contactor.OpenContactorType;
 import com.nectariich.create_flippies.content.host.ControlHostDisplayTarget;
 import com.nectariich.create_flippies.content.indicator.IndicatorControlType;
 import com.nectariich.create_flippies.content.procedural_gauge.ProceduralGaugeDisplayTarget;
@@ -119,6 +122,9 @@ public class CreateFlippies {
         PsuType.register();
         RelayMountType.register();
         TerminalBlockType.register();
+        ContactorType.register();
+        OpenContactorType.register();
+        OpenContactorCoilType.register();
         AlphanumDisplayControlType.register();
         com.nectariich.create_flippies.content.speaker.AlarmSpeakerControlType.register();
         DesignedSwitchControlType.register();
@@ -131,6 +137,9 @@ public class CreateFlippies {
         event.enqueueWork(() -> DisplayTarget.BY_BLOCK_ENTITY
                 .register(ModBlockEntities.EDGEWISE_PROCEDURAL_GAUGE.get(), new ProceduralGaugeDisplayTarget()));
         // EDGEWISE GAUGES end
+        // ELECTRICAL CABINETS
+        event.enqueueWork(com.nectariich.create_flippies.registry.ModGameRules::register);
+        // ELECTRICAL CABINETS end
         event.enqueueWork(() -> {
             DisplayTarget.BY_BLOCK_ENTITY
                     .register(ModBlockEntities.UNIVERSAL_GAUGE.get(), new UniversalGaugeDisplayTarget());

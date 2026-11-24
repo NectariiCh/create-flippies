@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.content.screwdriver;
 
 import java.util.List;
 
+import com.nectariich.create_flippies.content.cabinet.CabinetFace;
 import com.nectariich.create_flippies.content.panel.LargePanelBlockEntity;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 import com.nectariich.create_flippies.foundation.control.SpannedControlType;
@@ -59,8 +60,17 @@ public final class ScrewdriverAim {
      * The origin is the panel's own low corner and is what a ruling with no grid to
      * follow counts its squares from; see {@link FaceRegion#square}. It is zero and
      * unused for an ordinary block face, which counts its squares from the block.
+     *
+     * {@code cabinet} is the face of a cabinet wall the surface is, or null: a cabinet
+     * counts its squares from the face's own corner, as a chamfer does, and has the
+     * last word on where a control on it is hosted ({@link CabinetFace#place}).
      */
-    public record Surface(PanelPlane plane, double depth, double originU, double originV) {}
+    public record Surface(PanelPlane plane, double depth, double originU, double originV, CabinetFace cabinet) {
+
+        public Surface(PanelPlane plane, double depth, double originU, double originV) {
+            this(plane, depth, originU, originV, null);
+        }
+    }
 
     /**
      * The region the crosshair is over and the cell of it under the point, together
@@ -156,7 +166,7 @@ public final class ScrewdriverAim {
             if (constraint == null)
                 return null;
             region = FaceRegion.cellOf(constraint.grid(), constraint.cell(), division[0], division[1]);
-        } else if (plane.isTurned()) {
+        } else if (plane.isTurned() || surface.cabinet() != null) {
             region = FaceRegion.square(plane, surface.originU(), surface.originV(), plane.u(point), plane.v(point),
                     division[0], division[1]);
         } else {
@@ -264,9 +274,21 @@ public final class ScrewdriverAim {
      * comes out at exactly half a block every time, because that is where a face is.
      */
     public static Placement at(PanelPlane plane, double centreU, double centreV, double depth, int turn) {
+        return at(plane, centreU, centreV, depth, turn, null);
+    }
+
+    /**
+     * As {@link #at(PanelPlane, double, double, double, int)}, but hosted by
+     * {@code host} rather than the block the centre is in when it is not null. Only a
+     * cabinet's faces use that: a control on one may be hosted by a cell beside its own
+     * when its own is taken, and is reached there through the protruding hitbox picker.
+     */
+    public static Placement at(PanelPlane plane, double centreU, double centreV, double depth, int turn,
+            BlockPos host) {
         Vec3 centre = plane.at(centreU, centreV, depth);
         Vec3 outward = plane.outward();
-        BlockPos host = BlockPos.containing(centre.add(outward.scale(NUDGE)));
+        if (host == null)
+            host = BlockPos.containing(centre.add(outward.scale(NUDGE)));
         BlockPos panel = BlockPos.containing(centre.subtract(outward.scale(NUDGE)));
         Vec3 from = centre.subtract(Vec3.atCenterOf(host));
         return new Placement(panel, host,

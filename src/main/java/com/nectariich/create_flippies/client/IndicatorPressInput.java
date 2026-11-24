@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.client;
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.indicator.IndicatorAim;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
+import com.nectariich.create_flippies.foundation.control.PressableControl;
 import com.nectariich.create_flippies.network.ModPackets;
 import com.nectariich.create_flippies.network.PressIndicatorPacket;
 import com.simibubi.create.AllItems;
@@ -98,7 +99,8 @@ public final class IndicatorPressInput {
         Vec3 local = hit.getLocation().subtract(Vec3.atLowerCornerOf(pos));
         // The same call the server makes when the packet arrives, so a click this
         // swallows is a click that will do something
-        if (!IndicatorAim.isButton(minecraft.level, pos, local))
+        if (!IndicatorAim.isButton(minecraft.level, pos, local)
+                && PressableControl.at(minecraft.level, pos, local) == null)
             return;
 
         pressedPos = pos;

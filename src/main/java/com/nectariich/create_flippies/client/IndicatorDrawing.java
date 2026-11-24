@@ -152,6 +152,7 @@ public final class IndicatorDrawing {
             Vec3 offset) {
         return buffer
                 .translate(offset)
+                .rotateCentered(SurfaceMount.tipping(yaw))
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(facing, yaw))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(facing))
                 .rotateYCenteredDegrees(SurfaceMount.spinDegrees(rotation));
@@ -178,6 +179,7 @@ public final class IndicatorDrawing {
         ms.pushPose();
         ms.translate(offset.x, offset.y, offset.z);
         ms.translate(0.5, 0.5, 0.5);
+        ms.mulPose(SurfaceMount.tipping(yaw));
         ms.mulPose(Axis.YP.rotationDegrees(SurfaceMount.yawDegrees(facing, yaw)));
         ms.mulPose(Axis.XP.rotationDegrees(SurfaceMount.tiltDegrees(facing)));
         ms.mulPose(Axis.YP.rotationDegrees(SurfaceMount.spinDegrees(rotation)));
@@ -220,6 +222,6 @@ public final class IndicatorDrawing {
      * as far as a buffered partial can tell.
      */
     private static BlockState referenceState() {
-        return ModBlocks.INDICATORS.get(IndicatorKind.MED_6V).get().defaultBlockState();
+        return ModBlocks.INDICATORS.get(IndicatorKind.MED_5V).get().defaultBlockState();
     }
 }

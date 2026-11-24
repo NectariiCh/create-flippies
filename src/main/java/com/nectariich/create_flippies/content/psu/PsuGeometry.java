@@ -41,14 +41,20 @@ import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
  *   4  DC OK   status out    −z side, module 3
  * </pre>
  *
+ * DC OK needs a module of its own, so a body narrower than {@link #DC_OK_MODULES}
+ * has only the first four. A one-module body has no second module either: there
+ * each pair is stacked on its face instead, the − pin at the usual height nearer
+ * the plate and the + pin {@link #STACK_PITCH} above it, nearer the player.
+ *
  * Unlike the PLC's, these pins stand on the <em>sides</em> of the lower base, a
  * quarter pixel proud of its ±z faces, so each click box is grown outward across
  * the rail — away from the face — by {@link #REACH}, never up, and padded along
  * the rail and in depth by {@link #PAD}. The pins are half a pixel apart, so the
  * padded boxes keep 0.3 px between neighbours. As in
  * {@code PlcSmallGeometry}, the boxes go to Power Grid with an explicit
- * {@link #CLICK_EXPAND} of nothing: its six-coordinate constructor would add a
- * further tenth of a pixel a side on top of {@link #PAD}.
+ * {@link #CLICK_EXPAND} of a hundredth of a pixel: its six-coordinate constructor
+ * would add a further tenth a side on top of {@link #PAD}, and none at all leaves
+ * the boxes' max faces unclickable (see {@code PlcSmallGeometry}).
  *
  * <h2>Colours</h2>
  *
@@ -66,11 +72,8 @@ public final class PsuGeometry {
     public static final int TERMINAL_DC_OK = 4;
     public static final int TERMINALS = 5;
 
-    /**
-     * The fewest modules the pin layout below fits: DC OK is in the third. A
-     * narrower variant needs its pins placed again, here and in gen_psu.py.
-     */
-    public static final int MIN_MODULES = 3;
+    /** The narrowest body with a DC OK output: it is in the third module. */
+    public static final int DC_OK_MODULES = 3;
 
     // -------------------------------------------------------------- body ---
     private static final double HOOK_BOTTOM = 0.25;
@@ -94,14 +97,17 @@ public final class PsuGeometry {
     private static final double PIN_RISE = 0.25;
     private static final double PIN_MIN_Y = 1.25;
 
+    /** How far a one-module body's + pin stands above its − pin. */
+    private static final double STACK_PITCH = 1.0;
+
     /** How far a pin's box reaches out from the pin, away from the face: the PLC's reach. */
     private static final double REACH = 0.375;
 
     /** How far a box spreads past its pin along the rail and in depth, each side. */
     private static final double PAD = 0.1;
 
-    /** What Power Grid adds to each box, per side: nothing. See the class comment. */
-    static final double CLICK_EXPAND = 0;
+    /** What Power Grid adds to each box, per side. See the class comment. */
+    static final double CLICK_EXPAND = 0.01;
 
     private static final String TERMINAL_PREFIX = "gui." + CreateFlippies.MOD_ID + ".psu.terminal.";
 
@@ -110,15 +116,23 @@ public final class PsuGeometry {
 
     private PsuGeometry() {}
 
-    private static void checkModules(int modules) {
-        if (modules < MIN_MODULES)
-            throw new IllegalArgumentException("A " + modules + " module PSU has no room for the pin layout "
-                    + "PsuGeometry knows; place its pins first");
+    /** Whether a body this wide has the DC OK output. */
+    public static boolean hasDcOk(int modules) {
+        return modules >= DC_OK_MODULES;
+    }
+
+    /** How many terminals a body this wide has: the first four, and DC OK if there is room. */
+    public static int terminalCount(int modules) {
+        return hasDcOk(modules) ? TERMINALS : TERMINAL_DC_OK;
+    }
+
+    private static void checkTerminal(int modules, int terminal) {
+        if (modules < 1 || terminal < 0 || terminal >= terminalCount(modules))
+            throw new IllegalArgumentException("A " + modules + " module PSU has no terminal " + terminal);
     }
 
     /** The body as boxes, the outline and collision of the case itself. */
     static double[][] bodyBoxes(int modules) {
-        checkModules(modules);
         double lo = CircuitBreakerModel.minX(modules);
         double hi = CircuitBreakerModel.maxX(modules);
         return new double[][] {
@@ -136,18 +150,21 @@ public final class PsuGeometry {
      * wire target can never be built into.
      */
     public static ControlFootprint footprint(int modules) {
-        double[][] contacts = new double[TERMINALS][];
-        for (int i = 0; i < TERMINALS; i++)
+        double[][] contacts = new double[terminalCount(modules)][];
+        for (int i = 0; i < contacts.length; i++)
             contacts[i] = contactBox(modules, i);
         return ControlFootprint.of(bodyBoxes(modules)).plus(contacts);
     }
 
     /** The drawn pin, in pixels as the partial is drawn. */
     static double[] pin(int modules, int terminal) {
-        checkModules(modules);
-        double minX = CircuitBreakerModel.minX(modules) + COLUMN[terminal] + PIN_INSET;
+        checkTerminal(modules, terminal);
+        boolean stacked = modules == 1;
+        double minX = CircuitBreakerModel.minX(modules) + (stacked ? 0 : COLUMN[terminal]) + PIN_INSET;
+        boolean plus = terminal == TERMINAL_VCC || terminal == TERMINAL_V_PLUS;
+        double minY = PIN_MIN_Y + (stacked && plus ? STACK_PITCH : 0);
         double minZ = SIDE[terminal] > 0 ? BASE_MAX_Z : BASE_MIN_Z - PIN_RISE;
-        return new double[] { minX, PIN_MIN_Y, minZ, minX + PIN_SIZE, PIN_MIN_Y + PIN_SIZE, minZ + PIN_RISE };
+        return new double[] { minX, minY, minZ, minX + PIN_SIZE, minY + PIN_SIZE, minZ + PIN_RISE };
     }
 
     /** The grown box a click is resolved against, in authored pixels. */
@@ -193,8 +210,8 @@ public final class PsuGeometry {
      */
     public static TerminalBoundingBox[] terminals(PsuType type, ControlMount mount) {
         int modules = type.modules();
-        TerminalBoundingBox[] terminals = new TerminalBoundingBox[TERMINALS];
-        for (int i = 0; i < TERMINALS; i++) {
+        TerminalBoundingBox[] terminals = new TerminalBoundingBox[terminalCount(modules)];
+        for (int i = 0; i < terminals.length; i++) {
             double[] box = mount.box(contactBox(modules, i));
             double[] o = origin(modules, i);
             double[] tip = mount.point(o[0], o[1], o[2]);

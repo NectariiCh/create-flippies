@@ -100,7 +100,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
                         ? NbtCompat.readBlockPos(tag.getCompound(AREA_CORNER))
                         : null,
                 NBTHelper.readEnum(tag, KIND, DynamicBlockKind.class),
-                Math.floorMod(tag.getByte(YAW), PanelPlane.YAW_STEPS),
+                Math.floorMod(tag.getByte(YAW), PanelPlane.TURNS),
                 PanelPoint.load(tag.getCompound(FIRST_POINT)),
                 tag.contains(FIRST_PANEL, Tag.TAG_COMPOUND) ? NbtCompat.readBlockPos(tag.getCompound(FIRST_PANEL))
                         : null,
@@ -123,7 +123,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
             tag.putInt(ROWS, clampTracks(rows));
             tag.putByte(TURN, (byte) (turn & 3));
             NBTHelper.writeEnum(tag, KIND, kind);
-            tag.putByte(YAW, (byte) Math.floorMod(yaw, PanelPlane.YAW_STEPS));
+            tag.putByte(YAW, (byte) Math.floorMod(yaw, PanelPlane.TURNS));
             NBTHelper.writeEnum(tag, EDIT_KIND, editKind);
             tag.putInt(STEP, clampStep(step));
         });
@@ -247,7 +247,7 @@ public record ScrewdriverSettings(ScrewdriverMode mode, int columns, int rows, i
     /** The yaw wraps rather than clamps, so the button always moves. */
     public ScrewdriverSettings withYaw(int yaw) {
         return new ScrewdriverSettings(mode, columns, rows, turn, corner, areaCorner, kind,
-                Math.floorMod(yaw, PanelPlane.YAW_STEPS), firstPoint, firstPanel, editKind, step, editPanel);
+                Math.floorMod(yaw, PanelPlane.TURNS), firstPoint, firstPanel, editKind, step, editPanel);
     }
 
     public ScrewdriverSettings withEditKind(PanelEditKind editKind) {

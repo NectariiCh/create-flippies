@@ -13,25 +13,32 @@ package com.nectariich.create_flippies.content.psu;
  * behind the solve it reacts to, which is the same exchange the PLC makes and is
  * invisible at a twentieth of a second.
  *
- * Every threshold is a fraction of the variant's own rating, so a 120 V or a 5 V
- * supply added to {@link PsuType}'s table needs no figure here changed.
+ * Every threshold follows from the variant's own rating, so a supply added to
+ * {@link PsuType}'s table needs no figure here changed.
  *
  * <h2>Input</h2>
  *
  * Power Grid has no AC, so the "230 V" input is the magnitude of the DC across
  * VCC and GND. Its sign is ignored: an AC-input supply's front end is a bridge
  * rectifier, and a bridge fed DC either way round charges its bulk capacitor all
- * the same. Two comparators with hysteresis decide whether the input is usable,
- * the way a real supply's UVLO and OVP do:
+ * the same.
+ *
+ * Every input has an operating window, the mod's rule for electronics on mains:
+ * a 120 V supply runs on 95–135 V and a 230 V one on 195–260 V, so each also takes
+ * the 125 V or 240 V a site may actually have. Any other nominal — the 48 V of a
+ * DC-DC off a battery bus — runs within ±20 % of it, 38.4–57.6 V
+ * (see {@link #minInputVolts} and {@link #maxInputVolts}). Two comparators with
+ * hysteresis decide whether the input is usable, the way a real supply's UVLO and
+ * OVP do:
  *
  * <pre>
- *   under-voltage   starts at  ≥ 0.85 × V_in   drops out at  &lt; 0.75 × V_in
- *   over-voltage    trips at   &gt; 1.20 × V_in   restarts at   ≤ 1.15 × V_in
+ *   under-voltage   starts at  ≥ V_min   drops out at  &lt; V_min − 0.10 × V_in
+ *   over-voltage    trips at   &gt; V_max   restarts at   ≤ V_max − 0.05 × V_in
  * </pre>
  *
- * which for 230 V is 195.5 V / 172.5 V and 276 V / 264.5 V. Below a tenth of
- * nominal the input is taken to be simply absent and the supply reads as Off
- * rather than as Input low.
+ * which for 230 V is 195 V / 172 V and 260 V / 248.5 V, and for 120 V 95 V / 83 V
+ * and 135 V / 129 V. Below a tenth of nominal the input is taken to be simply
+ * absent and the supply reads as Off rather than as Input low.
  *
  * <h2>Output</h2>
  *
@@ -141,11 +148,14 @@ public final class PsuRegulator {
 
     // ------------------------------------------------------------ input ---
 
-    /** Fractions of the nominal input; see the class comment. */
-    public static final double START_FRACTION = 0.85;
-    public static final double DROPOUT_FRACTION = 0.75;
-    public static final double OVERVOLTAGE_FRACTION = 1.20;
-    public static final double OVERVOLTAGE_RESTART_FRACTION = 1.15;
+    /** The operating window of an input that is neither 120 nor 230 V, as ± a fraction of it. */
+    public static final double OTHER_WINDOW_FRACTION = 0.20;
+
+    /** How far under the start threshold a running supply rides before it drops out, as a fraction of nominal. */
+    public static final double DROPOUT_HYSTERESIS = 0.10;
+
+    /** How far under the trip threshold the input has to come back before a restart, as a fraction of nominal. */
+    public static final double RESTART_HYSTERESIS = 0.05;
 
     /** Below this fraction of nominal the input counts as absent: Off, not Input low. */
     public static final double PRESENT_FRACTION = 0.10;
@@ -240,6 +250,10 @@ public final class PsuRegulator {
     // ----------------------------------------------------------- rating ---
 
     private final double inputVolts;
+    private final double startVolts;
+    private final double dropoutVolts;
+    private final double tripVolts;
+    private final double restartVolts;
     private final double outputVolts;
     private final double watts;
     private final double limitAmps;
@@ -280,9 +294,31 @@ public final class PsuRegulator {
         if (!(inputVolts > 0 && outputVolts > 0 && watts > 0))
             throw new IllegalArgumentException("A supply needs a positive rating");
         this.inputVolts = inputVolts;
+        this.startVolts = minInputVolts(inputVolts);
+        this.dropoutVolts = startVolts - DROPOUT_HYSTERESIS * inputVolts;
+        this.tripVolts = maxInputVolts(inputVolts);
+        this.restartVolts = tripVolts - RESTART_HYSTERESIS * inputVolts;
         this.outputVolts = outputVolts;
         this.watts = watts;
         this.limitAmps = watts / outputVolts * LIMIT_MULTIPLE;
+    }
+
+    /** The least input a supply of this nominal input runs on: 95 V at 120, 195 V at 230, else −20 %. */
+    public static double minInputVolts(double inputVolts) {
+        if (inputVolts == 120)
+            return 95;
+        if (inputVolts == 230)
+            return 195;
+        return inputVolts * (1 - OTHER_WINDOW_FRACTION);
+    }
+
+    /** The most input a supply of this nominal input runs on: 135 V at 120, 260 V at 230, else +20 %. */
+    public static double maxInputVolts(double inputVolts) {
+        if (inputVolts == 120)
+            return 135;
+        if (inputVolts == 230)
+            return 260;
+        return inputVolts * (1 + OTHER_WINDOW_FRACTION);
     }
 
     /**
@@ -365,15 +401,15 @@ public final class PsuRegulator {
 
     private void updateComparators(double in) {
         if (underVoltage) {
-            if (in >= START_FRACTION * inputVolts)
+            if (in >= startVolts)
                 underVoltage = false;
-        } else if (in < DROPOUT_FRACTION * inputVolts) {
+        } else if (in < dropoutVolts) {
             underVoltage = true;
         }
         if (overVoltage) {
-            if (in <= OVERVOLTAGE_RESTART_FRACTION * inputVolts)
+            if (in <= restartVolts)
                 overVoltage = false;
-        } else if (in > OVERVOLTAGE_FRACTION * inputVolts) {
+        } else if (in > tripVolts) {
             overVoltage = true;
         }
     }
@@ -545,6 +581,15 @@ public final class PsuRegulator {
 
     public double ratedInputVolts() {
         return inputVolts;
+    }
+
+    /** The input window this supply runs in, in volts. */
+    public double minInputVolts() {
+        return startVolts;
+    }
+
+    public double maxInputVolts() {
+        return tripVolts;
     }
 
     public double ratedOutputVolts() {

@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.client;
 
+import com.nectariich.create_flippies.client.cabinet.CabinetDoorControls;
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
@@ -72,6 +73,8 @@ public final class ControlBreakInput {
      * then its mount (or a control and the next one behind it) in a single click.
      */
     private static boolean released = true;
+    /** Whether this press has already had its one click on a shut cabinet door's control. */
+    private static boolean shutClickTaken;
 
     private ControlBreakInput() {}
 
@@ -79,11 +82,17 @@ public final class ControlBreakInput {
     //? if forge {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.END && !Minecraft.getInstance().options.keyAttack.isDown())
+        {
             released = true;
+            shutClickTaken = false;
+        }
     //?} else {
     /*public static void onClientTick(ClientTickEvent.Post event) {
         if (!Minecraft.getInstance().options.keyAttack.isDown())
+        {
             released = true;
+            shutClickTaken = false;
+        }
     *///?}
     }
 
@@ -99,27 +108,47 @@ public final class ControlBreakInput {
         // The ruling modes take every left click for themselves; the placement modes
         // leave it, and on a panel it means unscrewing the one control under the
         // crosshair — which is what the tool is for and finer than breaking the block
-        InteractionHand tool = ScrewdriverItem.heldBy(player);
-        if (tool != null && ScrewdriverSettings.read(player.getItemInHand(tool)).mode().claimsLeftClick())
-            return;
-
         HitResult crosshair = minecraft.hitResult;
-        if (!(crosshair instanceof BlockHitResult block) || block.getType() != HitResult.Type.BLOCK)
+        BlockHitResult target = crosshair instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK
+                ? hit : null;
+        // Controls on a shut cabinet door are drawn away from their host, whose cell
+        // is then empty: vanilla must never mine it, or it asks that empty shape for
+        // the bounds of its hit particles and crashes. One click per press still goes
+        // through to a screwdriver mode that takes left clicks (it starts the gesture);
+        // the hold that follows does not
+        boolean shut = target != null && CabinetDoorControls.shutHost(player.level(), target.getBlockPos()) != null;
+        InteractionHand tool = ScrewdriverItem.heldBy(player);
+        if (tool != null && ScrewdriverSettings.read(player.getItemInHand(tool)).mode().claimsLeftClick()) {
+            if (shut) {
+                if (shutClickTaken)
+                    refuse(event, true);
+                shutClickTaken = true;
+            }
             return;
+        }
+
+        if (target == null)
+            return;
+        BlockHitResult block = target;
         // Only a click that is actually on a control unscrews one. An empty frame is
         // left to vanilla, which is the only way one can be removed; and a panel cell
         // carrying a control anywhere on it stays minable everywhere else on it, which
-        // it would not be if merely holding something claimed every click
-        HostedControl aimed = player.level().getBlockEntity(block.getBlockPos()) instanceof ControlRackHolder host
-                ? host.controlAt(crosshair.getLocation().subtract(Vec3.atLowerCornerOf(block.getBlockPos())))
-                : null;
-        if (aimed == null)
+        // it would not be if merely holding something claimed every click. The host
+        // says what it claims: a cabinet's rail cell claims its bare rail as well
+        if (!(player.level().getBlockEntity(block.getBlockPos()) instanceof ControlRackHolder host))
             return;
+        Vec3 local = crosshair.getLocation().subtract(Vec3.atLowerCornerOf(block.getBlockPos()));
+        if (!host.claimsLeftClick(local)) {
+            if (shut)
+                refuse(event, true);
+            return;
+        }
+        HostedControl aimed = host.controlAt(local);
 
         // Claimed either way: a locked control must not come off, and must not let
         // the click through to mine the panel it is screwed to either
-        event.setCanceled(true);
-        if (aimed.isLocked()) {
+        refuse(event, shut);
+        if (aimed != null && aimed.isLocked()) {
             player.displayClientMessage(Component.translatable(PROTECTED).withStyle(ChatFormatting.RED), true);
             return;
         }
@@ -128,5 +157,18 @@ public final class ControlBreakInput {
             return;
         released = false;
         ModPackets.sendToServer(new BreakControlPacket(block.getBlockPos(), crosshair.getLocation()));
+        if (shut)
+            player.swing(InteractionHand.MAIN_HAND);
+    }
+
+    /**
+     * Keeps the click from vanilla. On a shut cabinet door's host, the swing too:
+     * Forge still draws the hit particles of a cancelled held click when the hand
+     * swings, from the block's shape, and that host's shape is empty.
+     */
+    private static void refuse(InputEvent.InteractionKeyMappingTriggered event, boolean shut) {
+        event.setCanceled(true);
+        if (shut)
+            event.setSwingHand(false);
     }
 }

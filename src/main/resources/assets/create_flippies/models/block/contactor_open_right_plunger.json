@@ -1,0 +1,87 @@
+{
+  "__generated": "tools/gen_contactor_open.py from contactor-open-right.json; re-run after re-exporting",
+  "textures": {
+    "0": "create_flippies:block/contactor-open",
+    "particle": "create_flippies:block/contactor-open"
+  },
+  "elements": [
+    {
+      "name": "button",
+      "from": [
+        7.5,
+        3,
+        7.55
+      ],
+      "to": [
+        8.2,
+        3.45,
+        8.45
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8.0,
+          4,
+          9.3
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            8,
+            0,
+            10,
+            2
+          ],
+          "texture": "#0"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            5,
+            2
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            8,
+            0,
+            10,
+            2
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            0,
+            2,
+            5,
+            4
+          ],
+          "texture": "#0"
+        },
+        "up": {
+          "uv": [
+            2.1875,
+            9,
+            0,
+            4
+          ],
+          "texture": "#0"
+        },
+        "down": {
+          "uv": [
+            4.1875,
+            9,
+            2.1875,
+            14
+          ],
+          "texture": "#0"
+        }
+      }
+    }
+  ]
+}

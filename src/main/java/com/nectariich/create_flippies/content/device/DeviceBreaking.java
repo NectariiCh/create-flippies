@@ -11,7 +11,8 @@ import net.minecraft.world.phys.Vec3;
  * The server's side of breaking devices: a hold starts with a packet, and a packet
  * at its end breaks the device if the player is still in reach and has held long
  * enough. As vanilla allows a block, the hold may come up to 30% short, for lag; in
- * creative a click breaks it at once.
+ * creative a click breaks it at once, unless it is one that breaks slowly there too
+ * ({@link DeviceEntity#breaksAtOnce}).
  */
 public final class DeviceBreaking {
 
@@ -31,7 +32,7 @@ public final class DeviceBreaking {
             return;
         }
         long now = player.serverLevel().getGameTime();
-        if (player.getAbilities().instabuild) {
+        if (device.breaksAtOnce(player)) {
             device.breakBy(player);
             return;
         }

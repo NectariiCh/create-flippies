@@ -3465,7 +3465,8 @@ User decisions that settle this section:
   from floppy; read and write.
 - Power from Power Grid. The power connector is a socket: Power Grid's own two-conductor cord
   (one cable, two conductors) plugs into it, drawn with a cube for the plug, and joins a Power
-  Grid network. Works from 95 to 270 V DC. Draws
+  Grid network. Auto-ranging: works from 95 to 135 V or from 195 to 260 V (the 120 V and 230 V
+  mains windows). Draws
   power according to the load (CPU, RAM, drives), as the PLC does.
 - The three VGA ports are three independent displays, each with its own framebuffer.
 - COM3 exists on the case; the core adds it.
@@ -3989,9 +3990,11 @@ Install and remove (pure rules in `PcSlotRules`, applied by `PcInteractions`):
 - Supply window (pure logic in `PcPower`, constants with comments):
   - Magnitude of the voltage (a bridge rectifier front end, as the PSU spec reasons), so reverse
     polarity works.
-  - Can start when 95 V <= V <= 270 V. While running, keeps running from 90 V to 280 V
+  - Auto-ranging across the two mains ratings: can start when 95 V <= V <= 135 V (120 V) or
+    195 V <= V <= 260 V (230 V). While running, keeps running 5 V past either window
     (hysteresis). Below 90 V: brown-out, the machine is powered off at once (RAM lost, as a real
-    PC). Above 280 V: over-voltage shutdown, same, and the error light comes on.
+    PC). Above 265 V: over-voltage shutdown, same, and the error light comes on. Between 140 and
+    190 V it is over-voltage in the nearer half to 140 V and brown-out in the nearer half to 190 V.
   - After an outage the PC stays off until the power button is pressed (a real ATX PC's default).
 - Draw (watts at the PC's internal rails, then through the supply):
   - Motherboard 8 W (chipset, ports, network card).
@@ -4338,8 +4341,8 @@ Ports and power:
 - Power: the case's socket design (11.2.4, 11.2.13) on `power in`: two Power Grid terminals
   hidden inside the cabinet, Power Grid's copper cord plugged in with one click on the socket
   through `IAcceptCord`, our plug cube drawn while both terminals are wired, the load between the
-  two terminals. Same window as the case: comes on from 95 to 270 V (magnitude), stays on from 90
-  to 280 V. No switch: it is on whenever its supply is. Draw at the cord (`CrtPower`): 60 W with a
+  two terminals. Same window as the case: comes on from 95 to 135 V or 195 to 260 V (magnitude),
+  stays on 5 V past either. No switch: it is on whenever its supply is. Draw at the cord (`CrtPower`): 60 W with a
   picture (a small colour VGA monitor; a 14 inch one drew about 60 to 80 W), 15 W on without a
   signal (the power-saving standby of a monitor that lost sync), the leak when off. R = V^2 / P
   with the case's clamp and 1% deadband.
@@ -4687,7 +4690,7 @@ Game (JUnit 5; pure logic, plus real Power Grid solves where noted, as the PLC t
   and the 68040, the total RAM cap refusing a power-on, the "installed X,
   usable Y" report.
 - `PcPowerTest`: draw per part, idle versus busy blending, HDD and floppy activity, efficiency,
-  standby, resistance clamp and deadband, the 95/90/270/280 V window with hysteresis, reverse
+  standby, resistance clamp and deadband, the 95-135 / 195-260 V windows with 5 V of hysteresis, reverse
   polarity.
 - `PcPowerCircuitTest` (real Power Grid solve): a 230 V source wired to terminals 0 and 1 draws
   V^2/R through the load, with no ground anywhere; reversed polarity gives the same magnitude.
@@ -4727,7 +4730,7 @@ Only in game:
 None open. Answered by the user after the first draft and folded in above:
 
 - Power: Power Grid's own two-conductor cord into the case's power connector, plug cube drawn at
-  the socket, 95 to 270 V DC (11.2.4). No single wire through ground.
+  the socket, 95 to 135 V or 195 to 260 V (11.2.4). No single wire through ground.
 - RAM: the limit is 128 MB on RV32I and the 68040 so two 64 MB sticks are fully usable; the
   68000 stays limited by its 24-bit bus (13.5 MiB); up to 128 MB of server memory per running PC
   is accepted (11.1.10).

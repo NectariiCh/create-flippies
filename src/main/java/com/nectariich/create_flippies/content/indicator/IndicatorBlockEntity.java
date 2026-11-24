@@ -44,12 +44,13 @@ public class IndicatorBlockEntity extends ElectricBlockEntity implements IHaveGo
     public static final String GOGGLE_PREFIX = "gui." + CreateFlippies.MOD_ID + ".indicator.goggles.";
 
     /**
-     * How much of its rated voltage a lamp needs across it before it reads as on.
+     * How bright a lamp has to be before it reads as on — that is, what fraction of
+     * the bottom of its operating window it needs across it.
      *
      * A lens does not fade in evenly from nothing, and there are two models rather
      * than a continuum, so the question this answers is where the cut is. Low enough
-     * that a lamp on a sagging line still shows, high enough that leakage through a
-     * neighbouring circuit does not light a panel up.
+     * that a lamp on a line sagging well out of its window still shows, high enough
+     * that leakage through a neighbouring circuit does not light a panel up.
      */
     public static final float LIT_THRESHOLD = 0.4f;
 
@@ -143,7 +144,7 @@ public class IndicatorBlockEntity extends ElectricBlockEntity implements IHaveGo
     }
 
     /**
-     * What this unit is. Read off the block, which is what the ten items place; falls
+     * What this unit is. Read off the block, which is what the twelve items place; falls
      * back to the smallest for the same reason {@link #createRenderBoundingBox}
      * guards, that this is asked while the circuit is built and a block entity can
      * outlive its block.
@@ -151,7 +152,7 @@ public class IndicatorBlockEntity extends ElectricBlockEntity implements IHaveGo
     public IndicatorKind kind() {
         return getBlockState().getBlock() instanceof IndicatorBlock block
                 ? block.getKind()
-                : IndicatorKind.MED_6V;
+                : IndicatorKind.MED_5V;
     }
 
     public IndicatorRating rating() {
@@ -229,7 +230,7 @@ public class IndicatorBlockEntity extends ElectricBlockEntity implements IHaveGo
         return voltageBetween(terminalA, terminalB);
     }
 
-    /** How hard the lamp is being driven, as a fraction of its rating. */
+    /** How hard the lamp is being driven: 1 inside its operating window. */
     public float brightness() {
         return brightness(measuredVoltage(), rating());
     }
@@ -248,11 +249,27 @@ public class IndicatorBlockEntity extends ElectricBlockEntity implements IHaveGo
         return (float) (a.getVoltage() - b.getVoltage());
     }
 
-    /** As above: the lamp is bipolar, so it is the size of the difference that lights it. */
+    /**
+     * How hard a lamp of this rating is driven by this voltage. As above, the lamp is
+     * bipolar, so it is the size of the difference that lights it.
+     *
+     * Exactly 1 anywhere inside the rating's operating window, because a lamp built
+     * for a line is meant to look the same at every voltage that line really sits at.
+     * Below the window it dims in proportion to the bottom of it, so a lamp on a
+     * sagging supply fades rather than snapping off. Above it the answer runs on past
+     * 1 in proportion to the top of the window: a lamp cannot get brighter than full,
+     * and everything that draws it clamps, but the figure still says by how much the
+     * lamp is overdriven.
+     */
     public static float brightness(float volts, IndicatorRating rating) {
-        if (rating.volts() <= 0 || Float.isNaN(volts))
+        if (rating.minVolts() <= 0 || Float.isNaN(volts))
             return 0;
-        return Math.abs(volts) / rating.volts();
+        float magnitude = Math.abs(volts);
+        if (magnitude < rating.minVolts())
+            return magnitude / rating.minVolts();
+        if (magnitude > rating.maxVolts())
+            return magnitude / rating.maxVolts();
+        return 1;
     }
 
     @Override
@@ -285,6 +302,10 @@ public class IndicatorBlockEntity extends ElectricBlockEntity implements IHaveGo
                 Component.literal(String.format("%.2f", Math.abs(volts))).withStyle(ChatFormatting.AQUA),
                 rating.label().copy().withStyle(ChatFormatting.AQUA))
                 .withStyle(ChatFormatting.GRAY)));
+        tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "window",
+                Component.literal(volts(rating.minVolts())).withStyle(ChatFormatting.AQUA),
+                Component.literal(volts(rating.maxVolts())).withStyle(ChatFormatting.AQUA))
+                .withStyle(ChatFormatting.GRAY)));
         tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "lens",
                 color.label().copy().withStyle(ChatFormatting.AQUA))
                 .withStyle(ChatFormatting.GRAY)));
@@ -297,6 +318,11 @@ public class IndicatorBlockEntity extends ElectricBlockEntity implements IHaveGo
                             .withStyle(button.isPressed() ? ChatFormatting.GREEN : ChatFormatting.GRAY))
                     .withStyle(ChatFormatting.GRAY)));
         return true;
+    }
+
+    /** A window edge as printed: whole volts where it is one, two places where not. */
+    private static String volts(float volts) {
+        return volts == Math.rint(volts) ? String.valueOf((int) volts) : String.format("%.2f", volts).replaceAll("0$", "");
     }
 
     private static Component indent(Component component) {

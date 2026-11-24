@@ -332,7 +332,7 @@ public class CircuitBreakerControl extends HostedControl {
     public boolean addToGoggleTooltip(List<Component> tooltip, boolean sneaking) {
         CircuitBreakerType breaker = breaker();
         tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "header",
-                breaker.poles().poles(), breaker.rating()).withStyle(ChatFormatting.WHITE)));
+                breaker.poles().poles(), breaker.volts(), breaker.rating()).withStyle(ChatFormatting.WHITE)));
         Component state = Component.translatable(GOGGLE_PREFIX + (closed ? "closed" : trip.stateKey()))
                 .withStyle(closed ? ChatFormatting.GREEN : trip.color());
         tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "state", state).withStyle(ChatFormatting.GRAY)));

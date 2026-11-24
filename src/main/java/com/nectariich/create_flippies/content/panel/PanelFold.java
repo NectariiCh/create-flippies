@@ -162,14 +162,14 @@ public final class PanelFold {
      * The plane with a given outward normal and a given in-plane axis, through a point.
      *
      * Found by trying the facings rather than by deriving one, because there are only
-     * twelve and the derivation would have to reproduce, exactly, the choice of axes
+     * twenty-four and the derivation would have to reproduce, exactly, the choice of axes
      * {@link PanelPlane} already makes — and any disagreement between the two would
      * show up as a panel a fraction of a turn out of true, which is the one thing a
      * fold exists to avoid.
      */
     private static PanelPlane matching(Vec3 outward, Vec3 along, Vec3 through) {
         for (Direction face : Direction.values())
-            for (int yaw = 0; yaw < PanelPlane.YAW_STEPS; yaw++) {
+            for (int yaw = 0; yaw < PanelPlane.TURNS; yaw++) {
                 PanelPlane bare = new PanelPlane(face, yaw, 0);
                 if (!bare.check().ok() || bare.outward().distanceToSqr(outward) > TOLERANCE)
                     continue;

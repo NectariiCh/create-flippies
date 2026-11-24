@@ -16,6 +16,9 @@ import com.nectariich.create_flippies.content.psu.PsuType;
 import com.nectariich.create_flippies.content.relay.RelayMountType;
 import com.nectariich.create_flippies.content.relay.RelayType;
 import com.nectariich.create_flippies.content.terminal_block.TerminalBlockType;
+import com.nectariich.create_flippies.content.contactor.ContactorType;
+import com.nectariich.create_flippies.content.contactor.OpenContactorCoilType;
+import com.nectariich.create_flippies.content.contactor.OpenContactorPiece;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchAppearance;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchKind;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchMarking;
@@ -237,6 +240,40 @@ public class ModPartialModels {
     private static Map<TerminalBlockType, PartialModel> terminalBlockParts() {
         Map<TerminalBlockType, PartialModel> parts = new java.util.HashMap<>();
         for (TerminalBlockType type : TerminalBlockType.all())
+            parts.put(type, PartialModel.of(CreateFlippies.asResource(type.model())));
+        return Collections.unmodifiableMap(parts);
+    }
+
+    // A contactor is likewise only on a rail, and nothing on it moves: one partial
+    // per row of ContactorType's table.
+    public static final Map<ContactorType, PartialModel> CONTACTORS = contactorParts();
+
+    private static Map<ContactorType, PartialModel> contactorParts() {
+        Map<ContactorType, PartialModel> parts = new java.util.HashMap<>();
+        for (ContactorType type : ContactorType.all())
+            parts.put(type, PartialModel.of(CreateFlippies.asResource(type.model())));
+        return Collections.unmodifiableMap(parts);
+    }
+
+    // The open contactor: a body and a sliding plunger per piece of an assembly, and
+    // one still model per coil terminal voltage.
+    public static final Map<OpenContactorPiece, PartialModel> CONTACTOR_OPEN_BODIES =
+            openContactorParts(OpenContactorPiece::bodyModel);
+    public static final Map<OpenContactorPiece, PartialModel> CONTACTOR_OPEN_PLUNGERS =
+            openContactorParts(OpenContactorPiece::plungerModel);
+    public static final Map<OpenContactorCoilType, PartialModel> CONTACTOR_OPEN_COILS = openContactorCoilParts();
+
+    private static Map<OpenContactorPiece, PartialModel> openContactorParts(
+            java.util.function.Function<OpenContactorPiece, String> model) {
+        Map<OpenContactorPiece, PartialModel> parts = new EnumMap<>(OpenContactorPiece.class);
+        for (OpenContactorPiece piece : OpenContactorPiece.values())
+            parts.put(piece, PartialModel.of(CreateFlippies.asResource(model.apply(piece))));
+        return Collections.unmodifiableMap(parts);
+    }
+
+    private static Map<OpenContactorCoilType, PartialModel> openContactorCoilParts() {
+        Map<OpenContactorCoilType, PartialModel> parts = new java.util.HashMap<>();
+        for (OpenContactorCoilType type : OpenContactorCoilType.all())
             parts.put(type, PartialModel.of(CreateFlippies.asResource(type.model())));
         return Collections.unmodifiableMap(parts);
     }

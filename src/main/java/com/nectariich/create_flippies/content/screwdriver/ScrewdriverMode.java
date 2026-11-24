@@ -123,8 +123,17 @@ public enum ScrewdriverMode {
      * left-click to take a point back or an arrow off. See
      * {@link com.nectariich.create_flippies.content.schematic_arrow.SchematicArrowActions}.
      */
-    SCHEMATIC_ARROW(new int[][] {});
+    SCHEMATIC_ARROW(new int[][] {}),
     // SCHEMATIC ARROWS end
+
+    /**
+     * Drill square or round holes in an electrical cabinet's walls and door, or cut
+     * rectangles out of them corner to corner; the attack button fills them back in.
+     * Cabinets are entities, so the clicks are taken before any block or entity sees
+     * them ({@link com.nectariich.create_flippies.client.cabinet.CabinetCutInput});
+     * what it cuts is {@link com.nectariich.create_flippies.content.cabinet.CabinetCutSettings}.
+     */
+    CUT_CABINET(new int[][] {});
 
     private static final String LANG_PREFIX = "gui." + CreateFlippies.MOD_ID + ".screwdriver.mode.";
 
@@ -161,7 +170,7 @@ public enum ScrewdriverMode {
      */
     public boolean claimsLeftClick() {
         return this == DEFINE_GRID || this == DEFINE_BREAK_PROTECTION || this == PROTECT_CONTROLS
-                || this == EDIT_PANEL || this == PAINT_DECAL || this == SCHEMATIC_ARROW;
+                || this == EDIT_PANEL || this == PAINT_DECAL || this == SCHEMATIC_ARROW || this == CUT_CABINET;
     }
 
     /** The rulings this mode offers, as {@code columns, rows} pairs. */

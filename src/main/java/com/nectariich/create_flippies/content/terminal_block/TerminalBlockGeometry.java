@@ -66,8 +66,8 @@ public final class TerminalBlockGeometry {
     private static final double PAD_Y = 0.1;
     private static final double EDGE = 0.05;
 
-    /** What Power Grid adds to each box, per side: nothing, as for the relay mount. */
-    static final double CLICK_EXPAND = 0;
+    /** What Power Grid adds to each box, per side, as for the PLC; see {@code PlcSmallGeometry}. */
+    static final double CLICK_EXPAND = 0.01;
 
     private static final String TERMINAL_KEY = "gui." + CreateFlippies.MOD_ID + ".terminal_block.terminal";
     private static final String GROUND_TERMINAL_KEY = "gui." + CreateFlippies.MOD_ID + ".terminal_block.ground_terminal";

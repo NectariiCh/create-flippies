@@ -243,6 +243,25 @@ public class ControlRack implements ControlHost {
         return refusal(controls, slots, footprint, terminalCount, mount);
     }
 
+    /** {@link #check}, less the rule that the centre is in this cell when {@code centreElsewhere}. */
+    public PlacementRefusal check(ControlFootprint footprint, int terminalCount, ControlMount mount,
+            boolean centreElsewhere) {
+        return centreElsewhere ? offCellRefusal(footprint, terminalCount, mount)
+                : check(footprint, terminalCount, mount);
+    }
+
+    /** {@link #refusal} for a mount whose centre is outside the cell: every rule but that one. */
+    private PlacementRefusal offCellRefusal(ControlFootprint footprint, int terminalCount, ControlMount mount) {
+        for (HostedControl control : controls)
+            if (control.mount().sharesPlaceWith(mount))
+                return PlacementRefusal.OVERLAPS;
+        if (footprint.reach(mount) > ControlFootprint.REACH_BUDGET)
+            return PlacementRefusal.REACHES_TOO_FAR;
+        if (!slots.hasRoom(terminalCount))
+            return PlacementRefusal.NO_TERMINALS;
+        return PlacementRefusal.NONE;
+    }
+
     /**
      * The whole of {@link #check}, over a list of controls and a slot table rather than
      * over this rack's own, so that it can be asked of both without a block entity to
@@ -299,7 +318,17 @@ public class ControlRack implements ControlHost {
      * {@link HostedControl} gives.
      */
     public PlacementRefusal install(HostedControl control, ControlMount mount, Player placer) {
-        PlacementRefusal refusal = check(control.footprint(), control.terminalCount(), mount);
+        return install(control, mount, placer, false);
+    }
+
+    /**
+     * {@link #install(HostedControl, ControlMount, Player)}, with the centre allowed
+     * outside this cell when {@code centreElsewhere}: a cabinet face's control hosted
+     * by a neighbouring cell because its own was taken.
+     */
+    public PlacementRefusal install(HostedControl control, ControlMount mount, Player placer,
+            boolean centreElsewhere) {
+        PlacementRefusal refusal = check(control.footprint(), control.terminalCount(), mount, centreElsewhere);
         // Asked of the control itself, since a designed screen arrives with its layout
         if (refusal.ok() && !HostElementBudget.fits(controls, control))
             refusal = PlacementRefusal.TOO_MANY_ELEMENTS;
@@ -723,6 +752,15 @@ public class ControlRack implements ControlHost {
                 built[control.slot() + i] = own[i];
         }
         return terminalCache = built;
+    }
+
+    /**
+     * The holder's {@link ControlRackHolder#baseShape} has changed under the rack,
+     * so the shapes built from it are thrown away. A cabinet's rail cell gains and
+     * loses rails without any control moving, which is the only way that happens.
+     */
+    public void baseShapeChanged() {
+        invalidateCaches();
     }
 
     private void invalidateCaches() {

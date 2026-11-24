@@ -14,8 +14,10 @@ class CrtPowerTest {
     void sameWindowAsTheCase() {
         assertFalse(CrtPower.nextOn(false, 94));
         assertTrue(CrtPower.nextOn(false, 95));
-        assertTrue(CrtPower.nextOn(false, 270));
-        assertFalse(CrtPower.nextOn(false, 271));
+        assertTrue(CrtPower.nextOn(false, 135));
+        assertFalse(CrtPower.nextOn(false, 160));
+        assertTrue(CrtPower.nextOn(false, 260));
+        assertFalse(CrtPower.nextOn(false, 261));
         // Reverse polarity is fine (bridge rectifier)
         assertTrue(CrtPower.nextOn(false, -230));
     }
@@ -23,9 +25,9 @@ class CrtPowerTest {
     @Test
     void hysteresisOnceOn() {
         assertTrue(CrtPower.nextOn(true, 91));
-        assertTrue(CrtPower.nextOn(true, 279));
+        assertTrue(CrtPower.nextOn(true, 264));
         assertFalse(CrtPower.nextOn(true, 89));
-        assertFalse(CrtPower.nextOn(true, 281));
+        assertFalse(CrtPower.nextOn(true, 266));
         // Off again: back to the start window
         assertFalse(CrtPower.nextOn(false, 91));
     }

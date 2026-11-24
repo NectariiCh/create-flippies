@@ -59,12 +59,20 @@ import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
  * would be a short.
  *
  * That holds only because the boxes are handed to Power Grid with an explicit
- * {@link #CLICK_EXPAND} of nothing. Its six-coordinate {@code TerminalBoundingBox}
+ * {@link #CLICK_EXPAND} of its own. Its six-coordinate {@code TerminalBoundingBox}
  * constructor quietly grows every box by a further tenth of a pixel on every side
  * (it delegates to the seven-coordinate one with {@code expand = 0.1}, and
  * {@code check()} tests the grown bounds), which on top of {@link #PAD} made each
  * neighbouring pair overlap by 0.15 px — VCC and GND included. {@link #clickBox}
  * is what is actually tested, and {@code PlcSmallGeometryTest} holds it apart.
+ *
+ * The expansion cannot be nothing, though. The contact boxes are also part of the
+ * shape, so a ray stops exactly on a box's face, and {@code check()} is half open:
+ * {@code >= min} but {@code < max}. A hit on a max face (+x, +y or +z in the world,
+ * after the mount turns the box) fails outright, and a hit on a min face passes or
+ * fails with the rounding of the ray, so a pin answered from some sides only, and
+ * which sides changed with the mount. A hundredth of a pixel clears the rounding by
+ * many orders of magnitude and still leaves the closest neighbours 0.03 px apart.
  */
 public final class PlcSmallGeometry {
 
@@ -123,10 +131,11 @@ public final class PlcSmallGeometry {
     private static final double PAD = 0.1;
 
     /**
-     * What Power Grid adds to each box, per side, on top of {@link #PAD}: nothing.
-     * See the class comment for what its default of 0.1 px did here.
+     * What Power Grid adds to each box, per side, on top of {@link #PAD}: a hundredth
+     * of a pixel. See the class comment for what its default of 0.1 px did here, and
+     * what none at all did.
      */
-    static final double CLICK_EXPAND = 0;
+    static final double CLICK_EXPAND = 0.01;
 
     private static final String TERMINAL_PREFIX = "gui." + CreateFlippies.MOD_ID + ".plc.terminal.";
 

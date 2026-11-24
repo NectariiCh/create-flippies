@@ -106,6 +106,14 @@ public class ModBlockEntities {
                     .of(DinRailBlockEntity::new, ModBlocks.DIN_RAIL.get())
                     .build(null));
 
+    // ELECTRICAL CABINETS
+    public static final Supplier<BlockEntityType<com.nectariich.create_flippies.content.cabinet.CabinetRailHostBlockEntity>>
+            CABINET_RAIL_HOST = BLOCK_ENTITIES.register("cabinet_rail_host", () -> BlockEntityType.Builder
+                    .of(com.nectariich.create_flippies.content.cabinet.CabinetRailHostBlockEntity::new,
+                            ModBlocks.CABINET_RAIL_HOST.get())
+                    .build(null));
+    // ELECTRICAL CABINETS end
+
 
     public static void register(IEventBus modBus) {
         BLOCK_ENTITIES.register(modBus);

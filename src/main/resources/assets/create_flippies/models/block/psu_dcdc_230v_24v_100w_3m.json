@@ -1,5 +1,6 @@
 {
   "__generated": "tools/gen_psu.py from PSU-DCDC-230V-24V-100W-3M.json; re-run after re-exporting",
+  "display": {},
   "textures": {
     "0": "create_flippies:block/psu_dcdc_230v_24v_100w_3m",
     "2": "create_flippies:block/copper_contacts",
@@ -57,10 +58,10 @@
         },
         "west": {
           "uv": [
-            2,
-            12.5,
-            12,
-            16
+            6,
+            2.5,
+            16,
+            6
           ],
           "texture": "#0"
         },

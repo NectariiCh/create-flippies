@@ -2,6 +2,8 @@ package com.nectariich.create_flippies.content.host;
 
 import java.util.List;
 
+import com.nectariich.create_flippies.content.cabinet.CabinetDoorLink;
+import com.nectariich.create_flippies.content.cabinet.ElectricalCabinetEntity;
 import com.nectariich.create_flippies.foundation.control.ControlFootprint;
 import com.nectariich.create_flippies.foundation.control.ControlMount;
 import com.nectariich.create_flippies.foundation.control.ControlRack;
@@ -14,6 +16,7 @@ import com.simibubi.create.api.equipment.goggles.IHaveGoggleInformation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.block.Block;
@@ -65,6 +68,10 @@ public class ControlHostBlockEntity extends ElectricBlockEntity implements IElec
      * initializer here has run.
      */
     private ControlRack rack;
+    /** The cabinet door this host's controls are on, or null; see {@link CabinetDoorLink}. */
+    private CabinetDoorLink door;
+    /** Whether that door is shut: the controls are then drawn and clicked on it, and this cell is empty. */
+    private boolean doorShut;
 
     public ControlHostBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.CONTROL_HOST.get(), pos, state);
@@ -156,14 +163,37 @@ public class ControlHostBlockEntity extends ElectricBlockEntity implements IElec
         return InteractionResult.PASS;
     }
 
+    // A cabinet's door
+
+    /** The door this host's controls are on, or null. */
+    public CabinetDoorLink door() {
+        return door;
+    }
+
+    /** Whether this host's controls are on a door that is shut, and so are not here. */
+    public boolean doorShut() {
+        return door != null && doorShut;
+    }
+
+    /** Ties this host to a door, or (null) lets go of one, the door {@code shut} or not. Server only. */
+    public void setDoor(CabinetDoorLink door, boolean shut) {
+        if (java.util.Objects.equals(this.door, door) && doorShut == shut)
+            return;
+        this.door = door;
+        doorShut = shut;
+        invalidateRenderBoundingBox();
+        notifyUpdate();
+    }
+
     // Shapes, ticking, saving and syncing
 
+    /** What is picked here: the controls, or nothing while they are on a shut door. */
     public VoxelShape shape() {
-        return rack.shape();
+        return doorShut() ? Shapes.empty() : rack.shape();
     }
 
     public VoxelShape collisionShape() {
-        return rack.collisionShape();
+        return doorShut() ? Shapes.empty() : rack.collisionShape();
     }
 
     /** Whether a control of this kind could be mounted here, without mounting it. */
@@ -178,25 +208,53 @@ public class ControlHostBlockEntity extends ElectricBlockEntity implements IElec
     @Override
     protected AABB createRenderBoundingBox() {
         AABB bounds = rack == null ? null : rack.renderBounds();
-        return bounds == null ? super.createRenderBoundingBox() : bounds;
+        if (bounds == null)
+            return super.createRenderBoundingBox();
+        // Drawn on the door either way, so seen from wherever either pose is
+        return door == null ? bounds : bounds.minmax(door.toShut(bounds));
     }
 
     @Override
     public void tick() {
         super.tick();
         rack.tick();
+        // A door whose cabinet went without breaking (a command, a lost save) would
+        // leave its controls shut away for good; they come back where they hang open
+        if (door != null && level instanceof ServerLevel server && server.getGameTime() % 100 == 0
+                && cabinetLoaded(server) && !(server.getEntity(door.cabinet()) instanceof ElectricalCabinetEntity))
+            setDoor(null, false);
+    }
+
+    /** Whether the entities wherever this door's cabinet could be have loaded: within a few blocks of its hinge. */
+    private boolean cabinetLoaded(ServerLevel server) {
+        BlockPos hinge = BlockPos.containing(door.openOrigin());
+        for (int dx = -8; dx <= 8; dx += 8)
+            for (int dz = -8; dz <= 8; dz += 8)
+                if (!server.areEntitiesLoaded(net.minecraft.world.level.ChunkPos.asLong(hinge.offset(dx, 0, dz))))
+                    return false;
+        return true;
     }
 
     @Override
     protected void write(CompoundTag tag, boolean clientPacket) {
         super.write(tag, clientPacket);
         rack.write(tag);
+        if (door != null) {
+            tag.put("Door", door.save());
+            tag.putBoolean("DoorShut", doorShut);
+        }
     }
 
     @Override
     protected void read(CompoundTag tag, boolean clientPacket) {
         super.read(tag, clientPacket);
         rack.read(tag);
+        CabinetDoorLink was = door;
+        door = tag.contains("Door") ? CabinetDoorLink.load(tag.getCompound("Door")) : null;
+        boolean wasShut = doorShut;
+        doorShut = door != null && tag.getBoolean("DoorShut");
+        if (!java.util.Objects.equals(was, door) || wasShut != doorShut)
+            invalidateRenderBoundingBox();
     }
 
     @Override

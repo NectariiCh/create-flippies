@@ -23,16 +23,21 @@ import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
  *
  * A kind is its rating and nothing else — nominal input, rated output, rated
  * power, and how many modules of rail the body that rating needs. Every other
- * figure either follows from those ({@link PsuRegulator} takes its thresholds as
- * fractions of them, {@link PsuGeometry} its width from the module count) or is
- * the same on all of them. So adding a variant is the three steps the breakers
- * take: copy the export to its new name, add a row below, add its lang name — and
- * run {@code python tools/gen_psu.py}.
+ * figure either follows from those ({@link PsuRegulator} takes its input window
+ * from the nominal input and its DC OK window as fractions of the output,
+ * {@link PsuGeometry} its width from the module count) or is the same on all of
+ * them.
  *
- * The family the user has asked for — not all of it made yet — is input 120 or
- * 230 V × output 5, 12, 24 or 48 V × 20 W (1M), 50 W (2M), 100 W (3M), 250 W (4M)
- * or 500 W (6M). Only the rows with a model behind them are in the table: a kind
- * with no model is a black item and a line of log noise.
+ * The table is input 48 V (a DC-DC off a 48 V bus), 120 or 230 V × output 5, 12,
+ * 24 or 48 V × one of the {@link #SIZES}: 30 W on one module, 60 W on two, 100 W on
+ * three and 150 W on four. The 100 W body is the authored one, and
+ * {@code tools/copy_psu_variants.py} copies it for each rating; the other widths
+ * are built from its modules by {@code tools/make_psu_widths.py}, which also sets
+ * their fronts. The one- and two-module bodies have no DC OK (see
+ * {@link PsuGeometry}). Either way {@code python tools/gen_psu.py} makes the models
+ * after, and the matrix is stated in all three places, so change them together.
+ * Only the rows with a model behind them may be in the table: a kind with no model
+ * is a black item and a line of log noise.
  *
  * Like a breaker and the DIN PLC, a supply has no block form; its item is a plain
  * item and what makes it mountable is that this kind names that item from
@@ -40,13 +45,32 @@ import org.patryk3211.powergrid.electricity.base.TerminalBoundingBox;
  */
 public class PsuType extends ControlType implements DinRailMountable {
 
+    /** Nominal inputs, in volts. */
+    static final int[] INPUTS = { 48, 120, 230 };
+
+    /** Rated outputs, in volts. */
+    static final int[] OUTPUTS = { 5, 12, 24, 48 };
+
+    /** Each body: its rated watts and its width in modules. */
+    static final int[][] SIZES = { { 30, 1 }, { 60, 2 }, { 100, 3 }, { 150, 4 } };
+
     /**
      * Every supply there is a model for, in creative tab order. The id each row
      * makes is the generated model's name, so a row and an export are matched by
-     * name and nothing else.
+     * name and nothing else. Declared after the matrix, which must be set first.
      */
-    private static final Map<String, PsuType> TABLE = table(
-            new PsuType(230, 24, 100, 3));
+    private static final Map<String, PsuType> TABLE = table(rows());
+
+    /** The whole matrix, by input, then output, then size. */
+    private static PsuType[] rows() {
+        PsuType[] rows = new PsuType[INPUTS.length * OUTPUTS.length * SIZES.length];
+        int i = 0;
+        for (int in : INPUTS)
+            for (int out : OUTPUTS)
+                for (int[] size : SIZES)
+                    rows[i++] = new PsuType(in, out, size[0], size[1]);
+        return rows;
+    }
 
     private final int inputVolts;
     private final int outputVolts;
@@ -83,7 +107,7 @@ public class PsuType extends ControlType implements DinRailMountable {
         TABLE.values().forEach(ControlTypes::register);
     }
 
-    /** Nominal input, in volts; what the input window is a fraction of. */
+    /** Nominal input, in volts; what the input window is taken from. */
     public int inputVolts() {
         return inputVolts;
     }
@@ -96,6 +120,11 @@ public class PsuType extends ControlType implements DinRailMountable {
     /** Rated output power, in watts. */
     public int watts() {
         return watts;
+    }
+
+    /** Whether it has the DC OK status output; only a body of three modules or more does. */
+    public boolean hasDcOk() {
+        return PsuGeometry.hasDcOk(modules);
     }
 
     /** Rated output current, in amps. */
@@ -120,7 +149,7 @@ public class PsuType extends ControlType implements DinRailMountable {
 
     @Override
     public int terminalCount() {
-        return PsuGeometry.TERMINALS;
+        return PsuGeometry.terminalCount(modules);
     }
 
     @Override

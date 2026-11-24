@@ -10,17 +10,18 @@ import net.minecraft.util.Mth;
 /**
  * The colour picker the arrow menu's swatch opens: saturation and value in the
  * square, hue in the bar beside it, drawn and picked the way the material editor's
- * is. Every pick goes straight to the menu, which fills the hex box with it.
+ * is. Every pick goes straight to the menu, which fills the hex box with it. The
+ * cabinet menu opens the same one from its own swatch.
  *
  * The hue, saturation and value are kept rather than worked out from the colour
  * each time, so a grey or a black keeps the hue the bar shows.
  */
-final class ArrowColourPicker {
+public final class ArrowColourPicker {
 
     private static final int SQUARE_W = 120, SQUARE_H = 64, HUE_W = 12, PAD = 6;
 
-    static final int WIDTH = PAD + SQUARE_W + 6 + HUE_W + PAD;
-    static final int HEIGHT = PAD + SQUARE_H + PAD;
+    public static final int WIDTH = PAD + SQUARE_W + 6 + HUE_W + PAD;
+    public static final int HEIGHT = PAD + SQUARE_H + PAD;
 
     private final int x, y;
     private final IntConsumer onPick;
@@ -32,7 +33,7 @@ final class ArrowColourPicker {
 
     private Drag drag = Drag.NONE;
 
-    ArrowColourPicker(int x, int y, int rgb, IntConsumer onPick) {
+    public ArrowColourPicker(int x, int y, int rgb, IntConsumer onPick) {
         this.x = x;
         this.y = y;
         this.onPick = onPick;
@@ -40,7 +41,7 @@ final class ArrowColourPicker {
     }
 
     /** Takes a colour set elsewhere, the hex box, without a pick of its own. */
-    void sync(int rgb) {
+    public void sync(int rgb) {
         float[] hsv = MaterialEditor.toHsv(rgb & 0xFFFFFF);
         if (hsv[1] > 0)
             hue = hsv[0];
@@ -48,11 +49,11 @@ final class ArrowColourPicker {
         value = hsv[2];
     }
 
-    boolean contains(double mouseX, double mouseY) {
+    public boolean contains(double mouseX, double mouseY) {
         return inside(mouseX, mouseY, x, y, WIDTH, HEIGHT);
     }
 
-    boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0)
             return contains(mouseX, mouseY);
         if (inside(mouseX, mouseY, squareX(), squareY(), SQUARE_W, SQUARE_H))
@@ -65,14 +66,14 @@ final class ArrowColourPicker {
         return true;
     }
 
-    boolean mouseDragged(double mouseX, double mouseY) {
+    public boolean mouseDragged(double mouseX, double mouseY) {
         if (drag == Drag.NONE)
             return false;
         pick(mouseX, mouseY);
         return true;
     }
 
-    boolean mouseReleased() {
+    public boolean mouseReleased() {
         boolean was = drag != Drag.NONE;
         drag = Drag.NONE;
         return was;
@@ -88,7 +89,7 @@ final class ArrowColourPicker {
         onPick.accept(0xFF000000 | MaterialEditor.fromHsv(hue, saturation, value));
     }
 
-    void render(GuiGraphics graphics) {
+    public void render(GuiGraphics graphics) {
         graphics.pose().pushPose();
         // Over the menu's buttons and their text
         graphics.pose().translate(0, 0, 300);

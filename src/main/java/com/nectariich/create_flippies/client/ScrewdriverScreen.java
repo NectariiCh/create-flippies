@@ -11,6 +11,8 @@ import com.nectariich.create_flippies.content.schematic_arrow.ArrowDraft;
 import com.nectariich.create_flippies.content.schematic_arrow.ArrowGrab;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
 import com.nectariich.create_flippies.content.decal.PanelDecal;
+import com.nectariich.create_flippies.content.cabinet.CabinetCutSettings;
+import com.nectariich.create_flippies.network.ConfigureCabinetCutPacket;
 import com.nectariich.create_flippies.content.panel.PanelEditKind;
 import com.nectariich.create_flippies.content.screwdriver.DynamicBlockKind;
 import com.nectariich.create_flippies.foundation.panel.PanelPlane;
@@ -100,6 +102,11 @@ public class ScrewdriverScreen extends FlippiesScreen {
     private EditBox columnsBox;
     private EditBox rowsBox;
     private EditBox stepBox;
+    private Button cutKindButton;
+    private EditBox cutSizeBox;
+    private CabinetCutSettings.Kind cutKind;
+    private int cutSize;
+    private final CabinetCutSettings initialCut;
 
     private boolean clearCorner;
 
@@ -134,6 +141,9 @@ public class ScrewdriverScreen extends FlippiesScreen {
         this.yaw = settings.yaw();
         this.editKind = settings.editKind();
         this.step = settings.step();
+        this.initialCut = CabinetCutSettings.read(stack);
+        this.cutKind = initialCut.kind();
+        this.cutSize = initialCut.halfPixels();
         // SCHEMATIC ARROWS: an arrow half drawn or picked up is as pending as a corner
         this.cornerPending = settings.isPicking() || ArrowDraft.read(stack) != null || ArrowGrab.read(stack) != null;
         DecalSelection decal = DecalSelection.read(stack);
@@ -179,7 +189,7 @@ public class ScrewdriverScreen extends FlippiesScreen {
         }).bounds(x, top + ROW_HEIGHT, WIDGET_WIDTH, 20).build());
 
         yawButton = addRenderableWidget(Button.builder(yawLabel(), button -> {
-            yaw = (yaw + 1) % PanelPlane.YAW_STEPS;
+            yaw = (yaw + 1) % PanelPlane.TURNS;
             refresh();
         }).bounds(x, top + 2 * ROW_HEIGHT, WIDGET_WIDTH, 20).build());
 
@@ -195,6 +205,18 @@ public class ScrewdriverScreen extends FlippiesScreen {
         stepBox.setFilter(text -> text.matches(DIGITS));
         stepBox.setValue(Integer.toString(step));
         addRenderableWidget(stepBox);
+
+        // The cabinet mode: what it cuts, and how big a hole it drills, in pixels to the half
+        cutKindButton = addRenderableWidget(Button.builder(cutKindLabel(), button -> {
+            cutKind = cutKind.next();
+            refresh();
+        }).bounds(x, top + ROW_HEIGHT, WIDGET_WIDTH, 20).build());
+
+        cutSizeBox = new EditBox(font, x, top + 2 * ROW_HEIGHT, HALF_WIDTH, 20, Component.empty());
+        cutSizeBox.setMaxLength(4);
+        cutSizeBox.setFilter(text -> text.matches("\\d*(\\.\\d?)?"));
+        cutSizeBox.setValue(CabinetCutSettings.format(cutSize));
+        addRenderableWidget(cutSizeBox);
 
         // The picture shares its row with whether its background comes with it, which
         // is an option of the import and so sits beside the button that starts one
@@ -252,6 +274,14 @@ public class ScrewdriverScreen extends FlippiesScreen {
         }
         if (mode == ScrewdriverMode.EDIT_PANEL)
             step = parseStep(stepBox, step);
+        boolean cutting = mode == ScrewdriverMode.CUT_CABINET;
+        if (cutting)
+            cutSize = parseCutSize(cutSizeBox, cutSize);
+        cutKindButton.visible = cutting;
+        cutKindButton.active = cutting;
+        cutKindButton.setMessage(cutKindLabel());
+        cutSizeBox.visible = cutting && cutKind.sized();
+        cutSizeBox.setValue(CabinetCutSettings.format(cutSize));
         boolean editing = mode == ScrewdriverMode.EDIT_PANEL;
         boolean ruling = mode == ScrewdriverMode.DEFINE_GRID;
         boolean placing = mode.places();
@@ -383,14 +413,28 @@ public class ScrewdriverScreen extends FlippiesScreen {
     }
 
     private Component yawLabel() {
-        return Component.translatable(LANG_PREFIX + "yaw", yaw * 45);
+        return Component.translatable(LANG_PREFIX + "yaw_" + yaw);
     }
 
     private Component editKindLabel() {
         return Component.translatable(LANG_PREFIX + "dynamic_kind", editKind.label());
     }
 
+    private Component cutKindLabel() {
+        return Component.translatable(LANG_PREFIX + "dynamic_kind", cutKind.label());
+    }
+
+    private static int parseCutSize(EditBox box, int fallback) {
+        int parsed = CabinetCutSettings.parse(box.getValue());
+        return parsed < 0 ? fallback : parsed;
+    }
+
     private void applyAndClose() {
+        if (mode == ScrewdriverMode.CUT_CABINET)
+            cutSize = parseCutSize(cutSizeBox, cutSize);
+        CabinetCutSettings cut = new CabinetCutSettings(cutKind, cutSize);
+        if (!cut.equals(initialCut))
+            ModPackets.sendToServer(new ConfigureCabinetCutPacket(hand, cut));
         if (mode == ScrewdriverMode.DEFINE_GRID) {
             columns = parseTracks(columnsBox, columns);
             rows = parseTracks(rowsBox, rows);
@@ -451,6 +495,14 @@ public class ScrewdriverScreen extends FlippiesScreen {
             label(graphics, "kind_label", cx - 150, top + ROW_HEIGHT);
             if (kind.allowsDiagonal())
                 label(graphics, "yaw_label", cx - 150, top + 2 * ROW_HEIGHT);
+        }
+        if (mode == ScrewdriverMode.CUT_CABINET) {
+            label(graphics, "cut_kind_label", cx - 150, top + ROW_HEIGHT);
+            if (cutKind.sized()) {
+                label(graphics, "cut_size_label", cx - 150, top + 2 * ROW_HEIGHT);
+                graphics.drawString(font, Component.translatable(LANG_PREFIX + "step_pixels"),
+                        cx - 30 + HALF_WIDTH + 6, top + 2 * ROW_HEIGHT + 6, 0xA0A0A0);
+            }
         }
         if (mode == ScrewdriverMode.EDIT_PANEL) {
             label(graphics, "kind_label", cx - 150, top + ROW_HEIGHT);

@@ -3,6 +3,8 @@ package com.nectariich.create_flippies.client;
 import java.util.List;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.nectariich.create_flippies.client.cabinet.CabinetDoorControls;
+import com.nectariich.create_flippies.content.host.ControlHostBlockEntity;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 import com.nectariich.create_flippies.foundation.control.HostedControl;
 
@@ -64,10 +66,16 @@ public class ControlHostRenderer<T extends BlockEntity & ControlRackHolder> impl
         if (host.rack().isEmpty())
             return;
         List<HostedControl> controls = host.controls();
+        // Controls on a cabinet door are hosted where they are with it open; shut, they
+        // are drawn on it, and lit from there
+        ControlHostBlockEntity shut = host instanceof ControlHostBlockEntity cell && cell.doorShut() ? cell : null;
         int[] lights = new int[controls.size()];
         int index = 0;
         for (HostedControl control : controls)
-            lights[index++] = lightInFront(host, control, light);
+            lights[index++] = shut != null ? lightOnShutDoor(shut, control, light) : lightInFront(host, control, light);
+        ms.pushPose();
+        if (shut != null)
+            CabinetDoorControls.toShut(ms, shut);
         index = 0;
         for (HostedControl control : controls) {
             ControlRenderer renderer = ControlRenderers.get(control.type());
@@ -88,6 +96,21 @@ public class ControlHostRenderer<T extends BlockEntity & ControlRackHolder> impl
             renderer.renderLegend(control, partialTicks, ms, buffer, lit, overlay);
             ms.popPose();
         }
+        ms.popPose();
+    }
+
+    private static int lightOnShutDoor(ControlHostBlockEntity host, HostedControl control, int fallback) {
+        Level level = host.getLevel();
+        if (level == null)
+            return fallback;
+        Vec3 point = Vec3.atLowerCornerOf(host.getBlockPos())
+                .add(control.mount().centre())
+                .subtract(control.mount().alongDepth().scale(REACH));
+        BlockPos at = BlockPos.containing(host.door().toShut(point));
+        BlockState state = level.getBlockState(at);
+        if (state.isSolidRender(level, at))
+            return fallback;
+        return LevelRenderer.getLightColor(level, state, at);
     }
 
     /**

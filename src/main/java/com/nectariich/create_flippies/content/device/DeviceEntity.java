@@ -1,6 +1,7 @@
 package com.nectariich.create_flippies.content.device;
 
 import com.nectariich.create_flippies.compat.SpawnDataEntity;
+import com.nectariich.create_flippies.registry.ModGameRules;
 
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -34,8 +35,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * outline; this mod traces the crosshair against its turned boxes itself
  * ({@code GameRendererDevicePickMixin}) and makes it the target, so a click on it
  * goes to {@link #interactAt}. Breaking it takes holding the attack button as long
- * as a block of its {@link #hardness} by hand ({@link #breakTicks}); an attack does
- * nothing else to it.
+ * as a block of its {@link #hardness} by hand ({@link #breakTicks}), or a click in
+ * creative unless it {@link #slowBreaks}; an attack does nothing else to it.
  *
  * It never moves and has no physics: placed once, sent once.
  */
@@ -119,7 +120,9 @@ public abstract class DeviceEntity extends SpawnDataEntity {
 
     @Override
     protected AABB makeBoundingBox() {
-        return shape().localBounds(step).move(position());
+        AABB bounds = shape().localBounds(step).move(position());
+        DeviceReach.note(position(), bounds);
+        return bounds;
     }
 
     // Not a mob, not a target, not moved
@@ -208,14 +211,46 @@ public abstract class DeviceEntity extends SpawnDataEntity {
         return distance < range * range;
     }
 
+    /**
+     * Whether a device item may be stood on top of it, as on the top of a block
+     * ({@code DeviceItem#topHit}). Not by default.
+     */
+    public boolean carriesOnTop() {
+        return false;
+    }
+
     // Breaking
+
+    /**
+     * Whether, with the {@code slowBreaking} game rule on, it takes as long to break
+     * in creative as in survival instead of going at a click: for a device that is
+     * costly to lose by a stray swing.
+     */
+    public boolean slowBreaks() {
+        return false;
+    }
+
+    /**
+     * Whether {@code player} breaks it at a click: in creative, unless it
+     * {@link #slowBreaks} and the game rule is on. Both sides ask this; the client
+     * reads its own copy of the rule, which a server does not send, so it only
+     * decides how the hold looks there, and the server alone decides the breaking.
+     */
+    public boolean breaksAtOnce(Player player) {
+        return player.getAbilities().instabuild
+                && !(slowBreaks() && ModGameRules.slowBreaking(level().getGameRules()));
+    }
 
     /**
      * Ticks of holding the attack button that break it for {@code player}: a block
      * of {@link #hardness} broken by hand, with haste, mining fatigue, water and
-     * being off the ground counted as vanilla counts them.
+     * being off the ground counted as vanilla counts them. In creative, for one that
+     * {@link #slowBreaks}, the plain time by hand on the ground, so flying or
+     * swimming about does not stretch it.
      */
     public int breakTicks(Player player) {
+        if (player.getAbilities().instabuild)
+            return (int) Math.ceil(hardness() * 30);
         float speed = 1;
         if (MobEffectUtil.hasDigSpeed(player))
             speed *= 1 + (MobEffectUtil.getDigSpeedAmplification(player) + 1) * 0.2f;

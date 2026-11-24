@@ -19,8 +19,8 @@ import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
 import org.patryk3211.powergrid.electricity.sim.node.VoltageSourceCoupling;
 
 /**
- * One DIN-rail power supply clipped to a rail: 230 V in, 24 V out, and a DC OK
- * contact saying so.
+ * One DIN-rail power supply clipped to a rail: mains or a 48 V bus in, 5–48 V
+ * out, and a DC OK contact saying so.
  *
  * What the supply decides is {@link PsuRegulator}'s, which knows nothing of the
  * world; this class is the glue. Once a server tick it reads the terminals, hands
@@ -51,7 +51,8 @@ import org.patryk3211.powergrid.electricity.sim.node.VoltageSourceCoupling;
  * the source voltage — see the regulator's class comment for why that is what
  * makes paralleled supplies and battery loads stable;
  * <li>the <b>DC OK switch</b>, V+ to DC OK, closed at
- * {@link PsuRegulator#DC_OK_OHMS} while the output is in its window.
+ * {@link PsuRegulator#DC_OK_OHMS} while the output is in its window — last, and
+ * left out of a body too narrow to have the pin.
  * </ol>
  *
  * <b>Isolation.</b> Nothing joins an input node to an output node: the input side
@@ -148,12 +149,13 @@ public class PsuControl extends HostedControl {
 
     @Override
     public void buildCircuit(HostedCircuitBuilder builder) {
-        builder.setTerminalCount(PsuGeometry.TERMINALS);
+        builder.setTerminalCount(psu().terminalCount());
         vcc = builder.terminalNode(PsuGeometry.TERMINAL_VCC);
         gnd = builder.terminalNode(PsuGeometry.TERMINAL_GND);
         vPlus = builder.terminalNode(PsuGeometry.TERMINAL_V_PLUS);
         vMinus = builder.terminalNode(PsuGeometry.TERMINAL_V_MINUS);
-        dcOkNode = builder.terminalNode(PsuGeometry.TERMINAL_DC_OK);
+        if (psu().hasDcOk())
+            dcOkNode = builder.terminalNode(PsuGeometry.TERMINAL_DC_OK);
 
         // The order below is the order Power Grid streams these to the client in;
         // see the class comment before changing it
@@ -163,7 +165,8 @@ public class PsuControl extends HostedControl {
         builder.add(source);
         inputLoad = builder.connect((float) regulator.inputOhms(), vcc, gnd);
         output = builder.connectSwitch((float) PsuRegulator.OUTPUT_OHMS, rail, vPlus, regulator.outputOn());
-        dcOkSwitch = builder.connectSwitch((float) PsuRegulator.DC_OK_OHMS, vPlus, dcOkNode, regulator.dcOk());
+        if (dcOkNode != null)
+            dcOkSwitch = builder.connectSwitch((float) PsuRegulator.DC_OK_OHMS, vPlus, dcOkNode, regulator.dcOk());
     }
 
     private boolean built() {
@@ -205,7 +208,7 @@ public class PsuControl extends HostedControl {
     void serverTick() {
         if (!built())
             return;
-        regulator.tick(inputVolts(), outputVolts(), output.current(), dcOkSwitch.current());
+        regulator.tick(inputVolts(), outputVolts(), output.current(), dcOkSwitch == null ? 0 : dcOkSwitch.current());
 
         source.setVoltage(regulator.setpoint());
         output.setState(regulator.outputOn());
@@ -215,7 +218,8 @@ public class PsuControl extends HostedControl {
         double outputOhms = regulator.outputOhms();
         if (outputOhms != output.getResistance())
             output.setResistance(outputOhms);
-        dcOkSwitch.setState(regulator.dcOk());
+        if (dcOkSwitch != null)
+            dcOkSwitch.setState(regulator.dcOk());
         double ohms = regulator.inputOhms();
         if (Math.abs(ohms - inputLoad.getResistance()) > inputLoad.getResistance() * RESISTANCE_DEADBAND)
             inputLoad.setResistance(ohms);
@@ -230,7 +234,7 @@ public class PsuControl extends HostedControl {
 
     /** The DC OK switch as last set. */
     boolean dcOkClosed() {
-        return built() && dcOkSwitch.getState();
+        return built() && dcOkSwitch != null && dcOkSwitch.getState();
     }
 
     /** The output switch as last set. */
@@ -287,7 +291,8 @@ public class PsuControl extends HostedControl {
                 : shownDcOkLatched ? "dc_ok.latched" : "dc_ok.off"))
                 .withStyle(shownDcOk ? ChatFormatting.GREEN : shownDcOkLatched ? ChatFormatting.RED
                         : ChatFormatting.DARK_GRAY);
-        tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "dc_ok", dcOk).withStyle(ChatFormatting.GRAY)));
+        if (psu.hasDcOk())
+            tooltip.add(indent(Component.translatable(GOGGLE_PREFIX + "dc_ok", dcOk).withStyle(ChatFormatting.GRAY)));
         return true;
     }
 

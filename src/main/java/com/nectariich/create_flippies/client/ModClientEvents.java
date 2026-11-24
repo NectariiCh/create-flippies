@@ -75,6 +75,8 @@ public class ModClientEvents {
         event.registerBlockEntityRenderer(ModBlockEntities.CONTROL_HOST.get(), ControlHostRenderer::new);
         // A rail has a block model of its own, but nothing clipped to it does
         event.registerBlockEntityRenderer(ModBlockEntities.DIN_RAIL.get(), ControlHostRenderer::new);
+        // The gear on a cabinet's rails; the rails themselves are drawn by the cabinet
+        event.registerBlockEntityRenderer(ModBlockEntities.CABINET_RAIL_HOST.get(), ControlHostRenderer::new);
         // A panel cell carries its own controls on a chamfer, and draws them the same way
         event.registerBlockEntityRenderer(ModBlockEntities.LARGE_PANEL.get(), ControlHostRenderer::new);
         // PC
@@ -93,6 +95,10 @@ public class ModClientEvents {
         event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.KEYBOARD_AND_MOUSE.get(),
                 com.nectariich.create_flippies.client.pc.KeyboardMouseRenderer::new);
         // CRT end
+        // ELECTRICAL CABINETS
+        event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.ELECTRICAL_CABINET.get(),
+                com.nectariich.create_flippies.client.cabinet.ElectricalCabinetRenderer::new);
+        // ELECTRICAL CABINETS end
         // WIRE DUCTS
         event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.WIRE_DUCT.get(),
                 com.nectariich.create_flippies.client.wire.WireDuctRenderer::new);
@@ -108,6 +114,11 @@ public class ModClientEvents {
                 com.nectariich.create_flippies.registry.ModItems.WIRE_DUCTS.values().stream()
                         .map(Supplier::get)
                         .toArray(net.minecraft.world.item.Item[]::new));
+        // ELECTRICAL CABINETS: the body layer in the cabinet's colour, the door's details as drawn
+        event.register((stack, tint) -> tint == 0
+                ? 0xFF000000 | com.nectariich.create_flippies.content.cabinet.ElectricalCabinetItem.tint(stack) : -1,
+                com.nectariich.create_flippies.registry.ModItems.ELECTRICAL_CABINET.get(),
+                com.nectariich.create_flippies.registry.ModItems.STANDING_ELECTRICAL_CABINET.get());
     }
     // WIRE DUCTS 2 end
 
@@ -129,6 +140,8 @@ public class ModClientEvents {
         PsuControlRenderer.register();
         RelayMountControlRenderer.register();
         TerminalBlockControlRenderer.register();
+        ContactorControlRenderer.register();
+        OpenContactorControlRenderer.register();
         AlphanumDisplayControlRenderer.register();
         AlarmSpeakerControlRenderer.register();
         com.nectariich.create_flippies.client.design.DesignedControlRenderer.register();

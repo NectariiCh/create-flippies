@@ -1,5 +1,10 @@
 package com.nectariich.create_flippies.client;
 
+import com.nectariich.create_flippies.client.cabinet.CabinetDoorControls;
+import com.nectariich.create_flippies.client.cabinet.CabinetMountInput;
+import com.nectariich.create_flippies.client.device.DevicePicker;
+import com.nectariich.create_flippies.content.cabinet.CabinetFace;
+import com.nectariich.create_flippies.content.cabinet.ElectricalCabinetEntity;
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.decal.DecalSelection;
 import com.nectariich.create_flippies.content.decal.PanelDecal;
@@ -162,6 +167,9 @@ public final class ScrewdriverOverlay {
         // outlining the whole face of whatever the player looked at.
         if (settings.mode() == ScrewdriverMode.NONE)
             return;
+        // Cabinets are entities and draw their own preview (CabinetCutInput); blocks are nothing to this mode
+        if (settings.mode() == ScrewdriverMode.CUT_CABINET)
+            return;
 
         // The dynamic gesture resolves a second corner against planes rather than
         // against blocks, so it has to keep drawing when the crosshair is on nothing
@@ -184,7 +192,17 @@ public final class ScrewdriverOverlay {
             com.nectariich.create_flippies.client.schematic_arrow.ArrowOverlay.draw(player, hand, settings, aimed);
             return;
         }
+        // A cabinet is an entity: its faces are ruled from the face the crosshair is on
+        if (settings.mode().places() && WireDuctItem.placing(player) == null
+                && DevicePicker.target() instanceof ElectricalCabinetEntity cabinet) {
+            drawOnCabinet(player, hand, settings, cabinet);
+            return;
+        }
         if (aimed == null)
+            return;
+        // A control on a shut cabinet door is hosted where the door hangs open, which
+        // is not where the crosshair is; nothing ruled about that spot means anything
+        if (CabinetDoorControls.shutHost(minecraft.level, aimed.getBlockPos()) != null)
             return;
         BlockHitResult hit = aimed;
         GridIndex index = GridIndex.of(minecraft.level);
@@ -217,6 +235,22 @@ public final class ScrewdriverOverlay {
             drawRectangle(index, settings, surface, panel, hit.getLocation(), toSize);
         else
             drawPlacement(index, settings, surface, panel, face, hit.getLocation());
+    }
+
+    /** The placement preview on the outside of a cabinet's wall or door, as on a block face. */
+    private static void drawOnCabinet(LocalPlayer player, InteractionHand hand, ScrewdriverSettings settings,
+            ElectricalCabinetEntity cabinet) {
+        CabinetMountInput.Aim aim = CabinetMountInput.aim(cabinet);
+        CabinetFace face = aim == null ? null : CabinetFace.of(cabinet, aim.wall());
+        if (face == null)
+            return;
+        Vec3 point = face.point(aim.u(), aim.v());
+        BlockPos panel = BlockPos.containing(point.subtract(face.plane().outward().scale(1.0e-4)));
+        GridIndex index = GridIndex.of(player.level());
+        if (spanned(player, hand))
+            drawRectangle(index, settings, face.surface(), panel, point, true);
+        else
+            drawPlacement(index, settings, face.surface(), panel, face.plane().face(), point);
     }
 
     // Mode 4

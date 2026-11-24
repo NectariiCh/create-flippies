@@ -27,17 +27,19 @@ import net.minecraft.network.chat.Component;
  */
 public enum IndicatorKind {
 
-    MED_6V(IndicatorSize.MED, IndicatorRating.V6),
+    MED_5V(IndicatorSize.MED, IndicatorRating.V5),
     MED_12V(IndicatorSize.MED, IndicatorRating.V12),
     MED_24V(IndicatorSize.MED, IndicatorRating.V24),
+    MED_48V(IndicatorSize.MED, IndicatorRating.V48),
     MED_125V(IndicatorSize.MED, IndicatorRating.V125),
-    MED_230V(IndicatorSize.MED, IndicatorRating.V230),
+    MED_250V(IndicatorSize.MED, IndicatorRating.V250),
 
-    LARGE_6V(IndicatorSize.LARGE, IndicatorRating.V6),
+    LARGE_5V(IndicatorSize.LARGE, IndicatorRating.V5),
     LARGE_12V(IndicatorSize.LARGE, IndicatorRating.V12),
     LARGE_24V(IndicatorSize.LARGE, IndicatorRating.V24),
+    LARGE_48V(IndicatorSize.LARGE, IndicatorRating.V48),
     LARGE_125V(IndicatorSize.LARGE, IndicatorRating.V125),
-    LARGE_230V(IndicatorSize.LARGE, IndicatorRating.V230);
+    LARGE_250V(IndicatorSize.LARGE, IndicatorRating.V250);
 
     /** Every kind by the pair it is made of, so the two can be looked up as one. */
     private static final Map<IndicatorSize, Map<IndicatorRating, IndicatorKind>> BY_PAIR = byPair();

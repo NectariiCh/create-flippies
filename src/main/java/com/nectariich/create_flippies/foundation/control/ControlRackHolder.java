@@ -65,6 +65,32 @@ public interface ControlRackHolder {
         return Shapes.empty();
     }
 
+    /**
+     * Whether a left click landing at {@code local}, in this block's coordinates, is
+     * this block's to answer with {@link #breakControl} rather than vanilla's to mine
+     * with. By default only a click on a mounted control is, which is what lets a
+     * panel cell carrying a control stay minable everywhere else on it.
+     *
+     * A cabinet's rail cell answers for its bare rail too, because taking a rail off
+     * the back plate is that click's meaning there and the cell itself is never mined.
+     */
+    default boolean claimsLeftClick(Vec3 local) {
+        return controlAt(local) != null;
+    }
+
+    /**
+     * Whether vanilla mining of this block is to be cancelled outright, on both
+     * sides, so that a left click can only ever unscrew one thing from it.
+     *
+     * By default only a block that is nothing but its controls, and only while it
+     * holds some: an empty frame is left minable, since a host that somehow outlived
+     * its last control would otherwise be permanent, and a panel cell is a wall in
+     * its own right whose breaking is a real gesture.
+     */
+    default boolean protectsFromMining() {
+        return removeWhenEmpty() && !controls().isEmpty();
+    }
+
     // What the rest of the mod asks of a block carrying controls
 
     default List<HostedControl> controls() {
@@ -85,6 +111,11 @@ public interface ControlRackHolder {
 
     default PlacementRefusal install(HostedControl control, ControlMount mount, Player placer) {
         return rack().install(control, mount, placer);
+    }
+
+    default PlacementRefusal install(HostedControl control, ControlMount mount, Player placer,
+            boolean centreElsewhere) {
+        return rack().install(control, mount, placer, centreElsewhere);
     }
 
     default HostedControl remove(HostedControl control) {

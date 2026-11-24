@@ -2,6 +2,7 @@ package com.nectariich.create_flippies.content.device;
 
 import java.util.function.BiFunction;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionResult;
@@ -13,6 +14,7 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -21,6 +23,10 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * stands the device there: its position on the pixel grid nearest the point clicked,
  * its front turned towards the player to the nearest 11.25 degrees. It goes only
  * where it touches nothing solid, block or device, and nobody stands.
+ *
+ * A device placed some other way (hung on a wall, say) overrides {@link #placementFor},
+ * {@link #configure} and {@link #canPlace}; the placement preview asks the same three,
+ * so the ghost is always what a click would place.
  */
 public class DeviceItem extends Item {
 
@@ -70,27 +76,73 @@ public class DeviceItem extends Item {
     /** {@code device} was just placed from {@code stack} by {@code player}, before the stack shrinks. Server only. */
     protected void placed(DeviceEntity device, ItemStack stack, Player player) {}
 
+    /** Where a device goes and how it is turned. */
+    public record Placement(Vec3 position, int step) {}
+
+    /**
+     * Where a click on {@code hit} with {@code stack} would place the device, or null
+     * if it cannot be placed from there: by default, only on the top of something.
+     */
+    public Placement placementFor(Level level, Player player, BlockHitResult hit, ItemStack stack) {
+        if (hit.getDirection() != Direction.UP)
+            return null;
+        return new Placement(snap(hit.getLocation()), stepFor(player));
+    }
+
+    /** Gives {@code device}, not yet in the level, whatever {@code stack} carries that changes it. */
+    public void configure(DeviceEntity device, ItemStack stack) {}
+
+    /** Whether {@code device}, configured and not yet in the level, may go where it is. */
+    public boolean canPlace(Level level, DeviceEntity device) {
+        return fits(level, device);
+    }
+
     @Override
     public InteractionResult useOn(UseOnContext context) {
-        Level level = context.getLevel();
         Player player = context.getPlayer();
-        if (player == null || context.getClickedFace() != Direction.UP)
+        if (player == null)
             return InteractionResult.PASS;
-        DeviceEntity device = preview(level, snap(context.getClickLocation()), stepFor(player));
-        if (!fits(level, device))
+        BlockHitResult hit = new BlockHitResult(context.getClickLocation(), context.getClickedFace(),
+                context.getClickedPos(), context.isInside());
+        return placeAt(context.getLevel(), player, hit, context.getItemInHand());
+    }
+
+    /** Places the device as a click on {@code hit} with {@code stack} would. */
+    public InteractionResult placeAt(Level level, Player player, BlockHitResult hit, ItemStack stack) {
+        Placement placement = placementFor(level, player, hit, stack);
+        if (placement == null)
+            return InteractionResult.PASS;
+        DeviceEntity device = preview(level, placement.position(), placement.step());
+        configure(device, stack);
+        if (!canPlace(level, device))
             return InteractionResult.FAIL;
         if (level.isClientSide)
             return InteractionResult.SUCCESS;
         if (!level.addFreshEntity(device))
             return InteractionResult.FAIL;
-        placed(device, context.getItemInHand(), player);
+        placed(device, stack, player);
         SoundType sound = device.sound();
         Vec3 at = device.position();
         level.playSound(null, at.x, at.y, at.z, sound.getPlaceSound(), SoundSource.BLOCKS, (sound.getVolume() + 1) / 2,
                 sound.getPitch() * 0.8f);
-        ItemStack stack = context.getItemInHand();
         if (!player.getAbilities().instabuild)
             stack.shrink(1);
         return InteractionResult.CONSUME;
+    }
+
+    /**
+     * A click at {@code at}, in the world, on the top of {@code device}, as a click on
+     * the top of a block there; null if {@code at} is not on a top face of it, or it
+     * carries nothing ({@link DeviceEntity#carriesOnTop}).
+     */
+    public static BlockHitResult topHit(DeviceEntity device, Vec3 at) {
+        if (!device.carriesOnTop())
+            return null;
+        double e = 1e-4;
+        for (AABB box : device.collisionShape().toAabbs())
+            if (Math.abs(box.maxY - at.y) < e && at.x > box.minX - e && at.x < box.maxX + e && at.z > box.minZ - e
+                    && at.z < box.maxZ + e)
+                return new BlockHitResult(at, Direction.UP, BlockPos.containing(at.x, at.y - e, at.z), false);
+        return null;
     }
 }

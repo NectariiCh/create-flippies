@@ -26,6 +26,7 @@ public final class AlarmSpeakerDrawing {
         CachedBuffers.partial(ModPartialModels.ALARM_SPEAKER,
                         ModBlocks.ALARM_SPEAKERS.get(SpeakerKind.FALLBACK).get().defaultBlockState())
                 .translate(offset)
+                .rotateCentered(SurfaceMount.tipping(yaw))
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(facing, yaw))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(facing))
                 .rotateYCenteredDegrees(SurfaceMount.spinDegrees(rotation))

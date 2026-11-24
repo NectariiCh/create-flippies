@@ -52,8 +52,8 @@ public final class RelayMountGeometry {
     private static final double REACH = 0.375;
     private static final double EDGE = 0.05;
 
-    /** What Power Grid adds to each box, per side: nothing, as for the PSU. */
-    static final double CLICK_EXPAND = 0;
+    /** What Power Grid adds to each box, per side, as for the PLC; see {@code PlcSmallGeometry}. */
+    static final double CLICK_EXPAND = 0.01;
 
     private static final String TERMINAL_PREFIX = "gui." + CreateFlippies.MOD_ID + ".relay_mount.terminal.";
 

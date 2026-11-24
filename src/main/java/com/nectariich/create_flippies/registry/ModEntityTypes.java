@@ -96,6 +96,23 @@ public class ModEntityTypes {
                     .build(CreateFlippies.asResource("network_modem").toString()));
     // DEVICES end
 
+    // ELECTRICAL CABINETS
+    /**
+     * An electrical cabinet hung on a wall, placed like the devices above. Its size
+     * comes with it as it appears; its door travels as synced entity data.
+     */
+    public static final Supplier<EntityType<com.nectariich.create_flippies.content.cabinet.ElectricalCabinetEntity>>
+            ELECTRICAL_CABINET = ENTITY_TYPES.register("electrical_cabinet",
+            () -> EntityType.Builder.<com.nectariich.create_flippies.content.cabinet.ElectricalCabinetEntity>of(
+                    com.nectariich.create_flippies.content.cabinet.ElectricalCabinetEntity::new, MobCategory.MISC)
+                    .sized(1, 1)
+                    .clientTrackingRange(10)
+                    .updateInterval(Integer.MAX_VALUE)
+                    .noSummon()
+                    .fireImmune()
+                    .build(CreateFlippies.asResource("electrical_cabinet").toString()));
+    // ELECTRICAL CABINETS end
+
     // WIRE DUCTS
     /**
      * One straight stretch of wire duct lying on a face. Placed by a duct item only;

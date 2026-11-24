@@ -12,8 +12,6 @@ import com.nectariich.create_flippies.content.host.ControlHostBlockEntity;
 import com.nectariich.create_flippies.registry.ModBlockEntities;
 
 import net.minecraft.core.Direction;
-import net.minecraft.core.Direction.Axis;
-import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -51,7 +49,7 @@ import org.patryk3211.powergrid.electricity.sim.node.IElectricNode;
  * bare host already required. Once the last breaker is off, the left click stops
  * being cancelled and the rail mines normally.
  */
-public class DinRailBlockEntity extends ControlHostBlockEntity {
+public class DinRailBlockEntity extends ControlHostBlockEntity implements RailHost {
 
     public DinRailBlockEntity(net.minecraft.core.BlockPos pos, BlockState state) {
         super(ModBlockEntities.DIN_RAIL.get(), pos, state);
@@ -153,11 +151,9 @@ public class DinRailBlockEntity extends ControlHostBlockEntity {
 
         double[] authored = SurfaceMount.localPoint(local.x * PlacementGrid.PIXELS_PER_BLOCK,
                 local.y * PlacementGrid.PIXELS_PER_BLOCK, local.z * PlacementGrid.PIXELS_PER_BLOCK, facing, rotation);
-        // The module clicked is where the gear starts, and it is pulled back far
-        // enough that a wide breaker aimed at the end of the rail still lands on it
-        // rather than being refused for hanging off
-        double step = width == Math.rint(width) ? 1 : 0.5;
-        double start = Mth.clamp(Math.floor(authored[0] / step) * step, 0, DinRailBlock.MODULES - width);
+        // The module clicked is where the gear starts, pulled back so wide gear aimed
+        // at the end of the rail still lands on it; a cabinet's rail snaps the same way
+        double start = DinRailSeat.snapStart(authored[0], width, 0, DinRailBlock.MODULES);
 
         int nearest = 0;
         double best = Double.MAX_VALUE;
@@ -174,37 +170,15 @@ public class DinRailBlockEntity extends ControlHostBlockEntity {
     /**
      * The mount that seats a breaker on one rail, starting at one module.
      *
-     * Worked out by asking where the orientation puts the point the breaker should
-     * be centred on, and where it puts the point a centred mount would leave it at;
-     * the difference is what the anchors have to make up. Deriving it rather than
-     * reasoning about which way round u and v run is the whole point — the answer
-     * is right for all twelve orientations without a table, and it stays right if
-     * {@link PlacementGrid}'s in-plane axes are ever redefined.
-     *
-     * Anchors are whole sixteenths of a pixel. At one and two rails to a block the
-     * centres are 8, or 4 and 12, so every one of them lands on that lattice
-     * exactly and nothing is rounded away.
+     * The arithmetic is {@link DinRailSeat}'s, shared with the rails in an
+     * electrical cabinet. A block's rails lie on the floor of their own cell, so the
+     * plate is lifted by nothing and the mount is exactly the on-face one this
+     * method has always made; {@code DinRailSeatTest} holds it to that.
      */
     public static ControlMount mountFor(BlockState state, int rail, double start, double width) {
         Direction facing = state.getValue(DinRailBlock.FACING);
         int rotation = state.getValue(DinRailBlock.ROTATION);
         double railCentre = DinRailBlock.railCentre(state.getValue(DinRailBlock.RAILS), rail);
-
-        // The breaker straddles the middle of the modules it occupies, which for an
-        // even count is a module boundary and for an odd one the middle of a module
-        double[] target = SurfaceMount.point(start + width / 2, 0, railCentre, facing, rotation);
-        double[] middle = SurfaceMount.point(PlacementGrid.PIXELS_PER_BLOCK / 2.0, 0,
-                PlacementGrid.PIXELS_PER_BLOCK / 2.0, facing, rotation);
-
-        return ControlMount.onFace(facing,
-                anchor(target, middle, PlacementGrid.uAxis(facing.getAxis())),
-                anchor(target, middle, PlacementGrid.vAxis(facing.getAxis())),
-                rotation);
-    }
-
-    private static int anchor(double[] target, double[] middle, Axis axis) {
-        int index = axis.choose(0, 1, 2);
-        return ControlMount.CENTRED
-                + (int) Math.round((target[index] - middle[index]) * ControlMount.UNITS_PER_PIXEL);
+        return DinRailSeat.seat(facing, rotation, DinRailSeat.target(facing, rotation, railCentre, start, width), 0);
     }
 }

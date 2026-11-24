@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "create_flippies:block/cabinet_rail_host"
+    }
+  }
+}

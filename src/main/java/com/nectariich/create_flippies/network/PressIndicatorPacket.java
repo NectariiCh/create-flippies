@@ -1,5 +1,6 @@
 package com.nectariich.create_flippies.network;
 
+import com.nectariich.create_flippies.foundation.control.PressableControl;
 import com.nectariich.create_flippies.content.indicator.IndicatorAim;
 
 import net.minecraft.core.BlockPos;
@@ -91,8 +92,17 @@ public class PressIndicatorPacket implements FlippiesPacket {
             if (!level.mayInteract(player, pos))
                 return;
             IndicatorAim.Target target = IndicatorAim.at(level, pos, aimed());
-            if (target == null)
+            if (target == null) {
+                // Any other control pushed while the key is held, an open contactor's plunger
+                PressableControl pressable = PressableControl.at(level, pos, aimed());
+                if (pressable == null)
+                    return;
+                if (down)
+                    pressable.press(player);
+                else
+                    pressable.release(player);
                 return;
+            }
             if (down)
                 target.press(player);
             else

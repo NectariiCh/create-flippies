@@ -3,6 +3,7 @@ package com.nectariich.create_flippies.content.panel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.ToDoubleFunction;
 
 import com.nectariich.create_flippies.foundation.ShapeUnion;
 import com.nectariich.create_flippies.foundation.panel.PanelDefinition;
@@ -23,8 +24,9 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * three interval intersections.
  *
  * A diagonal cannot be exact, because {@link VoxelShape} is a union of axis-aligned
- * boxes and there is no such thing as a rotated one. It is cut into slices along x
- * instead, each slice a box spanning the z the plate covers over that slice, which
+ * boxes and there is no such thing as a rotated one. It is cut into slices instead,
+ * along one of the two axes the turn is not about, each slice a box spanning what
+ * the plate covers of the other over that slice, which
  * is the same staircase every diagonal block in every mod resolves to. The count is
  * a straight trade: a slice is a box in the shape, in the outline the player sees,
  * and in every collision test against it, so the shape is cut at the texture's own
@@ -118,12 +120,14 @@ public final class PanelGeometry {
     /**
      * A turned plate, sliced along x.
      *
-     * One slicer serves both ways a panel can be turned, because both leave y alone.
-     * A turned wall has u and the depth lying in the horizontal plane and v running
-     * straight up; a spun floor has u and v in the horizontal plane and the depth
-     * running straight up. Either way exactly one of the three is the height and the
-     * other two are affine in z at a fixed x, so the height is an interval outright
-     * and the slice is the intersection of the two that are left.
+     * One slicer serves every way a panel can be turned, because every turn leaves
+     * the axis it is about alone. A wall turned about the vertical has u and the
+     * depth lying in the horizontal plane and v running straight up; a spun floor has
+     * u and v in the horizontal plane and the depth running straight up; a face tipped
+     * about x or z has u running along that axis. Either way exactly one of the three
+     * runs along the turn's axis and the other two are affine in the remaining
+     * coordinate at a fixed slice, so that one is an interval outright and the slice
+     * is the intersection of the two that are left.
      *
      * The slice is sampled at its middle rather than at an edge: the plate is convex,
      * so the middle is inside it wherever any of the slice is, and sampling an edge
@@ -131,35 +135,54 @@ public final class PanelGeometry {
      */
     private static AABB[] turnedSlices(PanelDefinition panel, BlockPos cell, PanelPlane plane, double thickness) {
         double scale = PanelPlane.UNITS_PER_BLOCK;
-        double uMin = panel.minU() / scale;
-        double uMax = panel.maxU() / scale;
-        double vMin = panel.minV() / scale;
-        double vMax = panel.maxV() / scale;
-        boolean standing = Math.abs(plane.tangentV().y) > 0.5;
+        // The turn's own axis, then the axis sliced along and the one solved along —
+        // x and z about the vertical, which is how this read before the other turns
+        int held = plane.turnAxis().ordinal();
+        int sliced = held == 0 ? 1 : 0;
+        int solved = 3 - held - sliced;
 
-        double[] ySpan = standing ? overlap(vMin, vMax, cell.getY(), cell.getY() + 1)
-                : depthSpan(plane, cell, thickness);
-        if (ySpan == null)
+        Limit[] limits = {
+                new Limit(plane::u, panel.minU() / scale, panel.maxU() / scale, plane.tangentU()),
+                new Limit(plane::v, panel.minV() / scale, panel.maxV() / scale, plane.tangentV()),
+                new Limit(plane::depth, -thickness, 0, plane.outward()) };
+
+        double[] heldSpan = null;
+        Limit[] across = new Limit[2];
+        int crossing = 0;
+        for (Limit limit : limits) {
+            if (Math.abs(component(limit.along(), held)) > 0.5) {
+                double[] reach = solve(t -> limit.of().applyAsDouble(point(held, t, sliced, 0)), limit.low(),
+                        limit.high());
+                heldSpan = reach == null ? null
+                        : overlap(reach[0], reach[1], corner(cell, held), corner(cell, held) + 1);
+                if (heldSpan == null)
+                    return new AABB[0];
+            } else {
+                across[crossing++] = limit;
+            }
+        }
+        if (heldSpan == null || crossing != 2)
             return new AABB[0];
 
         double step = 1.0 / SLICES;
         AABB[] found = new AABB[SLICES];
         int count = 0;
         for (int slice = 0; slice < SLICES; slice++) {
-            double xLow = cell.getX() + slice * step;
-            double x = xLow + step / 2;
+            double low = corner(cell, sliced) + slice * step;
+            double middle = low + step / 2;
 
-            double[] first = standing ? solve(z -> plane.depth(new Vec3(x, 0, z)), -thickness, 0)
-                    : solve(z -> plane.v(new Vec3(x, 0, z)), vMin, vMax);
-            double[] second = solve(z -> plane.u(new Vec3(x, 0, z)), uMin, uMax);
+            double[] first = solve(t -> across[0].of().applyAsDouble(point(sliced, middle, solved, t)),
+                    across[0].low(), across[0].high());
+            double[] second = solve(t -> across[1].of().applyAsDouble(point(sliced, middle, solved, t)),
+                    across[1].low(), across[1].high());
             if (first == null || second == null)
                 continue;
-            double[] zSpan = overlap(Math.max(first[0], second[0]), Math.min(first[1], second[1]), cell.getZ(),
-                    cell.getZ() + 1);
-            if (zSpan == null)
+            double[] solvedSpan = overlap(Math.max(first[0], second[0]), Math.min(first[1], second[1]),
+                    corner(cell, solved), corner(cell, solved) + 1);
+            if (solvedSpan == null)
                 continue;
 
-            found[count++] = local(cell, 0, new double[] { xLow, xLow + step }, 1, ySpan, 2, zSpan);
+            found[count++] = local(cell, sliced, new double[] { low, low + step }, held, heldSpan, solved, solvedSpan);
         }
 
         AABB[] boxes = new AABB[count];
@@ -167,11 +190,26 @@ public final class PanelGeometry {
         return boxes;
     }
 
-    /** The height a flat plate occupies within a cell, or null if it misses it. */
+    /** One of the three intervals a plate is: a plane coordinate, its bounds, and the way it runs. */
+    private record Limit(ToDoubleFunction<Vec3> of, double low, double high, Vec3 along) {}
+
+    /** A world point with two coordinates given and the third zero. */
+    private static Vec3 point(int axisA, double a, int axisB, double b) {
+        double[] p = new double[3];
+        p[axisA] = a;
+        p[axisB] = b;
+        return new Vec3(p[0], p[1], p[2]);
+    }
+
+    /**
+     * How far along a spun plate's normal it occupies a cell, or null if it misses
+     * it. The normal is the axis of the spin, so this is a world interval.
+     */
     private static double[] depthSpan(PanelPlane plane, BlockPos cell, double thickness) {
-        double faceAt = plane.at(0, 0, 0).y;
-        double backAt = plane.at(0, 0, -thickness).y;
-        return overlap(Math.min(faceAt, backAt), Math.max(faceAt, backAt), cell.getY(), cell.getY() + 1);
+        int axis = plane.turnAxis().ordinal();
+        double faceAt = component(plane.at(0, 0, 0), axis);
+        double backAt = component(plane.at(0, 0, -thickness), axis);
+        return overlap(Math.min(faceAt, backAt), Math.max(faceAt, backAt), corner(cell, axis), corner(cell, axis) + 1);
     }
 
     /**
@@ -209,15 +247,23 @@ public final class PanelGeometry {
         if (plane.isSpun())
             return spunTiles(panel, cell, plane, thickness);
 
-        int vAxis = axisOf(plane.tangentV());
-        double[] vSpan = overlap(panel.minV() / scale, panel.maxV() / scale, corner(cell, vAxis),
-                corner(cell, vAxis) + 1);
-        if (vSpan == null)
+        // One in-plane axis runs along a world axis: v on a cardinal plane or a wall
+        // turned about the vertical, u on a face tipped about x or z. That one is cut
+        // to the cell outright and the other is the run across it
+        boolean alongU = !isAxial(plane.tangentV());
+        int heldAxis = axisOf(alongU ? plane.tangentU() : plane.tangentV());
+        double[] heldSpan = alongU
+                ? overlap(panel.minU() / scale, panel.maxU() / scale, corner(cell, heldAxis), corner(cell, heldAxis) + 1)
+                : overlap(panel.minV() / scale, panel.maxV() / scale, corner(cell, heldAxis),
+                        corner(cell, heldAxis) + 1);
+        if (heldSpan == null)
             return NO_TILES;
 
-        double[] uSpan = runWithin(panel, plane, cell, vAxis, -thickness / 2);
-        if (uSpan == null)
+        double[] runSpan = runWithin(panel, plane, cell, heldAxis, -thickness / 2, alongU);
+        if (runSpan == null)
             return NO_TILES;
+        double[] uSpan = alongU ? heldSpan : runSpan;
+        double[] vSpan = alongU ? runSpan : heldSpan;
 
         List<PanelTile> tiles = new ArrayList<>(2);
         for (double[] uPart : repeats(uSpan))
@@ -246,10 +292,15 @@ public final class PanelGeometry {
             return NO_TILES;
 
         double scale = PanelPlane.UNITS_PER_BLOCK;
+        // The cell's square across the spin's axis, which is the plate's normal
+        int held = plane.turnAxis().ordinal();
+        int first = held == 0 ? 1 : 0;
+        int second = 3 - held - first;
         double[] uReach = null;
         double[] vReach = null;
         for (int corner = 0; corner < 4; corner++) {
-            Vec3 point = new Vec3(cell.getX() + (corner & 1), 0, cell.getZ() + ((corner >> 1) & 1));
+            Vec3 point = point(first, corner(cell, first) + (corner & 1), second,
+                    corner(cell, second) + ((corner >> 1) & 1));
             uReach = stretch(uReach, plane.u(point));
             vReach = stretch(vReach, plane.v(point));
         }
@@ -274,7 +325,8 @@ public final class PanelGeometry {
     }
 
     /**
-     * How far along the panel the cell reaches, in u, or null if it does not.
+     * How far along the panel the cell reaches, in u — or in v when {@code alongV}, which
+     * is the run on a face tipped about x or z — or null if it does not.
      *
      * Taken on the plate's midsurface, which is the same surface
      * {@link PanelDefinition#forEachCell} walks to decide which cells there are. That
@@ -282,19 +334,22 @@ public final class PanelGeometry {
      * intervals that meet exactly, so the tiles they draw tile the panel with no gap
      * and no overlap.
      *
-     * The two axes that are not v are the ones u varies along, and v contributes
-     * nothing to either of them because the frame is orthogonal — which is why a
-     * single u interval can answer for the whole cell rather than one per height.
+     * The two axes that are not the held one are the ones the run varies along, and
+     * the held axis contributes nothing to either of them because the frame is
+     * orthogonal — which is why a single interval can answer for the whole cell rather
+     * than one per height.
      */
-    private static double[] runWithin(PanelDefinition panel, PanelPlane plane, BlockPos cell, int vAxis, double depth) {
+    private static double[] runWithin(PanelDefinition panel, PanelPlane plane, BlockPos cell, int heldAxis,
+            double depth, boolean alongV) {
         double scale = PanelPlane.UNITS_PER_BLOCK;
-        double[] span = { panel.minU() / scale, panel.maxU() / scale };
+        double[] span = alongV ? new double[] { panel.minV() / scale, panel.maxV() / scale }
+                : new double[] { panel.minU() / scale, panel.maxU() / scale };
         for (int index = 0; index < 3; index++) {
-            if (index == vAxis)
+            if (index == heldAxis)
                 continue;
             int axis = index;
-            double[] reach = solve(u -> component(plane.at(u, 0, depth), axis), corner(cell, index),
-                    corner(cell, index) + 1);
+            double[] reach = solve(t -> component(alongV ? plane.at(0, t, depth) : plane.at(t, 0, depth), axis),
+                    corner(cell, index), corner(cell, index) + 1);
             if (reach == null)
                 return null;
             span = overlap(span[0], span[1], reach[0], reach[1]);
@@ -367,6 +422,11 @@ public final class PanelGeometry {
         high[axisC] = spanC[1];
         return new AABB(low[0] - cell.getX(), low[1] - cell.getY(), low[2] - cell.getZ(), high[0] - cell.getX(),
                 high[1] - cell.getY(), high[2] - cell.getZ());
+    }
+
+    /** Whether a unit vector points along a world axis rather than across two. */
+    private static boolean isAxial(Vec3 unit) {
+        return Math.max(Math.abs(unit.x), Math.max(Math.abs(unit.y), Math.abs(unit.z))) > 0.99;
     }
 
     /** Which world axis a unit vector points along; only ever asked of one that does. */

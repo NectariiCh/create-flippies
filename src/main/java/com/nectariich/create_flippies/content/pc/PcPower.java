@@ -12,13 +12,19 @@ import org.patryk3211.powergrid.electricity.sim.node.FloatingNode;
  *
  * The supply is a bridge rectifier in front of a switching regulator, as the PSU
  * spec reasons, so it sees the magnitude of the voltage and reverse polarity works.
+ *
+ * It is auto-ranging between the mod's two mains ratings, and runs inside either's
+ * window for mains electronics: 95 to 135 V for 120 V and 195 to 260 V for 230 V.
+ * Nothing between the two is a rating, so nothing between them starts it.
  */
 public final class PcPower {
 
-    /** The start window, volts: the supply comes up only inside it. */
-    public static final double START_MIN_VOLTS = 95, START_MAX_VOLTS = 270;
-    /** The run window: once running, it holds on from 90 to 280 V (hysteresis). */
-    public static final double RUN_MIN_VOLTS = 90, RUN_MAX_VOLTS = 280;
+    /** The 120 V range's window, volts: the supply comes up only inside it (or the 230 V one). */
+    public static final double LOW_MIN_VOLTS = 95, LOW_MAX_VOLTS = 135;
+    /** The 230 V range's window. */
+    public static final double HIGH_MIN_VOLTS = 195, HIGH_MAX_VOLTS = 260;
+    /** Once running, it holds on this far outside either window (hysteresis), volts. */
+    public static final double HYSTERESIS_VOLTS = 5;
 
     /** Motherboard: chipset, ports and the network card, watts. */
     public static final double MOTHERBOARD_WATTS = 8;
@@ -74,17 +80,29 @@ public final class PcPower {
 
     public static boolean canStart(double volts) {
         double v = Math.abs(volts);
-        return v >= START_MIN_VOLTS && v <= START_MAX_VOLTS;
+        return inside(v, LOW_MIN_VOLTS, LOW_MAX_VOLTS) || inside(v, HIGH_MIN_VOLTS, HIGH_MAX_VOLTS);
     }
 
-    /** For a running supply: whether this voltage stops it, and how. */
+    /**
+     * For a running supply: whether this voltage stops it, and how. Between the two
+     * ranges it is over-voltage nearer the 120 V window and brown-out nearer the 230 V
+     * one, since which range it was running on is not kept.
+     */
     public static Event check(double volts) {
         double v = Math.abs(volts);
-        if (v > RUN_MAX_VOLTS)
-            return Event.OVER_VOLTAGE;
-        if (v < RUN_MIN_VOLTS)
+        double lowMax = LOW_MAX_VOLTS + HYSTERESIS_VOLTS, highMin = HIGH_MIN_VOLTS - HYSTERESIS_VOLTS;
+        if (inside(v, LOW_MIN_VOLTS - HYSTERESIS_VOLTS, lowMax)
+                || inside(v, highMin, HIGH_MAX_VOLTS + HYSTERESIS_VOLTS))
+            return Event.NONE;
+        if (v < LOW_MIN_VOLTS)
             return Event.BROWN_OUT;
-        return Event.NONE;
+        if (v > HIGH_MAX_VOLTS)
+            return Event.OVER_VOLTAGE;
+        return v - lowMax < highMin - v ? Event.OVER_VOLTAGE : Event.BROWN_OUT;
+    }
+
+    private static boolean inside(double v, double min, double max) {
+        return v >= min && v <= max;
     }
 
     /** CPU watts blended between idle and busy by the share of the last tick it ran. */

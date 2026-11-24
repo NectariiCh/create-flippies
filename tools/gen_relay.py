@@ -77,6 +77,9 @@ MOUNTS = (
         "mount": "din_relay_mount_8pin",
         "width": 1.0,
         "relays": {"em_relay_8pin_c24v_230v_16a": ("group", "relay_8pin_230v16a-24cv")},
+        # The export leaves the relay's inner part on #missing; through the clear case
+        # it has to be solid, so it gets an opaque texture of its own.
+        "fill": "create_flippies:block/relay_8pin_inner",
         "pins": (
             ("A1", (7.75, 1.75, 5.25, 8.25, 2, 5.5)),
             ("A2", (7.75, 1.25, 5.25, 8.25, 1.5, 5.5)),
@@ -326,6 +329,12 @@ def process(spec):
     print("  body: %d elements, %s -> %s" % (len(body), fmt(lo), fmt(hi)))
 
     for relay, parts in relays.items():
+        if "fill" in spec:
+            textures = {**textures, "fill": spec["fill"]}
+            for e in parts:
+                for face in e.get("faces", {}).values():
+                    if face.get("texture", "").lstrip("#") not in textures:
+                        face["texture"] = "#fill"
         patch_missing(parts, textures, relay)
         used = used_textures(textures, parts)
         clear = any(translucent(rename_texture(ref)) for slot, ref in used.items() if slot != "particle")

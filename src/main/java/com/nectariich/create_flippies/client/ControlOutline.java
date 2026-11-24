@@ -3,6 +3,8 @@ package com.nectariich.create_flippies.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.nectariich.create_flippies.CreateFlippies;
+import com.nectariich.create_flippies.client.cabinet.CabinetDoorControls;
+import com.nectariich.create_flippies.content.host.ControlHostBlockEntity;
 import com.nectariich.create_flippies.foundation.control.ControlRackHolder;
 
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
@@ -135,6 +137,13 @@ public final class ControlOutline {
         // never outside the border, where vanilla would draw nothing either
         if (!(level.getBlockEntity(pos) instanceof ControlRackHolder) || !level.getWorldBorder().isWithinBounds(pos))
             return;
+
+        // Controls on a shut cabinet door are outlined on the door, where they are drawn
+        if (level.getBlockEntity(pos) instanceof ControlHostBlockEntity host && host.doorShut()) {
+            draw(event, pos, CabinetDoorControls.toShut(host, edgesOf(host.rack().shape())));
+            event.setCanceled(true);
+            return;
+        }
 
         VoxelShape shape = level.getBlockState(pos).getShape(level, pos,
                 CollisionContext.of(event.getCamera().getEntity()));

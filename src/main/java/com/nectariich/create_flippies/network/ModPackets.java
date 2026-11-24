@@ -159,6 +159,13 @@ public class ModPackets {
         packets.add(ConfigureAlarmSpeakerPacket.class, ConfigureAlarmSpeakerPacket::new, Flow.TO_SERVER);
         packets.add(OpenAlarmSpeakerPacket.class, OpenAlarmSpeakerPacket::new, Flow.TO_CLIENT);
         // ALARM SPEAKERS end
+        // ELECTRICAL CABINETS
+        packets.add(ConfigureCabinetItemPacket.class, ConfigureCabinetItemPacket::new, Flow.TO_SERVER);
+        packets.add(CabinetRailPacket.class, CabinetRailPacket::new, Flow.TO_SERVER);
+        packets.add(CabinetCutPacket.class, CabinetCutPacket::new, Flow.TO_SERVER);
+        packets.add(ConfigureCabinetCutPacket.class, ConfigureCabinetCutPacket::new, Flow.TO_SERVER);
+        packets.add(CabinetMountPacket.class, CabinetMountPacket::new, Flow.TO_SERVER);
+        // ELECTRICAL CABINETS end
     }
 
     //? if forge {

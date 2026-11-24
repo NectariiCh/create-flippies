@@ -71,6 +71,7 @@ public final class CircuitBreakerDrawing {
             Vec3 offset) {
         return buffer
                 .translate(offset)
+                .rotateCentered(SurfaceMount.tipping(yaw))
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(facing, yaw))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(facing))
                 .rotateYCenteredDegrees(SurfaceMount.spinDegrees(rotation));

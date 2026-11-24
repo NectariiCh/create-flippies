@@ -213,6 +213,7 @@ public class DesignedControlRenderer implements ControlRenderer {
             VertexConsumer vertices, int light) {
         CachedBuffers.partial(partial, reference)
                 .translate(mount.offset())
+                .rotateCentered(SurfaceMount.tipping(mount.yaw()))
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(mount.face(), mount.yaw()))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(mount.face()))
                 .rotateYCenteredDegrees(SurfaceMount.spinDegrees(mount.rotation()))
@@ -230,6 +231,7 @@ public class DesignedControlRenderer implements ControlRenderer {
     private static void gaugeRear(ControlMount mount, PoseStack ms, VertexConsumer vertices, int light) {
         CachedBuffers.partial(ModPartialModels.DESIGNED_GAUGE_REAR, gaugeReference())
                 .translate(mount.offset())
+                .rotateCentered(SurfaceMount.tipping(mount.yaw()))
                 .rotateYCenteredDegrees(SurfaceMount.yawDegrees(mount.face(), mount.yaw()))
                 .rotateXCenteredDegrees(SurfaceMount.tiltDegrees(mount.face()))
                 .rotateYCenteredDegrees(SurfaceMount.spinDegrees(mount.rotation()))
@@ -248,6 +250,6 @@ public class DesignedControlRenderer implements ControlRenderer {
     }
 
     private static BlockState indicatorReference() {
-        return ModBlocks.INDICATORS.get(IndicatorKind.MED_6V).get().defaultBlockState();
+        return ModBlocks.INDICATORS.get(IndicatorKind.MED_5V).get().defaultBlockState();
     }
 }

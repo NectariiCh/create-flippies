@@ -35,7 +35,7 @@ NAME = "speaker_1_alarm"
 
 # These mirror SpeakerInput and SpeakerSupply, in SpeakerKind's order.
 INPUTS = ("5v", "12v", "24v")
-SUPPLIES = ("12v", "24v", "48v", "120v", "240v")
+SUPPLIES = ("12v", "24v", "48v", "120v", "230v")
 
 FACINGS = ("down", "up", "north", "south", "west", "east")
 MIDDLE = 8.0

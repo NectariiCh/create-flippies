@@ -76,7 +76,9 @@ TERMINALS = ("VCC", "GND", "V+", "V-", "DC OK")
 # Where PsuGeometry expects each pin, in the export's own frame (x from 0):
 # the module it sits in, and the face of the base it stands on. The input pair is
 # on the +z side, the outputs on the -z side; every pin is half a pixel square,
-# a quarter of a pixel proud, a quarter in from its module's edge.
+# a quarter of a pixel proud, a quarter in from its module's edge. Below
+# DC_OK_MODULES there is no DC OK; on one module both pairs are in that module,
+# stacked, the + pin STACK_PITCH above the - pin.
 EXPECTED = {
     "VCC": (0, +1),
     "GND": (1, +1),
@@ -88,6 +90,9 @@ PIN_INSET = 0.25
 PIN_SIZE = 0.5
 PIN_RISE = 0.25
 PIN_MIN_Y = 1.25
+STACK_PITCH = 1.0
+DC_OK_MODULES = 3
+PLUS = ("VCC", "V+")
 BASE_MIN_Z = 5.5
 BASE_MAX_Z = 10.5
 
@@ -196,22 +201,25 @@ def check_terminals(stem, elements, modules, shift):
     by_name = {}
     for e in elements:
         by_name.setdefault(e.get("name"), e)
-    missing = [n for n in TERMINALS if n not in by_name]
+    names = TERMINALS if modules >= DC_OK_MODULES else TERMINALS[:-1]
+    missing = [n for n in names if n not in by_name]
     if missing:
         raise SystemExit("%s: no element for terminal(s) %s" % (stem, ", ".join(missing)))
+    if modules < DC_OK_MODULES and TERMINALS[-1] in by_name:
+        raise SystemExit("%s: a %d module body has no %s, but the export draws one"
+                         % (stem, modules, TERMINALS[-1]))
 
     print("  terminals, in PsuGeometry order (from -> to, px, after the x shift of %g):" % shift)
-    for index, name in enumerate(TERMINALS):
+    for index, name in enumerate(names):
         e = by_name[name]
         print("    %d %-6s %s -> %s" % (index, name, fmt(e["from"]), fmt(e["to"])))
         module, side = EXPECTED[name]
-        if module >= modules:
-            raise SystemExit("%s: %s is expected in module %d of a %d module body; PsuGeometry's "
-                             "pin layout needs revisiting for this width" % (stem, name, module + 1, modules))
-        min_x = shift + module + PIN_INSET
+        stacked = modules == 1
+        min_x = shift + (0 if stacked else module) + PIN_INSET
+        min_y = PIN_MIN_Y + (STACK_PITCH if stacked and name in PLUS else 0)
         min_z = BASE_MAX_Z if side > 0 else BASE_MIN_Z - PIN_RISE
-        want_from = [min_x, PIN_MIN_Y, min_z]
-        want_to = [min_x + PIN_SIZE, PIN_MIN_Y + PIN_SIZE, min_z + PIN_RISE]
+        want_from = [min_x, min_y, min_z]
+        want_to = [min_x + PIN_SIZE, min_y + PIN_SIZE, min_z + PIN_RISE]
         if any(abs(a - b) > 1e-6 for a, b in zip(e["from"] + e["to"], want_from + want_to)):
             raise SystemExit("%s: %s is drawn at %s -> %s but PsuGeometry puts it at %s -> %s; "
                              "update one to match the other" % (stem, name, fmt(e["from"]), fmt(e["to"]),

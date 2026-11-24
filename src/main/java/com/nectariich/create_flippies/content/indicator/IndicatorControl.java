@@ -154,7 +154,7 @@ public class IndicatorControl extends HostedControl {
         return IndicatorBlockEntity.voltageBetween(terminalA, terminalB);
     }
 
-    /** How hard the lamp is being driven, as a fraction of its rating. */
+    /** How hard the lamp is being driven: 1 inside its operating window. */
     public float brightness() {
         return IndicatorBlockEntity.brightness(measuredVoltage(), rating());
     }

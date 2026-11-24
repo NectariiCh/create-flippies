@@ -16,6 +16,8 @@ import com.nectariich.create_flippies.content.indicator.IndicatorKind;
 import com.nectariich.create_flippies.content.psu.PsuType;
 import com.nectariich.create_flippies.content.relay.RelayType;
 import com.nectariich.create_flippies.content.terminal_block.TerminalBlockType;
+import com.nectariich.create_flippies.content.contactor.ContactorType;
+import com.nectariich.create_flippies.content.contactor.OpenContactorCoilType;
 import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.content.rotary_switch.RotarySwitchKind;
 import net.minecraft.core.registries.Registries;
@@ -178,6 +180,33 @@ public class ModItems {
     }
 
     /**
+     * The DIN contactors, plain items for the same reason a breaker is: they exist
+     * only clipped to a rail. One per row of ContactorType's table, keyed by its id.
+     */
+    public static final Map<String, Supplier<Item>> CONTACTORS = registerContactors();
+
+    private static Map<String, Supplier<Item>> registerContactors() {
+        Map<String, Supplier<Item>> items = new LinkedHashMap<>();
+        for (ContactorType type : ContactorType.all())
+            items.put(type.id(), ITEMS.register(type.id(), () -> new Item(new Item.Properties())));
+        return Collections.unmodifiableMap(items);
+    }
+
+    /** One open contactor module, which gangs with its neighbours on the rail; a plain item as a breaker is. */
+    public static final Supplier<Item> CONTACTOR_OPEN = ITEMS.register("contactor_open",
+            () -> new Item(new Item.Properties()));
+
+    /** The open contactor's coil terminals, one per row of OpenContactorCoilType's table. */
+    public static final Map<String, Supplier<Item>> CONTACTOR_OPEN_COILS = registerOpenContactorCoils();
+
+    private static Map<String, Supplier<Item>> registerOpenContactorCoils() {
+        Map<String, Supplier<Item>> items = new LinkedHashMap<>();
+        for (OpenContactorCoilType type : OpenContactorCoilType.all())
+            items.put(type.id(), ITEMS.register(type.id(), () -> new Item(new Item.Properties())));
+        return Collections.unmodifiableMap(items);
+    }
+
+    /**
      * A plain item and not a BlockItem: a panel label only exists mounted into a
      * host block with the screwdriver, so there is no block form for an item to
      * place. What makes it mountable is that its control kind names it from
@@ -258,6 +287,17 @@ public class ModItems {
             () -> new com.nectariich.create_flippies.content.device.DeviceItem(ModEntityTypes.CRT,
                     com.nectariich.create_flippies.content.crt.CrtEntity::new, new Item.Properties()));
     // CRT end
+
+    // ELECTRICAL CABINETS
+    /** Its size, colour and hinge are on the stack, so a stack is all one kind of cabinet. */
+    public static final Supplier<Item> ELECTRICAL_CABINET = ITEMS.register("electrical_cabinet",
+            () -> new com.nectariich.create_flippies.content.cabinet.ElectricalCabinetItem(
+                    ModEntityTypes.ELECTRICAL_CABINET, new Item.Properties()));
+    /** The same cabinet standing on the ground, larger if wanted; the same entity. */
+    public static final Supplier<Item> STANDING_ELECTRICAL_CABINET = ITEMS.register("standing_electrical_cabinet",
+            () -> new com.nectariich.create_flippies.content.cabinet.StandingCabinetItem(
+                    ModEntityTypes.ELECTRICAL_CABINET, new Item.Properties()));
+    // ELECTRICAL CABINETS end
 
     // WIRE DUCTS
     /** One duct item per size, {@code wire_duct_<size>}, thinnest first. */

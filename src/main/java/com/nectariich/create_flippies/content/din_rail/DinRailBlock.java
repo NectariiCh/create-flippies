@@ -348,18 +348,7 @@ public class DinRailBlock extends ElectricBlock implements IBE<DinRailBlockEntit
     private InteractionResult clipOn(DinRailBlockEntity rail, ControlType type, double width, Vec3 local,
             Player player, ItemStack held, Level level) {
         ControlMount mount = rail.mountAt(local, width);
-        if (mount == null)
-            return InteractionResult.PASS;
-        if (level.isClientSide)
-            return InteractionResult.SUCCESS;
-        if (!rail.install(type, mount, player).ok())
-            return InteractionResult.CONSUME;
-
-        level.playSound(null, rail.getBlockPos(), getSoundType(rail.getBlockState()).getPlaceSound(),
-                SoundSource.BLOCKS, 1.0f, 1.2f);
-        if (!player.isCreative())
-            held.shrink(1);
-        return InteractionResult.CONSUME;
+        return DinRailSeat.clipOn(level, rail, rail.getBlockPos(), type, mount, player, held);
     }
 
     /**

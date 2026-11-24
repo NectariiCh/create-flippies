@@ -40,13 +40,23 @@ import net.minecraft.world.item.ItemStack;
  * {@code tools/copy_relay_variants.py}, which makes their models, and
  * {@code tools/gen_relay_textures.py}, which paints their labels; change all three
  * together.
+ *
+ * <h2>The 8-pin family</h2>
+ *
+ * The 8-pin socket takes double-pole changeover (DPDT) relays, electromechanical
+ * only, built by {@link #eightPinFamily}: every coil, switching voltage and rating
+ * the 5-pin {@code em} relays come in, and higher ratings besides — up to 16 A at
+ * 120 and 230 V and 32 A at 24 and 48 V. Each is named
+ * {@code em_relay_8pin_c<coil>v_<switching>v_<amps>a}; the first 8-pin relay,
+ * {@code em_relay_8pin_c24v_230v_16a}, is one of them. The same three scripts
+ * carry this matrix too.
  */
 public final class RelayType {
 
-    /** Switching voltages of the 5-pin family. */
+    /** Switching voltages of both families. */
     static final int[] SWITCHING = { 24, 48, 120, 230 };
 
-    /** Current ratings of the 5-pin family, each offered up to its kind's cap. */
+    /** Current ratings of both families, each offered up to its kind's cap. */
     static final int[] AMPS = { 1, 2, 5, 10, 16, 20, 24, 32 };
 
     private static final Map<String, RelayType> TABLE = table(rows());
@@ -55,7 +65,7 @@ public final class RelayType {
         List<RelayType> rows = new ArrayList<>();
         rows.add(new RelayType("ss_relay_230v_10a", 5, 24, 230, 10, true));
         rows.addAll(fivePinFamily());
-        rows.add(new RelayType("em_relay_8pin_c24v_230v_16a", 8, 24, 230, 16, false));
+        rows.addAll(eightPinFamily());
         return rows.toArray(RelayType[]::new);
     }
 
@@ -72,6 +82,17 @@ public final class RelayType {
         return rows;
     }
 
+    /** The 8-pin matrix, all electromechanical; see the class comment. */
+    static List<RelayType> eightPinFamily() {
+        List<RelayType> rows = new ArrayList<>();
+        for (int volts : SWITCHING)
+            for (int coil : coils(volts))
+                for (int amps : AMPS)
+                    if (amps <= eightPinCap(volts))
+                        rows.add(new RelayType(eightPinId(coil, volts, amps), 8, coil, volts, amps, false));
+        return rows;
+    }
+
     /** The coils a relay switching this voltage comes with. */
     private static int[] coils(int switching) {
         return switching == 120 || switching == 230 ? new int[] { 5, 12, 24, 48, switching }
@@ -85,6 +106,16 @@ public final class RelayType {
             case 48 -> solidState ? 10 : 24;
             default -> solidState ? 2 : 5;
         };
+    }
+
+    /** The highest rating of an 8-pin relay at a switching voltage. */
+    private static int eightPinCap(int switching) {
+        return switching == 24 || switching == 48 ? 32 : 16;
+    }
+
+    /** {@code em_relay_8pin_c24v_230v_16a}. */
+    public static String eightPinId(int coil, int switching, int amps) {
+        return "em_relay_8pin_c" + coil + "v_" + switching + "v_" + amps + "a";
     }
 
     /** {@code ss_relay_c24v_230v_2a}. */

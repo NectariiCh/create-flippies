@@ -170,6 +170,15 @@ public class ScrewdriverItem extends Item {
             tooltip.add((decal.hasArt() ? Component.translatable(LANG_PREFIX + "paint_art", decal.name())
                     : Component.translatable(LANG_PREFIX + "paint_no_art")).withStyle(ChatFormatting.GRAY));
         }
+        else if (settings.mode() == ScrewdriverMode.CUT_CABINET) {
+            com.nectariich.create_flippies.content.cabinet.CabinetCutSettings cut =
+                    com.nectariich.create_flippies.content.cabinet.CabinetCutSettings.read(stack);
+            tooltip.add(cut.kind().label().copy().withStyle(ChatFormatting.GRAY));
+            if (cut.kind().sized())
+                tooltip.add(Component.translatable(LANG_PREFIX + "cut_size",
+                        com.nectariich.create_flippies.content.cabinet.CabinetCutSettings.format(cut.halfPixels()))
+                        .withStyle(ChatFormatting.GRAY));
+        }
         // SCHEMATIC ARROWS
         else if (settings.mode() == ScrewdriverMode.SCHEMATIC_ARROW)
             tooltip.add(Component.translatable(LANG_PREFIX + "arrow_action", Component.translatable(

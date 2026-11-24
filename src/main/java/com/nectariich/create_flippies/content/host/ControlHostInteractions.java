@@ -47,8 +47,10 @@ public final class ControlHostInteractions {
         // breaking it is a real gesture, so whether a click unscrews a control or
         // mines the block is decided by where it landed, which only
         // {@code ControlBreakInput} can see.
+        // ControlRackHolder.protectsFromMining is that rule, and a cabinet's rail cell,
+        // which is never mined, answers it always.
         if (player.level().getBlockEntity(event.getPos()) instanceof ControlRackHolder host
-                && host.removeWhenEmpty() && !host.controls().isEmpty())
+                && host.protectsFromMining())
             event.setCanceled(true);
     }
 }
