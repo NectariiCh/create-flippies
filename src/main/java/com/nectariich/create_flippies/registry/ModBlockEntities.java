@@ -19,7 +19,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
-import com.nectariich.create_flippies.content.pc.PcCaseBlockEntity;
 
 public class ModBlockEntities {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
@@ -106,21 +105,6 @@ public class ModBlockEntities {
             BLOCK_ENTITIES.register("din_rail", () -> BlockEntityType.Builder
                     .of(DinRailBlockEntity::new, ModBlocks.DIN_RAIL.get())
                     .build(null));
-
-    // PC
-    public static final Supplier<BlockEntityType<PcCaseBlockEntity>> PC_CASE =
-            BLOCK_ENTITIES.register("pc_case", () -> BlockEntityType.Builder
-                    .of(PcCaseBlockEntity::new, ModBlocks.PC_CASE.get())
-                    .build(null));
-
-    public static final Supplier<BlockEntityType<
-            com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity>> NETWORK_MODEM =
-            BLOCK_ENTITIES.register("network_modem", () -> BlockEntityType.Builder
-                    .of(com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity::new,
-                            ModBlocks.NETWORK_MODEM.get())
-                    .build(null));
-
-    // PC end
 
 
     public static void register(IEventBus modBus) {

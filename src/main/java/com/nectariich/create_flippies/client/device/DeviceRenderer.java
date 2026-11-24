@@ -18,7 +18,8 @@ import net.minecraft.world.level.block.Blocks;
 /**
  * Draws a {@link DeviceEntity} from its block model, turned as it stands, and, for
  * the placement preview, as a see-through ghost. {@link #renderModelSpace} is drawn
- * in the model's own frame, one unit a block, the cell from 0 to 1.
+ * in the model's own frame, one unit a block, the cell from 0 to 1, scaled as the
+ * device stands ({@code DeviceShape#scale}).
  */
 public abstract class DeviceRenderer<T extends DeviceEntity> extends EntityRenderer<T> {
 
@@ -60,6 +61,8 @@ public abstract class DeviceRenderer<T extends DeviceEntity> extends EntityRende
 
     private static void intoModel(DeviceEntity device, PoseStack ms) {
         ms.mulPose(Axis.YP.rotationDegrees(device.turnDegrees()));
+        float scale = (float) device.shape().scale();
+        ms.scale(scale, scale, scale);
         ms.translate(-0.5, 0, -0.5);
     }
 

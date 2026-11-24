@@ -1,18 +1,18 @@
 package com.nectariich.create_flippies.content.pc;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.nectariich.create_flippies.content.data_cord.PortRole;
 import com.nectariich.create_flippies.content.data_cord.PortType;
+import com.nectariich.create_flippies.content.device.DeviceShape;
 
 import net.minecraft.core.Direction;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.Shapes;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * Where everything on the case is, from the model `pc-case-1.json` (spec 11.2.1),
@@ -20,15 +20,15 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *
  * Boxes are in model space, in pixels, as authored: the model's -x end (buttons,
  * floppy slot) is the PC's front, the ports are on its +x face, and the removable
- * front panel closes the -z side. A placed case is the model turned about the
- * block's vertical centre line so its -x end faces {@code facing}, which is what
- * the block state's y rotation does to the shell; every box here turns the same
- * way. `tools/gen_pc_case.py` prints the export's boxes in this order, and
- * {@code PcCaseGeometryTest} reads the export and checks them.
+ * front panel closes the -z side. A placed case is a device ({@link PcCaseEntity}),
+ * the model turned as {@link DeviceShape} turns it; {@link #toBlock} is the same
+ * turn in quarters, about a block's vertical centre line. `tools/gen_pc_case.py`
+ * prints the export's boxes in this order, and {@code PcCaseGeometryTest} reads the
+ * export and checks them.
  *
- * Picking: every box a click can mean is part of the block's outline shape, so
- * the point vanilla's ray meets the shape at is already the nearest hit; the
- * target is the smallest box that contains it.
+ * Picking: every box a click can mean is one of the device's boxes, so the point
+ * its trace meets is already the nearest hit; the target is the smallest box that
+ * contains it.
  */
 public final class PcCaseGeometry {
 
@@ -130,7 +130,7 @@ public final class PcCaseGeometry {
         }
     }
 
-    private static final Map<Integer, VoxelShape> SHAPES = new ConcurrentHashMap<>();
+    private static final Map<Integer, DeviceShape> SHAPES = new ConcurrentHashMap<>();
 
     private PcCaseGeometry() {}
 
@@ -184,11 +184,6 @@ public final class PcCaseGeometry {
             case SOUTH -> 3;
             default -> 0;
         };
-    }
-
-    /** The y rotation, in degrees, the renderer turns a part by: the block state's. */
-    public static float yRotationDegrees(Direction facing) {
-        return quarterTurns(facing) * 90f;
     }
 
     /** A model point, px, to block-local block units. */
@@ -289,34 +284,28 @@ public final class PcCaseGeometry {
         return (b[3] - b[0]) * (b[4] - b[1]) * (b[5] - b[2]);
     }
 
-    // The block's shape
+    // The device's shape
 
     /**
-     * The outline and collision shape: the walls, every port and the socket grown
-     * as clicked, the buttons and lights, the floppy slot, the panel when it is on
-     * and every installed part. Cached per facing and parts mask.
+     * What a placed case is hit by and collides with: the walls, the buttons and
+     * lights, the floppy slot, the panel when it is on and every installed part
+     * solid; every port and the socket, grown as clicked, only hit. Cached per parts
+     * mask.
      */
-    public static VoxelShape shape(Direction facing, int partsMask) {
-        int key = quarterTurns(facing) << 16 | partsMask;
-        return SHAPES.computeIfAbsent(key, k -> build(facing, partsMask));
+    public static DeviceShape deviceShape(int partsMask) {
+        return SHAPES.computeIfAbsent(partsMask, PcCaseGeometry::build);
     }
 
-    private static VoxelShape build(Direction facing, int partsMask) {
-        VoxelShape shape = Shapes.empty();
-        for (double[] wall : SHELL)
-            shape = Shapes.or(shape, box(wall, facing));
-        for (int port = 0; port < PORTS; port++)
-            shape = Shapes.or(shape, box(portBox(port), facing));
-        shape = Shapes.or(shape, box(socketBox(), facing), box(POWER_BUTTON, facing), box(RESET_BUTTON, facing),
-                box(POWER_LED, facing), box(ERROR_LED, facing), box(FLOPPY_SLOT, facing));
+    private static DeviceShape build(int partsMask) {
+        List<double[]> solid = new ArrayList<>(List.of(SHELL));
+        solid.addAll(List.of(POWER_BUTTON, RESET_BUTTON, POWER_LED, ERROR_LED, FLOPPY_SLOT));
         for (PcSlot slot : PcSlot.values())
             if ((partsMask & slot.bit()) != 0)
-                shape = Shapes.or(shape, box(partBox(slot), facing));
-        return shape.optimize();
-    }
-
-    private static VoxelShape box(double[] b, Direction facing) {
-        AABB a = toBlock(b, facing);
-        return Block.box(a.minX * 16, a.minY * 16, a.minZ * 16, a.maxX * 16, a.maxY * 16, a.maxZ * 16);
+                solid.add(partBox(slot));
+        List<double[]> pickOnly = new ArrayList<>();
+        for (int port = 0; port < PORTS; port++)
+            pickOnly.add(portBox(port));
+        pickOnly.add(socketBox());
+        return new DeviceShape(solid.toArray(double[][]::new), pickOnly.toArray(double[][]::new), -1);
     }
 }

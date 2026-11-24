@@ -30,7 +30,6 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
-import com.nectariich.create_flippies.content.pc.PcCaseBlock;
 
 public class ModBlocks {
     public static final DeferredRegister<Block> BLOCKS =
@@ -170,24 +169,6 @@ public class ModBlocks {
                 .sound(SoundType.METAL)
                 .noOcclusion();
     }
-
-    // PC
-    /** The PC case (docs/PC_SPEC.md 11.2.2). Its parts are items it holds, not block states. */
-    public static final Supplier<Block> PC_CASE = BLOCKS.register("pc_case",
-            () -> new PcCaseBlock(BlockBehaviour.Properties.of()
-                    .mapColor(MapColor.COLOR_LIGHT_GRAY)
-                    .strength(1.5f)
-                    .sound(SoundType.METAL)
-                    .noOcclusion()));
-
-    /** The network modem (docs/PC_SPEC.md 12.4.5), powered over its ethernet cord. */
-    public static final Supplier<Block> NETWORK_MODEM = BLOCKS.register("network_modem",
-            () -> new com.nectariich.create_flippies.content.modem.NetworkModemBlock(BlockBehaviour.Properties.of()
-                    .mapColor(MapColor.COLOR_GRAY)
-                    .strength(1.0f)
-                    .sound(SoundType.METAL)
-                    .noOcclusion()));
-    // PC end
 
     public static void register(IEventBus modBus) {
         BLOCKS.register(modBus);

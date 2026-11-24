@@ -14,7 +14,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * (a 16 px cell), and how a placed one is turned.
  *
  * A device stands with the bottom centre of its model's cell, (8, 0, 8) px, at the
- * entity's position, turned about the vertical through it in {@link #STEPS} steps of
+ * entity's position, drawn at {@link #scale} of the model's size about that point, turned about the vertical through it in {@link #STEPS} steps of
  * {@link #STEP_DEGREES}. Step k faces the front of the model towards Minecraft yaw
  * k * 11.25 degrees (0 south, 90 west), so steps 0, 8, 16 and 24 are a block's four
  * facings.
@@ -37,6 +37,8 @@ public final class DeviceShape {
     private final double[][] pickOnly;
     /** The yaw of the model's front at turn 0 plus this is the turn applied to the model, degrees. */
     private final double frontOffset;
+    /** The size it stands at, as a fraction of the model's. */
+    private final double scale;
 
     private final VoxelShape[] localShapes = new VoxelShape[STEPS];
     private final AABB[] localBounds = new AABB[STEPS];
@@ -45,9 +47,23 @@ public final class DeviceShape {
      * @param front the model's front: +1 if it is the +x side, -1 if it is the -x side
      */
     public DeviceShape(double[][] solid, double[][] pickOnly, int front) {
+        this(solid, pickOnly, front, 1);
+    }
+
+    /**
+     * @param front the model's front: +1 if it is the +x side, -1 if it is the -x side
+     * @param scale the size it stands at, as a fraction of the model's
+     */
+    public DeviceShape(double[][] solid, double[][] pickOnly, int front, double scale) {
         this.solid = solid;
         this.pickOnly = pickOnly;
         this.frontOffset = front > 0 ? -90 : 90;
+        this.scale = scale;
+    }
+
+    /** The size it stands at, as a fraction of the model's. */
+    public double scale() {
+        return scale;
     }
 
     /** The yaw a device turned {@code step} faces, degrees, Minecraft's convention. */
@@ -74,13 +90,15 @@ public final class DeviceShape {
 
     /** A model point, px, as a point relative to the entity's position, blocks. */
     public Vec3 toLocal(Vec3 modelPx, int step) {
-        return rotate(new Vec3((modelPx.x - 8) / 16, modelPx.y / 16, (modelPx.z - 8) / 16), turnDegrees(step));
+        double k = scale / 16;
+        return rotate(new Vec3((modelPx.x - 8) * k, modelPx.y * k, (modelPx.z - 8) * k), turnDegrees(step));
     }
 
     /** A point relative to the entity's position, blocks, as a model point, px. */
     public Vec3 toModel(Vec3 local, int step) {
         Vec3 m = rotate(local, -turnDegrees(step));
-        return new Vec3(m.x * 16 + 8, m.y * 16, m.z * 16 + 8);
+        double k = 16 / scale;
+        return new Vec3(m.x * k + 8, m.y * k, m.z * k + 8);
     }
 
     /** A direction in the model as one in the world. */
@@ -145,7 +163,7 @@ public final class DeviceShape {
             minZ = Math.min(minZ, p.z);
             maxZ = Math.max(maxZ, p.z);
         }
-        double y0 = b[1] / 16, y1 = b[4] / 16;
+        double y0 = b[1] * scale / 16, y1 = b[4] * scale / 16;
         for (int i = (int) Math.floor(minX); i < (int) Math.ceil(maxX); i++) {
             int runStart = Integer.MIN_VALUE;
             for (int k = (int) Math.floor(minZ); k <= (int) Math.ceil(maxZ); k++) {

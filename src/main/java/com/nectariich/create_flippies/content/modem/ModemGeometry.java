@@ -1,23 +1,15 @@
 package com.nectariich.create_flippies.content.modem;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import com.nectariich.create_flippies.content.pc.PcCaseGeometry;
 
-import net.minecraft.core.Direction;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.Shapes;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * Where everything on the network modem is (spec 12.4.5), from its placeholder model
  * {@code models/block/network_modem/shell.json} and the two light partials beside it. The boxes
  * are in model space, in pixels, as authored, and follow the PC case's convention: the -x end is
  * the front (turned towards the player who placed it), the port is on the +x face, and a placed
- * modem turns the same way as a case ({@link PcCaseGeometry#toBlock}).
+ * modem turns as a device does ({@link NetworkModemEntity}).
  *
  * The model is a stand-in until the real one is made: a new model only needs these boxes
  * updated to its {@code body}, {@code ethernet}, {@code power led} and {@code link led} cubes.
@@ -35,8 +27,6 @@ public final class ModemGeometry {
     static final double[] POWER_LED = {4, 3, 5, 4.75, 3.25, 5.75};
     static final double[] LINK_LED = {4, 3, 6.25, 4.75, 3.25, 7};
 
-    private static final Map<Direction, VoxelShape> SHAPES = new ConcurrentHashMap<>();
-
     private ModemGeometry() {}
 
     /** The port cube grown outward along +x as the case's ports are, px. */
@@ -51,14 +41,11 @@ public final class ModemGeometry {
         return new Vec3(PORT[3], (PORT[1] + PORT[4]) / 2, (PORT[2] + PORT[5]) / 2);
     }
 
-    /** The outline and collision shape: the body, the grown port and the lights. */
-    public static VoxelShape shape(Direction facing) {
-        return SHAPES.computeIfAbsent(facing, f -> Shapes.or(box(BODY, f), box(portBox(), f), box(POWER_LED, f),
-                box(LINK_LED, f)).optimize());
-    }
-
-    private static VoxelShape box(double[] b, Direction facing) {
-        AABB a = PcCaseGeometry.toBlock(b, facing);
-        return Block.box(a.minX * 16, a.minY * 16, a.minZ * 16, a.maxX * 16, a.maxY * 16, a.maxZ * 16);
+    /** Whether a model point, px, is on the grown port (with a hair of slack for a point on its face). */
+    static boolean onPort(Vec3 p) {
+        double[] b = portBox();
+        double e = 1e-2;
+        return p.x >= b[0] - e && p.x <= b[3] + e && p.y >= b[1] - e && p.y <= b[4] + e && p.z >= b[2] - e
+                && p.z <= b[5] + e;
     }
 }

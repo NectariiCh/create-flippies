@@ -8,7 +8,7 @@ import java.util.UUID;
 
 import com.nectariich.create_flippies.content.computer.device.Ps2DeviceKind;
 import com.nectariich.create_flippies.content.computer.device.Ps2Key;
-import com.nectariich.create_flippies.content.pc.PcCaseBlockEntity;
+import com.nectariich.create_flippies.content.pc.PcCaseEntity;
 import com.nectariich.create_flippies.network.KeyboardCaptureStatePacket;
 import com.nectariich.create_flippies.network.ModPackets;
 
@@ -81,7 +81,7 @@ public final class KeyboardCaptures {
             end(player.server, where, problem);
             return;
         }
-        PcCaseBlockEntity pc = keyboard.linkedCase();
+        PcCaseEntity pc = keyboard.linkedCase();
         if (pc == null)
             return;
         int port = keyboard.linkedPs2Port();
@@ -112,7 +112,7 @@ public final class KeyboardCaptures {
             return;
         }
         int port = mousePort(keyboard);
-        PcCaseBlockEntity pc = port < 0 ? null : keyboard.linkedCase(port);
+        PcCaseEntity pc = port < 0 ? null : keyboard.linkedCase(port);
         if (pc == null)
             return;
         pc.queueMouse(keyboard.linkedPs2Port(port), Math.max(-MAX_MOUSE_MOVE, Math.min(MAX_MOUSE_MOVE, dx)),
@@ -196,12 +196,12 @@ public final class KeyboardCaptures {
         UUID typist = capture.typist();
         List<Ps2Key> held = capture.release();
         if (keyboard != null) {
-            PcCaseBlockEntity pc = keyboard.linkedCase();
+            PcCaseEntity pc = keyboard.linkedCase();
             if (pc != null)
                 for (Ps2Key key : held)
                     pc.queueKey(keyboard.linkedPs2Port(), key, false);
             int mouse = mousePort(keyboard);
-            PcCaseBlockEntity mousePc = mouse < 0 ? null : keyboard.linkedCase(mouse);
+            PcCaseEntity mousePc = mouse < 0 ? null : keyboard.linkedCase(mouse);
             if (mousePc != null)
                 mousePc.queueMouse(keyboard.linkedPs2Port(mouse), 0, 0, 0);
         }

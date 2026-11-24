@@ -20,7 +20,7 @@ public final class PcRuntime implements PcScheduler.Job {
     /** Key events queued between ticks, at most; more are dropped (a typist cannot outrun this). */
     private static final int MAX_QUEUED_KEYS = 256;
 
-    private final PcCaseBlockEntity owner;
+    private final PcCaseEntity owner;
     private final Machine machine;
     private final int ramBytes;
     private final PagedDiskImage hdd;
@@ -34,7 +34,7 @@ public final class PcRuntime implements PcScheduler.Job {
     private boolean hddActive;
     private boolean floppyMotor;
 
-    PcRuntime(PcCaseBlockEntity owner, Machine machine, int ramBytes, PagedDiskImage hdd, DiskStore disks) {
+    PcRuntime(PcCaseEntity owner, Machine machine, int ramBytes, PagedDiskImage hdd, DiskStore disks) {
         this.owner = owner;
         this.machine = machine;
         this.ramBytes = ramBytes;
@@ -100,7 +100,7 @@ public final class PcRuntime implements PcScheduler.Job {
         floppy = null;
     }
 
-    PcPower.Draw draw(PcCaseBlockEntity owner) {
+    PcPower.Draw draw(PcCaseEntity owner) {
         return owner.draw(busy, hddActive, floppyMotor);
     }
 

@@ -11,7 +11,7 @@ import com.nectariich.create_flippies.content.data_cord.PortRole;
 import com.nectariich.create_flippies.content.data_cord.PortType;
 import com.nectariich.create_flippies.content.device.DeviceEntity;
 import com.nectariich.create_flippies.content.device.DeviceShape;
-import com.nectariich.create_flippies.content.pc.PcCaseBlockEntity;
+import com.nectariich.create_flippies.content.pc.PcCaseEntity;
 import com.nectariich.create_flippies.content.pc.PcCaseGeometry;
 import com.nectariich.create_flippies.content.pc.PcServer;
 import com.nectariich.create_flippies.registry.ModItems;
@@ -48,7 +48,8 @@ public class KeyboardEntity extends DeviceEntity implements DataPortHost {
     /** The body, px. */
     static final double[] BODY = KeyboardGeometry.BODY;
 
-    public static final DeviceShape SHAPE = new DeviceShape(new double[][] {BODY}, new double[][] {portBox()}, -1);
+    public static final DeviceShape SHAPE = new DeviceShape(new double[][] {BODY}, new double[][] {portBox()}, -1,
+            KeyboardGeometry.SCALE);
 
     /** Ticks between the checks that it still stands on something. */
     private static final int SUPPORT_CHECK = 20;
@@ -220,13 +221,13 @@ public class KeyboardEntity extends DeviceEntity implements DataPortHost {
     }
 
     /** The case this keyboard's cord leads to, if it is loaded and holds the link back. */
-    public PcCaseBlockEntity linkedCase() {
+    public PcCaseEntity linkedCase() {
         return linkedCase(0);
     }
 
     /** The case port {@code port}'s cord leads to, if it is loaded and holds the link back. */
-    public PcCaseBlockEntity linkedCase(int port) {
-        return DataCords.peer(this, port, PcCaseBlockEntity.class);
+    public PcCaseEntity linkedCase(int port) {
+        return DataCords.peer(this, port, PcCaseEntity.class);
     }
 
     /** The case's PS/2 controller port this keyboard is on: case `ps/2 1` is 0, `ps/2 2` is 1. */

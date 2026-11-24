@@ -184,17 +184,17 @@ public final class PcSnapshots {
      * Snapshots {@code pc} as {@code name}: to the server's folder, else to the player's computer.
      * Answers on {@code source} when the file is written (or failed).
      */
-    public int save(CommandSourceStack source, PcCaseBlockEntity pc, String name, boolean toServer) {
+    public int save(CommandSourceStack source, PcCaseEntity pc, String name, boolean toServer) {
         ServerPlayer player = source.getPlayer();
         if (!toServer && player == null) {
             source.sendFailure(Component.translatable("commands.create_flippies.snapshot.needs_player"));
             return 0;
         }
-        PcCaseBlockEntity.Capture capture;
+        PcCaseEntity.Capture capture;
         try {
             capture = pc.beginSnapshot();
         } catch (RuntimeException e) {
-            CreateFlippies.LOGGER.error("PC at {}: could not take its state for a snapshot", pc.getBlockPos(), e);
+            CreateFlippies.LOGGER.error("PC at {}: could not take its state for a snapshot", pc.blockPosition(), e);
             source.sendFailure(Component.translatable("commands.create_flippies.snapshot.failed", e.toString()));
             return 0;
         }
@@ -349,7 +349,7 @@ public final class PcSnapshots {
      * and the state file are copied in the background, and the case loads them, frozen, once that
      * is done. A missing or broken snapshot leaves an empty case and says why.
      */
-    void place(PcCaseBlockEntity pc, ItemStack stack, ServerPlayer player) {
+    void place(PcCaseEntity pc, ItemStack stack, ServerPlayer player) {
         String sha = StackData.peek(stack).getCompound(TAG).getString("Sha");
         Path file = store.resolve(sha + PcSnapshot.EXTENSION);
         PcSnapshot.Manifest manifest;
@@ -363,7 +363,7 @@ public final class PcSnapshots {
             tell(player, Component.translatable("commands.create_flippies.snapshot.unusable", e.getMessage()));
             return;
         }
-        ItemStack[] parts = PcCaseBlockEntity.readParts(caseTag, pc.getLevel().registryAccess());
+        ItemStack[] parts = PcCaseEntity.readParts(caseTag, pc.level().registryAccess());
         UUID hdd = renewDisk(parts[PcSlot.HDD.ordinal()], manifest.hdd());
         UUID floppy = renewDisk(parts[PcSlot.FLOPPY.ordinal()], manifest.floppy());
         pc.applySnapshot(parts, manifest.hasState());
@@ -399,7 +399,7 @@ public final class PcSnapshots {
         work.whenComplete((done, error) -> server.execute(() -> {
             imports.remove(pcId);
             if (error != null) {
-                CreateFlippies.LOGGER.error("PC snapshot {} not placed at {}", manifest.name(), pc.getBlockPos(), error);
+                CreateFlippies.LOGGER.error("PC snapshot {} not placed at {}", manifest.name(), pc.blockPosition(), error);
                 tell(player, Component.translatable("commands.create_flippies.snapshot.place_failed", manifest.name(),
                         rootMessage(error)));
             } else if (manifest.hasState()) {

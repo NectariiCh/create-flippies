@@ -9,7 +9,6 @@ import com.nectariich.create_flippies.client.wire.BentWireRenderer;
 import com.nectariich.create_flippies.compat.Ids;
 import com.nectariich.create_flippies.content.data_cord.DataCordEntity;
 import com.nectariich.create_flippies.foundation.wire.bend.WireSweep;
-import com.nectariich.create_flippies.registry.ModBlocks;
 
 import net.createmod.catnip.render.CachedBuffers;
 import net.minecraft.client.Minecraft;
@@ -20,6 +19,7 @@ import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 import org.patryk3211.powergrid.electricity.wire.HangingWireRenderer;
@@ -73,7 +73,7 @@ public class DataCordRenderer extends EntityRenderer<DataCordEntity> {
             VertexConsumer vertices) {
         int light = LevelRenderer.getLightColor(cord.level(), BlockPos.containing(origin.add(normal.scale(0.25))));
         float angle = (float) Math.toDegrees(Math.atan2(-normal.z, normal.x));
-        CachedBuffers.partial(ModPartialModels.dataPlug(cord.portType()), ModBlocks.PC_CASE.get().defaultBlockState())
+        CachedBuffers.partial(ModPartialModels.dataPlug(cord.portType()), Blocks.AIR.defaultBlockState())
                 .translate(origin.subtract(pos))
                 .rotateYDegrees(angle)
                 .translate(-0.5, -0.5, -0.5)

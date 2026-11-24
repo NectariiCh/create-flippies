@@ -89,4 +89,22 @@ class DeviceShapeTest {
         Vec3 corner = new Vec3(bounds.minX + 0.01, 0, bounds.minZ + 0.01);
         assertNull(FRONT_MINUS_X.clip(corner.add(0, 1, 0), corner.add(0, -1, 0), step));
     }
+
+    @Test
+    void aScaledDeviceShrinksAboutTheBottomCentre() {
+        DeviceShape scaled = new DeviceShape(new double[][] {{0.5, 0, 1, 12, 12, 15}}, new double[][] {}, 1, 0.65);
+        for (int step : new int[] {0, 5, 8, 13}) {
+            Vec3 p = new Vec3(3.25, 5.5, 12.75);
+            assertEquals(0, FRONT_X.toLocal(p, step).scale(0.65).subtract(scaled.toLocal(p, step)).length(), EPS);
+            assertEquals(0, scaled.toModel(scaled.toLocal(p, step), step).subtract(p).length(), EPS);
+            assertEquals(0, scaled.toLocal(new Vec3(8, 0, 8), step).length(), EPS);
+            AABB full = FRONT_X.localBounds(step), small = scaled.localBounds(step);
+            assertEquals(full.getYsize() * 0.65, small.getYsize(), EPS);
+            assertEquals(full.getXsize() * 0.65, small.getXsize(), EPS);
+            // Collision stays inside the scaled bounds, a hair of pixel rounding aside
+            AABB solid = scaled.localShape(step).bounds();
+            assertTrue(solid.maxY <= small.maxY + EPS && solid.minY >= small.minY - EPS, "step " + step);
+            assertTrue(solid.minX >= small.minX - 1 / 16.0 && solid.maxX <= small.maxX + 1 / 16.0, "step " + step);
+        }
+    }
 }

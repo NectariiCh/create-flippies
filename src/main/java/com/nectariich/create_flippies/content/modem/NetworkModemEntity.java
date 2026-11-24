@@ -1,31 +1,34 @@
 package com.nectariich.create_flippies.content.modem;
 
-import java.util.List;
-
 import com.nectariich.create_flippies.CreateFlippies;
 import com.nectariich.create_flippies.content.computer.net.Catalogue;
 import com.nectariich.create_flippies.content.computer.net.ClasspathContent;
 import com.nectariich.create_flippies.content.computer.net.FrameEndpoint;
 import com.nectariich.create_flippies.content.computer.net.Modem;
+import com.nectariich.create_flippies.content.data_cord.DataCordItem;
 import com.nectariich.create_flippies.content.data_cord.DataCords;
 import com.nectariich.create_flippies.content.data_cord.DataLink;
 import com.nectariich.create_flippies.content.data_cord.DataPortHost;
 import com.nectariich.create_flippies.content.data_cord.PortAddress;
 import com.nectariich.create_flippies.content.data_cord.PortRole;
 import com.nectariich.create_flippies.content.data_cord.PortType;
-import com.nectariich.create_flippies.content.pc.PcCaseGeometry;
+import com.nectariich.create_flippies.content.device.DeviceEntity;
+import com.nectariich.create_flippies.content.device.DeviceShape;
 import com.nectariich.create_flippies.content.pc.PcMotherboardItem;
 import com.nectariich.create_flippies.content.pc.PcServer;
-import com.nectariich.create_flippies.registry.ModBlockEntities;
-import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
-import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
+import com.nectariich.create_flippies.registry.ModItems;
 
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -39,8 +42,22 @@ import net.minecraft.world.phys.Vec3;
  * the downloader resumes with Range). The PC side's exchange phase drives it once per tick
  * ({@link #exchange}); a modem no running PC drove in a tick has its link taken down
  * ({@code PcServer}). The lights follow from that and sync on change only.
+ *
+ * A {@link DeviceEntity}, placed as the CRT and the keyboard are: its -x end (the lights)
+ * the front, the port on its +x end, as a PC case.
  */
-public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPortHost {
+public class NetworkModemEntity extends DeviceEntity implements DataPortHost {
+
+    public static final DeviceShape SHAPE = new DeviceShape(
+            new double[][] {ModemGeometry.BODY, ModemGeometry.POWER_LED, ModemGeometry.LINK_LED},
+            new double[][] {ModemGeometry.portBox()}, -1);
+
+    private static final EntityDataAccessor<Boolean> POWER_LIT =
+            SynchedEntityData.defineId(NetworkModemEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> LINK_LIT =
+            SynchedEntityData.defineId(NetworkModemEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> ACTIVITY =
+            SynchedEntityData.defineId(NetworkModemEntity.class, EntityDataSerializers.BOOLEAN);
 
     // Saved
 
@@ -51,24 +68,46 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
 
     private final ModemDriver driver = new ModemDriver(
             () -> new Modem(mac, catalogue()),
-            e -> CreateFlippies.LOGGER.error("Network modem at {} failed; restarting it in 5 s", worldPosition, e));
+            e -> CreateFlippies.LOGGER.error("Network modem at {} failed; restarting it in 5 s", blockPosition(), e));
 
-    // Synced to clients
-
-    private boolean powerLit;
-    private boolean linkLit;
-    private boolean activity;
-
-    public NetworkModemBlockEntity(BlockPos pos, BlockState state) {
-        this(ModBlockEntities.NETWORK_MODEM.get(), pos, state);
-    }
-
-    protected NetworkModemBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
-        super(type, pos, state);
+    public NetworkModemEntity(EntityType<?> type, Level level) {
+        super(type, level);
     }
 
     @Override
-    public void addBehaviours(List<BlockEntityBehaviour> behaviours) {}
+    public DeviceShape shape() {
+        return SHAPE;
+    }
+
+    @Override
+    public ItemStack asItem() {
+        return new ItemStack(ModItems.NETWORK_MODEM.get());
+    }
+
+    @Override
+    public float hardness() {
+        return 1.0f;
+    }
+
+    @Override
+    public SoundType sound() {
+        return SoundType.METAL;
+    }
+
+    @Override
+    //? if forge {
+    protected void defineSynchedData() {
+        entityData.define(POWER_LIT, false);
+        entityData.define(LINK_LIT, false);
+        entityData.define(ACTIVITY, false);
+    }
+    //?} else {
+    /*protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(POWER_LIT, false);
+        builder.define(LINK_LIT, false);
+        builder.define(ACTIVITY, false);
+    }
+    *///?}
 
     /** The world's catalogue: its file share and the content packs; the jar's built-in pages alone with no server running. */
     private static Catalogue catalogue() {
@@ -76,25 +115,21 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
         return server != null ? server.catalogue() : new Catalogue(ClasspathContent.bundled());
     }
 
-    public Direction facing() {
-        return getBlockState().getValue(NetworkModemBlock.FACING);
-    }
-
     public long macAddress() {
         return mac;
     }
 
     public boolean powerLit() {
-        return powerLit;
+        return entityData.get(POWER_LIT);
     }
 
     public boolean linkLit() {
-        return linkLit;
+        return entityData.get(LINK_LIT);
     }
 
     /** Frames moved in the last few ticks: the link light blinks. */
     public boolean activity() {
-        return activity;
+        return entityData.get(ACTIVITY);
     }
 
     // The exchange phase (spec 11.2.10, 12.4.2), server thread only
@@ -105,13 +140,12 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
      * modem's stack stops this modem alone ({@link ModemDriver}); one from the card is the PC's.
      */
     public void exchange(FrameEndpoint pc) {
-        if (!driver.exchange(pc, level == null ? 0 : level.getGameTime()))
+        if (!driver.exchange(pc, level().getGameTime()))
             return;
         // Power and link are one here: the link is up exactly while the PC powers the modem
-        powerLit = driver.powered();
-        linkLit = driver.powered();
-        activity = driver.active();
-        sendData();
+        entityData.set(POWER_LIT, driver.powered());
+        entityData.set(LINK_LIT, driver.powered());
+        entityData.set(ACTIVITY, driver.active());
     }
 
     /** The modem itself, for tests and diagnostics; null until a PC first drove it. */
@@ -123,14 +157,12 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
 
     /** Loaded or placed, ticking or not: a PC may drive it from the next tick on. */
     @Override
-    public void onLoad() {
-        super.onLoad();
-        if (level == null || level.isClientSide)
+    protected void added() {
+        if (level().isClientSide)
             return;
         if (mac == 0) {
             // Locally administered, like a motherboard's (spec 12.4.1), fixed from placement on
-            mac = PcMotherboardItem.randomMac(level.random.nextLong());
-            setChanged();
+            mac = PcMotherboardItem.randomMac(level().random.nextLong());
         }
         PcServer server = PcServer.get();
         if (server != null)
@@ -138,27 +170,15 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
     }
 
     @Override
-    public void tick() {
-        super.tick();
-        if (level != null && !level.isClientSide && level.getGameTime() % 20 == 11)
+    protected void deviceTick() {
+        if (!level().isClientSide && level().getGameTime() % 20 == 11)
             DataCords.validateLinks(this);
     }
 
     /** Unloaded or broken: the modem and its connections go; nothing is saved of them. */
     @Override
-    public void onChunkUnloaded() {
-        super.onChunkUnloaded();
-        forget();
-    }
-
-    @Override
-    public void remove() {
-        super.remove();
-        forget();
-    }
-
-    private void forget() {
-        if (level == null || level.isClientSide)
+    protected void removed(boolean destroyed) {
+        if (level().isClientSide)
             return;
         PcServer server = PcServer.get();
         if (server != null)
@@ -167,47 +187,47 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
     }
 
     /** Broken: its cord drops and the PC forgets it. Server only. */
-    void dropContents() {
+    @Override
+    protected void onBroken() {
         DataCords.breakAll(this);
     }
 
     @Override
-    protected void write(CompoundTag tag, boolean clientPacket) {
-        super.write(tag, clientPacket);
-        if (clientPacket) {
-            tag.putBoolean("PowerLit", powerLit);
-            tag.putBoolean("LinkLit", linkLit);
-            tag.putBoolean("Activity", activity);
-            return;
-        }
+    protected void addAdditionalSaveData(CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
         tag.putLong("Mac", mac);
         if (link != null)
             tag.put("Link", link.write());
     }
 
     @Override
-    protected void read(CompoundTag tag, boolean clientPacket) {
-        super.read(tag, clientPacket);
-        if (clientPacket) {
-            powerLit = tag.getBoolean("PowerLit");
-            linkLit = tag.getBoolean("LinkLit");
-            activity = tag.getBoolean("Activity");
-            return;
-        }
+    protected void readAdditionalSaveData(CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
         mac = tag.getLong("Mac");
         link = tag.contains("Link") ? DataLink.read(tag.getCompound("Link")) : null;
+    }
+
+    // Using it: only the data cord, on the port
+
+    @Override
+    public InteractionResult interactAt(Player player, Vec3 local, InteractionHand hand) {
+        ItemStack held = player.getItemInHand(hand);
+        if (!(held.getItem() instanceof DataCordItem))
+            return InteractionResult.PASS;
+        int port = portAt(position().add(local));
+        return port < 0 ? InteractionResult.PASS : DataCordItem.usePort(level(), player, held, this, port);
     }
 
     // Data port (spec 11.2.5)
 
     @Override
     public PortAddress portAddress() {
-        return PortAddress.block(worldPosition);
+        return PortAddress.entity(blockPosition(), getUUID());
     }
 
     @Override
     public Level hostLevel() {
-        return level;
+        return level();
     }
 
     @Override
@@ -227,17 +247,24 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
 
     @Override
     public Vec3 portOrigin(int port) {
-        return Vec3.atLowerCornerOf(worldPosition).add(PcCaseGeometry.toBlock(ModemGeometry.portFaceCentre(), facing()));
+        return toWorld(ModemGeometry.portFaceCentre());
     }
 
     @Override
     public AABB portBox(int port) {
-        return PcCaseGeometry.toBlock(ModemGeometry.portBox(), facing()).move(worldPosition);
+        double[] b = ModemGeometry.portBox();
+        return new AABB(toWorld(new Vec3(b[0], b[1], b[2])), toWorld(new Vec3(b[3], b[4], b[5])));
+    }
+
+    /** The port, if the point is on it in the model's own frame (the box above is only its turned bounds). */
+    @Override
+    public int portAt(Vec3 worldPoint) {
+        return ModemGeometry.onPort(toModel(worldPoint)) ? ModemGeometry.ETHERNET : -1;
     }
 
     @Override
     public Vec3 portNormal(int port) {
-        return Vec3.atLowerCornerOf(PcCaseGeometry.back(facing()).getNormal());
+        return directionToWorld(new Vec3(1, 0, 0));
     }
 
     @Override
@@ -250,12 +277,5 @@ public class NetworkModemBlockEntity extends SmartBlockEntity implements DataPor
         if (port != ModemGeometry.ETHERNET)
             return;
         this.link = link;
-        setChanged();
-        sendData();
-    }
-
-    @Override
-    protected AABB createRenderBoundingBox() {
-        return new AABB(worldPosition).inflate(0.25);
     }
 }

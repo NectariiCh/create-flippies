@@ -105,6 +105,12 @@ public abstract class DeviceEntity extends SpawnDataEntity {
         return worldShape;
     }
 
+    /** {@link #shape} now answers differently: what it collides with and its bounds follow. */
+    protected void shapeChanged() {
+        worldShape = null;
+        setBoundingBox(makeBoundingBox());
+    }
+
     /** Where the segment from {@code from} to {@code to} first meets it, or null. */
     public DeviceShape.Hit clip(Vec3 from, Vec3 to) {
         Vec3 at = position();

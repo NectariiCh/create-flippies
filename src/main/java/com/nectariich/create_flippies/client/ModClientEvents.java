@@ -78,9 +78,9 @@ public class ModClientEvents {
         // A panel cell carries its own controls on a chamfer, and draws them the same way
         event.registerBlockEntityRenderer(ModBlockEntities.LARGE_PANEL.get(), ControlHostRenderer::new);
         // PC
-        event.registerBlockEntityRenderer(ModBlockEntities.PC_CASE.get(),
+        event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.PC_CASE.get(),
                 com.nectariich.create_flippies.client.pc.PcCaseRenderer::new);
-        event.registerBlockEntityRenderer(ModBlockEntities.NETWORK_MODEM.get(),
+        event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.NETWORK_MODEM.get(),
                 com.nectariich.create_flippies.client.pc.NetworkModemRenderer::new);
         event.registerEntityRenderer(com.nectariich.create_flippies.registry.ModEntityTypes.DATA_CORD.get(),
                 com.nectariich.create_flippies.client.pc.DataCordRenderer::new);

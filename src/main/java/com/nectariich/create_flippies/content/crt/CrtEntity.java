@@ -10,7 +10,7 @@ import com.nectariich.create_flippies.content.data_cord.PortRole;
 import com.nectariich.create_flippies.content.data_cord.PortType;
 import com.nectariich.create_flippies.content.device.DeviceEntity;
 import com.nectariich.create_flippies.content.device.DeviceShape;
-import com.nectariich.create_flippies.content.pc.PcCaseBlockEntity;
+import com.nectariich.create_flippies.content.pc.PcCaseEntity;
 import com.nectariich.create_flippies.content.pc.PcCaseGeometry;
 import com.nectariich.create_flippies.content.pc.PcDisplayView;
 import com.nectariich.create_flippies.content.pc.PcPower;
@@ -56,7 +56,7 @@ import org.patryk3211.powergrid.electricity.wire.IWire;
 public class CrtEntity extends DeviceEntity implements DataPortHost, EntityElectricHost {
 
     public static final DeviceShape SHAPE = new DeviceShape(new double[][] {CrtGeometry.BODY},
-            new double[][] {CrtGeometry.VGA_PORT, CrtGeometry.SOCKET}, 1);
+            new double[][] {CrtGeometry.VGA_PORT, CrtGeometry.SOCKET}, 1, CrtGeometry.SCALE);
 
     /** Ticks after loading during which the saved on state stands while Power Grid solves (as the case's). */
     private static final int RESTORE_GRACE = 40;
@@ -154,7 +154,7 @@ public class CrtEntity extends DeviceEntity implements DataPortHost, EntityElect
     public PcDisplayView source() {
         if (!on() || level().isClientSide)
             return null;
-        PcCaseBlockEntity pc = DataCords.peer(this, CrtGeometry.VGA_IN, PcCaseBlockEntity.class);
+        PcCaseEntity pc = DataCords.peer(this, CrtGeometry.VGA_IN, PcCaseEntity.class);
         if (pc == null)
             return null;
         int port = link.peerPort();

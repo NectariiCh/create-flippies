@@ -68,6 +68,32 @@ public class ModEntityTypes {
                     .noSummon()
                     .fireImmune()
                     .build(CreateFlippies.asResource("crt").toString()));
+
+    /**
+     * The PC case (spec 11.2.2) and the network modem (spec 12.4.5), placed like the
+     * CRT. Their state changes, so it travels as synced entity data; they never move.
+     */
+    public static final Supplier<EntityType<com.nectariich.create_flippies.content.pc.PcCaseEntity>>
+            PC_CASE = ENTITY_TYPES.register("pc_case",
+            () -> EntityType.Builder.<com.nectariich.create_flippies.content.pc.PcCaseEntity>of(
+                    com.nectariich.create_flippies.content.pc.PcCaseEntity::new, MobCategory.MISC)
+                    .sized(1, 0.8f)
+                    .clientTrackingRange(10)
+                    .updateInterval(Integer.MAX_VALUE)
+                    .noSummon()
+                    .fireImmune()
+                    .build(CreateFlippies.asResource("pc_case").toString()));
+
+    public static final Supplier<EntityType<com.nectariich.create_flippies.content.modem.NetworkModemEntity>>
+            NETWORK_MODEM = ENTITY_TYPES.register("network_modem",
+            () -> EntityType.Builder.<com.nectariich.create_flippies.content.modem.NetworkModemEntity>of(
+                    com.nectariich.create_flippies.content.modem.NetworkModemEntity::new, MobCategory.MISC)
+                    .sized(0.6f, 0.2f)
+                    .clientTrackingRange(10)
+                    .updateInterval(Integer.MAX_VALUE)
+                    .noSummon()
+                    .fireImmune()
+                    .build(CreateFlippies.asResource("network_modem").toString()));
     // DEVICES end
 
     // WIRE DUCTS

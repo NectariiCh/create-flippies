@@ -17,62 +17,85 @@ import com.nectariich.create_flippies.content.computer.machine.MachineConfig;
 import com.nectariich.create_flippies.content.computer.machine.MachineState;
 import com.nectariich.create_flippies.content.computer.machine.Platform;
 import com.nectariich.create_flippies.content.computer.machine.StandardCpus;
+import com.nectariich.create_flippies.content.data_cord.DataCordItem;
 import com.nectariich.create_flippies.content.data_cord.DataCords;
 import com.nectariich.create_flippies.content.data_cord.DataLink;
 import com.nectariich.create_flippies.content.data_cord.DataPortHost;
 import com.nectariich.create_flippies.content.data_cord.PortAddress;
 import com.nectariich.create_flippies.content.data_cord.PortRole;
 import com.nectariich.create_flippies.content.data_cord.PortType;
+import com.nectariich.create_flippies.content.device.DeviceEntity;
+import com.nectariich.create_flippies.content.device.DeviceShape;
 import com.nectariich.create_flippies.content.keyboard.KeyboardEntity;
+import com.nectariich.create_flippies.content.screwdriver.ScrewdriverItem;
 import com.nectariich.create_flippies.foundation.ServerConfig;
-import com.nectariich.create_flippies.registry.ModBlockEntities;
+import com.nectariich.create_flippies.foundation.wire.entity.EntityCordEndpoint;
+import com.nectariich.create_flippies.foundation.wire.entity.EntityElectricHolder;
+import com.nectariich.create_flippies.foundation.wire.entity.EntityElectricHost;
+import com.nectariich.create_flippies.mixin.CordItemAccessor;
+import com.nectariich.create_flippies.network.ModPackets;
+import com.nectariich.create_flippies.network.OpenPcCasePacket;
+import com.nectariich.create_flippies.registry.ModItems;
 import com.nectariich.create_flippies.registry.ModSounds;
-import com.simibubi.create.api.equipment.goggles.IHaveGoggleInformation;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
-import org.patryk3211.powergrid.electricity.base.ElectricBlockEntity;
-import org.patryk3211.powergrid.electricity.base.IElectricEntity;
-import org.patryk3211.powergrid.electricity.wire.BlockWireEndpoint;
-import org.patryk3211.powergrid.electricity.wire.BaseWireEntity;
+import org.patryk3211.powergrid.electricity.wire.IWire;
+import org.patryk3211.powergrid.electricity.wire.WireItem;
 
 /**
  * A PC case in the world (spec 11.2.2): the parts it holds, its power supply on
  * Power Grid's cord, the machine while it runs, its data ports and its saved state.
  *
+ * A {@link DeviceEntity}, placed as the CRT and the keyboard are: the model
+ * `pc-case-1.json`, its -x end (buttons, floppy slot) the front, the ports and the
+ * socket on its +x end. Its shape follows the parts it holds
+ * ({@link PcCaseGeometry#deviceShape}). The socket takes Power Grid's copper cord with
+ * one click; the cord ends on this entity through {@link EntityCordEndpoint}, and the
+ * supply's two terminals and load are an {@link EntityElectricHolder}. What a click
+ * means is {@link PcInteractions}'; a screwdriver takes the front panel off, or opens
+ * the case screen anywhere else on the case.
+ *
  * The machine exists only while the PC is on and its chunk is loaded (spec
  * 11.1.10): an off or unloaded PC holds no RAM. Every call into it goes through
  * {@link PcRuntime}, which the server-wide {@link PcScheduler} runs once per tick
- * after every block entity has ticked.
+ * after every entity and block entity has ticked.
  *
- * Order inside a tick (spec 11.2.4): this block entity reads the supply voltage
+ * Order inside a tick (spec 11.2.4): this entity reads the supply voltage
  * and may power the machine off, and sets the load from the previous tick's draw;
  * the scheduler then runs the machine and records this tick's draw.
  */
-public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHost, IHaveGoggleInformation {
+public class PcCaseEntity extends DeviceEntity implements DataPortHost, EntityElectricHost {
+
+    /** What clients are told, as one tag: written by {@link #clientTag}, read by {@link #readClient}. */
+    private static final EntityDataAccessor<CompoundTag> CLIENT =
+            SynchedEntityData.defineId(PcCaseEntity.class, EntityDataSerializers.COMPOUND_TAG);
 
     /** Ticks a refused power-on keeps the error light on: 3 s. */
     private static final int REFUSAL_TICKS = 60;
-    /** Ticks between the {@code setChanged} that let autosaves include a running PC: 30 s. */
-    private static final int SAVE_INTERVAL = 600;
     /** Ticks a PC that was on waits after loading for Power Grid to solve its network before deciding. */
     private static final int RESTORE_GRACE = 40;
     /** Ticks a PC whose saved state would pass the RAM cap waits before trying again (spec 11.2.6). */
@@ -96,10 +119,11 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
 
     // Server only
 
+    private final EntityElectricHolder electric;
     /**
-     * Deliberately not initialized where it is declared: Power Grid builds the
-     * circuit from the superclass constructor, before any initializer here runs,
-     * and an initializer would then overwrite what it built.
+     * Deliberately not initialized where it is declared: the holder may build the
+     * circuit before an initializer here would run, and an initializer would then
+     * overwrite what it built.
      */
     private PcPower.Circuit circuit;
     private PcRuntime runtime;
@@ -132,13 +156,12 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     private String cpuText = "";
     private String ramText = "";
 
-    public PcCaseBlockEntity(BlockPos pos, BlockState state) {
-        this(ModBlockEntities.PC_CASE.get(), pos, state);
-    }
-
-    protected PcCaseBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
-        super(type, pos, state);
-        parts[PcSlot.FRONT_PANEL.ordinal()] = new ItemStack(com.nectariich.create_flippies.registry.ModItems.PC_FRONT_PANEL.get());
+    public PcCaseEntity(EntityType<?> type, Level level) {
+        super(type, level);
+        parts[PcSlot.FRONT_PANEL.ordinal()] = new ItemStack(ModItems.PC_FRONT_PANEL.get());
+        electric = new EntityElectricHolder(this, PcPower.TERMINALS, builder -> circuit = PcPower.buildCircuit(builder));
+        // The superclass sized it before the panel's bit was set here
+        shapeChanged();
     }
 
     private static ItemStack[] emptyParts() {
@@ -147,11 +170,51 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         return stacks;
     }
 
+    // The device
+
+    @Override
+    public DeviceShape shape() {
+        return PcCaseGeometry.deviceShape(partsMask);
+    }
+
+    @Override
+    public ItemStack asItem() {
+        return new ItemStack(ModItems.PC_CASE.get());
+    }
+
+    @Override
+    public float hardness() {
+        return 1.5f;
+    }
+
+    @Override
+    public SoundType sound() {
+        return SoundType.METAL;
+    }
+
+    @Override
+    //? if forge {
+    protected void defineSynchedData() {
+        entityData.define(CLIENT, new CompoundTag());
+    }
+    //?} else {
+    /*protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(CLIENT, new CompoundTag());
+    }
+    *///?}
+
     // Power Grid
 
     @Override
-    public void buildCircuit(IElectricEntity.CircuitBuilder builder) {
-        circuit = PcPower.buildCircuit(builder);
+    public EntityElectricHolder electric() {
+        return electric;
+    }
+
+    /** The terminals are a speck inside the bottom wall ({@link PcCaseGeometry#HIDDEN_TERMINAL}); the cord ends at the plug. */
+    @Override
+    public Vec3 terminalPosition(int terminal) {
+        double[] b = PcCaseGeometry.HIDDEN_TERMINAL;
+        return toWorld(new Vec3((b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2));
     }
 
     /** The supply voltage last read, volts. */
@@ -160,10 +223,6 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     }
 
     // Parts
-
-    public Direction facing() {
-        return getBlockState().getValue(PcCaseBlock.FACING);
-    }
 
     public ItemStack part(PcSlot slot) {
         return parts[slot.ordinal()];
@@ -185,7 +244,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     private void setPart(PcSlot slot, ItemStack stack) {
         parts[slot.ordinal()] = stack;
         recomputeMask();
-        notifyUpdate();
+        sync();
     }
 
     private void recomputeMask() {
@@ -193,12 +252,20 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         for (PcSlot slot : PcSlot.values())
             if (!parts[slot.ordinal()].isEmpty())
                 mask |= slot.bit();
+        setPartsMask(mask);
+    }
+
+    /** The parts held changed what the case is shaped like. */
+    private void setPartsMask(int mask) {
+        if (mask == partsMask)
+            return;
         partsMask = mask;
+        shapeChanged();
     }
 
     /** Whether a machine exists: on the server the runtime, on a client the synced power light. */
     public boolean running() {
-        return level != null && level.isClientSide ? powerLit : runtime != null;
+        return level().isClientSide ? powerLit : runtime != null;
     }
 
     public Machine machine() {
@@ -220,7 +287,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     void install(PcSlot slot, ItemStack stack) {
         // Identities are given on first install, so they travel with the item from then on
         if (stack.getItem() instanceof PcMotherboardItem)
-            PcMotherboardItem.macOf(stack, level.random);
+            PcMotherboardItem.macOf(stack, level().random);
         if (stack.getItem() instanceof FloppyDiskItem && PcServer.get() != null)
             FloppyDiskItem.fillFromPreset(stack, PcServer.get().disks());
         if (stack.getItem() instanceof PcHddItem || stack.getItem() instanceof FloppyDiskItem)
@@ -228,7 +295,6 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         setPart(slot, stack);
         if (slot == PcSlot.FLOPPY && runtime != null)
             runtime.insertFloppy(stack);
-        setChanged();
     }
 
     /** Takes a part out and hands it back. A floppy leaves a running machine at once. */
@@ -237,7 +303,6 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         if (slot == PcSlot.FLOPPY && runtime != null)
             runtime.ejectFloppy();
         setPart(slot, ItemStack.EMPTY);
-        setChanged();
         return stack;
     }
 
@@ -245,32 +310,32 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
 
     /** The power button (spec 11.2.9). Server only. */
     void pressPower(Player player) {
-        powerPressTick = level.getGameTime();
+        powerPressTick = level().getGameTime();
         click();
         if (runtime != null) {
             stopMachine(true);
         } else {
             Component refusal = tryPowerOn();
             if (refusal != null) {
-                refusalUntil = level.getGameTime() + REFUSAL_TICKS;
+                refusalUntil = level().getGameTime() + REFUSAL_TICKS;
                 player.displayClientMessage(refusal.copy().withStyle(ChatFormatting.RED), true);
             }
         }
         updateLights();
-        notifyUpdate();
+        sync();
     }
 
     /** The reset button: a reset when a machine exists, else nothing. Server only. */
     void pressReset() {
-        resetPressTick = level.getGameTime();
+        resetPressTick = level().getGameTime();
         click();
         if (runtime != null)
             runtime.reset();
-        notifyUpdate();
+        sync();
     }
 
     private void click() {
-        level.playSound(null, worldPosition, ModSounds.RELAY_CLICK.get(), SoundSource.BLOCKS, 0.4f, 1.6f);
+        level().playSound(null, getX(), getY(), getZ(), ModSounds.RELAY_CLICK.get(), SoundSource.BLOCKS, 0.4f, 1.6f);
     }
 
     public long powerPressTick() {
@@ -329,7 +394,6 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             return Component.translatable("gui.create_flippies.pc.power.crashed", e.toString());
         }
         supplyOn = true;
-        setChanged();
         return null;
     }
 
@@ -354,7 +418,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         PagedDiskImage hdd = null;
         if (hddStack.getItem() instanceof PcHddItem hddItem)
             hdd = server.disks().acquire(PcDiskItems.assignId(hddStack), hddItem.type().bytes());
-        long mac = PcMotherboardItem.macOf(part(PcSlot.MOTHERBOARD), level.random);
+        long mac = PcMotherboardItem.macOf(part(PcSlot.MOTHERBOARD), level().random);
         MachineConfig config = MachineConfig.of(cpu.model(), cpu.clockHz(), usableRam(), hdd,
                 PcCpuItem.strictFpu(part(PcSlot.CPU)), mac);
         Machine machine;
@@ -395,14 +459,13 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             supplyOn = false;
             frozen = false;
             deleteStateFile();
-            setChanged();
         }
     }
 
     /** The emulator threw: this PC alone stops, logged once, with its error light on (spec 11.2.6). */
     void crash(Throwable error) {
         if (!crashed)
-            CreateFlippies.LOGGER.error("PC at {} crashed", worldPosition, error);
+            CreateFlippies.LOGGER.error("PC at {} crashed", blockPosition(), error);
         crashed = true;
         String message = error.getMessage();
         crashMessage = error.getClass().getSimpleName() + (message == null ? "" : ": " + message);
@@ -410,7 +473,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             crashMessage = crashMessage.substring(0, 200);
         stopMachine(true);
         updateLights();
-        notifyUpdate();
+        sync();
     }
 
     /** After the scheduler ran the machine: follow its state, draw and lights (spec 11.2.6 step 4). */
@@ -447,7 +510,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             }
         }
         boolean error = crashed || state == MachineState.HALTED || exitError || overVoltage || guestLed
-                || (level != null && level.getGameTime() < refusalUntil);
+                || level().getGameTime() < refusalUntil;
         String key = crashed ? "crashed" : frozen && machine != null ? "frozen"
                 : state == MachineState.HALTED ? "halted" : power ? "running" : "off";
         String text = crashed ? crashMessage : haltReason != null ? haltReason : overVoltage ? "over-voltage" : "";
@@ -456,16 +519,15 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             errorLit = error;
             stateKey = key;
             errorText = text;
-            sendData();
+            sync();
         }
     }
 
     // Ticking
 
     @Override
-    public void tick() {
-        super.tick();
-        if (level == null || level.isClientSide)
+    protected void deviceTick() {
+        if (level().isClientSide)
             return;
         ticks++;
         if (sinceLoad >= 0)
@@ -495,33 +557,21 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
                 circuit.load().setResistance(ohms);
         }
 
-        if (refusalUntil != 0 && level.getGameTime() >= refusalUntil) {
+        if (refusalUntil != 0 && level().getGameTime() >= refusalUntil) {
             refusalUntil = 0;
             updateLights();
         }
 
-        boolean wired = socketHasCord();
+        boolean wired = electric.wired(PcPower.TERMINAL_A, PcPower.TERMINAL_B);
         if (wired != socketWired) {
             socketWired = wired;
-            sendData();
+            sync();
         }
 
-        if (runtime != null && ticks % SAVE_INTERVAL == 0)
-            setChanged();
         if (ticks % FIGURES_SYNC == 0)
             syncFigures();
         if (ticks % 20 == 7)
             DataCords.validateLinks(this);
-    }
-
-    private boolean socketHasCord() {
-        var connections = getElectricBehaviour().getConnections();
-        return hasWire(connections.get(new BlockWireEndpoint(worldPosition, PcPower.TERMINAL_A)))
-                && hasWire(connections.get(new BlockWireEndpoint(worldPosition, PcPower.TERMINAL_B)));
-    }
-
-    private static boolean hasWire(Set<BaseWireEntity> wires) {
-        return wires != null && !wires.isEmpty();
     }
 
     private void syncFigures() {
@@ -539,7 +589,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             shownSpeed = speed;
             cpuText = cpuLine;
             ramText = ramLine;
-            sendData();
+            sync();
         }
     }
 
@@ -554,14 +604,12 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     // Loading, saving and the chunk-unload freeze (spec 11.2.8)
 
     @Override
-    public void onLoad() {
-        super.onLoad();
-        if (level == null || level.isClientSide)
+    protected void added() {
+        electric.added();
+        if (level().isClientSide)
             return;
-        if (pcId == null) {
+        if (pcId == null)
             pcId = UUID.randomUUID();
-            setChanged();
-        }
         PcServer server = PcServer.get();
         if (server != null)
             server.loaded(this);
@@ -596,7 +644,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         try {
             saved = PcStateStore.decode(server.writer().read(statePath(server)));
         } catch (java.io.IOException e) {
-            CreateFlippies.LOGGER.warn("PC at {}: could not read its saved state", worldPosition, e);
+            CreateFlippies.LOGGER.warn("PC at {}: could not read its saved state", blockPosition(), e);
         }
         PcStateStore.Restore decision = PcStateStore.decide(stateGen, saved, supplyOn, power);
         // A frozen PC comes back as it was or not at all: never a cold boot behind a freeze
@@ -610,13 +658,13 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
                 updateLights();
                 return;
             } catch (StateFormatException | RuntimeException e) {
-                CreateFlippies.LOGGER.warn("PC at {}: saved state not loaded ({}); {}", worldPosition, e.getMessage(),
+                CreateFlippies.LOGGER.warn("PC at {}: saved state not loaded ({}); {}", blockPosition(), e.getMessage(),
                         power ? "cold boot" : "staying off");
                 stopMachine(false);
                 decision = frozen ? PcStateStore.Restore.STAY_OFF : PcStateStore.afterFailure(power);
             }
         } else if (supplyOn) {
-            CreateFlippies.LOGGER.info("PC at {}: saved state {}; {}", worldPosition,
+            CreateFlippies.LOGGER.info("PC at {}: saved state {}; {}", blockPosition(),
                     saved == null ? "missing" : "from another generation", power ? "cold boot" : "staying off");
         }
         if (decision == PcStateStore.Restore.COLD_BOOT) {
@@ -629,7 +677,6 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             supplyOn = false;
             frozen = false;
             deleteStateFile();
-            setChanged();
         }
         updateLights();
     }
@@ -645,57 +692,91 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     }
 
     /**
-     * Freeze: the chunk was saved just before this (which wrote the side file), so
-     * all that is left is to flush the disks and drop the machine. Emulated time
-     * stands still until the chunk loads again.
+     * Unloaded, this is the freeze: its chunk's entities were saved just before this
+     * (which wrote the side file), so all that is left is to flush the disks and drop
+     * the machine. Emulated time stands still until the chunk loads again. Gone for
+     * good, the machine and its state file go too.
      */
     @Override
-    public void onChunkUnloaded() {
-        super.onChunkUnloaded();
-        if (level == null || level.isClientSide)
+    protected void removed(boolean destroyed) {
+        if (destroyed)
+            electric.remove();
+        else
+            electric.unload();
+        if (level().isClientSide)
             return;
         PcServer server = PcServer.get();
         if (server != null)
             server.unloaded(this);
-        stopMachine(false);
+        stopMachine(destroyed);
     }
 
     /** Broken: every part drops (the disks keep their images), links clear, the state file goes. Server only. */
-    void dropContents() {
+    @Override
+    protected void onBroken() {
         stopMachine(true);
+        Vec3 centre = getBoundingBox().getCenter();
         for (PcSlot slot : PcSlot.values()) {
             ItemStack stack = parts[slot.ordinal()];
             if (!stack.isEmpty())
-                Containers.dropItemStack(level, worldPosition.getX() + 0.5, worldPosition.getY() + 0.5,
-                        worldPosition.getZ() + 0.5, stack);
+                Containers.dropItemStack(level(), centre.x, centre.y, centre.z, stack);
             parts[slot.ordinal()] = ItemStack.EMPTY;
         }
         DataCords.breakAll(this);
-        PcServer server = PcServer.get();
-        if (server != null)
-            server.unloaded(this);
+    }
+
+    /** Tells clients what they draw and show. Server only. */
+    private void sync() {
+        if (!level().isClientSide)
+            entityData.set(CLIENT, clientTag());
     }
 
     @Override
-    protected void write(CompoundTag tag, boolean clientPacket) {
-        super.write(tag, clientPacket);
-        if (clientPacket) {
-            tag.putInt("PartsMask", partsMask);
-            tag.putBoolean("PowerLit", powerLit);
-            tag.putBoolean("ErrorLit", errorLit);
-            tag.putLong("PowerPress", powerPressTick);
-            tag.putLong("ResetPress", resetPressTick);
-            tag.putBoolean("Socket", socketWired);
-            tag.putString("State", stateKey);
-            tag.putString("Error", errorText);
-            tag.putFloat("Volts", shownVolts);
-            tag.putFloat("Watts", shownWatts);
-            tag.putFloat("Speed", shownSpeed);
-            tag.putString("Cpu", cpuText);
-            tag.putString("Ram", ramText);
-            tag.putBoolean("Frozen", frozen);
-            return;
-        }
+    public void onSyncedDataUpdated(EntityDataAccessor<?> accessor) {
+        super.onSyncedDataUpdated(accessor);
+        if (accessor == CLIENT && level().isClientSide)
+            readClient(entityData.get(CLIENT));
+    }
+
+    private CompoundTag clientTag() {
+        CompoundTag tag = new CompoundTag();
+        tag.putInt("PartsMask", partsMask);
+        tag.putBoolean("PowerLit", powerLit);
+        tag.putBoolean("ErrorLit", errorLit);
+        tag.putLong("PowerPress", powerPressTick);
+        tag.putLong("ResetPress", resetPressTick);
+        tag.putBoolean("Socket", socketWired);
+        tag.putString("State", stateKey);
+        tag.putString("Error", errorText);
+        tag.putFloat("Volts", shownVolts);
+        tag.putFloat("Watts", shownWatts);
+        tag.putFloat("Speed", shownSpeed);
+        tag.putString("Cpu", cpuText);
+        tag.putString("Ram", ramText);
+        tag.putBoolean("Frozen", frozen);
+        return tag;
+    }
+
+    private void readClient(CompoundTag tag) {
+        setPartsMask(tag.getInt("PartsMask"));
+        powerLit = tag.getBoolean("PowerLit");
+        errorLit = tag.getBoolean("ErrorLit");
+        powerPressTick = tag.getLong("PowerPress");
+        resetPressTick = tag.getLong("ResetPress");
+        socketWired = tag.getBoolean("Socket");
+        stateKey = tag.getString("State");
+        errorText = tag.getString("Error");
+        shownVolts = tag.getFloat("Volts");
+        shownWatts = tag.getFloat("Watts");
+        shownSpeed = tag.getFloat("Speed");
+        cpuText = tag.getString("Cpu");
+        ramText = tag.getString("Ram");
+        frozen = tag.getBoolean("Frozen");
+    }
+
+    @Override
+    protected void addAdditionalSaveData(CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
         if (pcId != null)
             tag.putUUID("PcId", pcId);
         ListTag list = new ListTag();
@@ -703,11 +784,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             ItemStack stack = parts[slot.ordinal()];
             if (stack.isEmpty())
                 continue;
-            //? if forge {
-            CompoundTag entry = stack.save(new CompoundTag());
-            //?} else {
-            /*CompoundTag entry = ItemNbt.save(stack, registries);
-            *///?}
+            CompoundTag entry = ItemNbt.save(stack, level().registryAccess());
             entry.putString("Slot", slot.name());
             list.add(entry);
         }
@@ -734,7 +811,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
      * generation: taken now on the machine's thread, written in the background.
      */
     private void saveMachineState() {
-        if (runtime == null || level == null || level.isClientSide)
+        if (runtime == null || level().isClientSide)
             return;
         PcServer server = PcServer.get();
         if (server == null || pcId == null)
@@ -743,7 +820,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         try {
             state = runtime.machine().saveState();
         } catch (RuntimeException e) {
-            CreateFlippies.LOGGER.error("PC at {}: could not save its machine state", worldPosition, e);
+            CreateFlippies.LOGGER.error("PC at {}: could not save its machine state", blockPosition(), e);
             return;
         }
         stateGen++;
@@ -752,25 +829,8 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     }
 
     @Override
-    protected void read(CompoundTag tag, boolean clientPacket) {
-        super.read(tag, clientPacket);
-        if (clientPacket) {
-            partsMask = tag.getInt("PartsMask");
-            powerLit = tag.getBoolean("PowerLit");
-            errorLit = tag.getBoolean("ErrorLit");
-            powerPressTick = tag.getLong("PowerPress");
-            resetPressTick = tag.getLong("ResetPress");
-            socketWired = tag.getBoolean("Socket");
-            stateKey = tag.getString("State");
-            errorText = tag.getString("Error");
-            shownVolts = tag.getFloat("Volts");
-            shownWatts = tag.getFloat("Watts");
-            shownSpeed = tag.getFloat("Speed");
-            cpuText = tag.getString("Cpu");
-            ramText = tag.getString("Ram");
-            frozen = tag.getBoolean("Frozen");
-            return;
-        }
+    protected void readAdditionalSaveData(CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
         if (tag.hasUUID("PcId"))
             pcId = tag.getUUID("PcId");
         java.util.Arrays.fill(parts, ItemStack.EMPTY);
@@ -778,11 +838,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             CompoundTag entry = (CompoundTag) t;
             try {
                 PcSlot slot = PcSlot.valueOf(entry.getString("Slot"));
-                //? if forge {
-                parts[slot.ordinal()] = ItemStack.of(entry);
-                //?} else {
-                /*parts[slot.ordinal()] = ItemNbt.load(entry, registries);
-                *///?}
+                parts[slot.ordinal()] = ItemNbt.load(entry, level().registryAccess());
             } catch (IllegalArgumentException e) {
                 // A slot this build does not know; the part is dropped from the case
             }
@@ -800,6 +856,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             if (port >= 0 && port < links.length)
                 links[port] = DataLink.read(entry);
         }
+        sync();
     }
 
     // Freezing and snapshots (spec 12.19)
@@ -827,9 +884,8 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         if (server != null)
             server.scheduler().remove(runtime);
         railWatts = 0;
-        setChanged();
         updateLights();
-        sendData();
+        sync();
         return null;
     }
 
@@ -854,9 +910,8 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
     private void resume(PcServer server) {
         frozen = false;
         server.scheduler().add(runtime);
-        setChanged();
         updateLights();
-        sendData();
+        sync();
     }
 
     /** A placed snapshot's disks and state are still being copied in. */
@@ -916,7 +971,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
             ItemStack stack = parts[slot.ordinal()];
             if (stack.isEmpty())
                 continue;
-            CompoundTag entry = ItemNbt.save(stack, level.registryAccess());
+            CompoundTag entry = ItemNbt.save(stack, level().registryAccess());
             entry.putString("Slot", slot.name());
             list.add(entry);
         }
@@ -954,20 +1009,19 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         crashMessage = "";
         restorePending = hasState;
         sinceLoad = 0;
-        setChanged();
-        notifyUpdate();
+        sync();
     }
 
     // Data ports (spec 11.2.5)
 
     @Override
     public PortAddress portAddress() {
-        return PortAddress.block(worldPosition);
+        return PortAddress.entity(blockPosition(), getUUID());
     }
 
     @Override
     public Level hostLevel() {
-        return level;
+        return level();
     }
 
     @Override
@@ -987,18 +1041,25 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
 
     @Override
     public Vec3 portOrigin(int port) {
-        return Vec3.atLowerCornerOf(worldPosition)
-                .add(PcCaseGeometry.toBlock(PcCaseGeometry.portFaceCentre(port), facing()));
+        return toWorld(PcCaseGeometry.portFaceCentre(port));
     }
 
     @Override
     public AABB portBox(int port) {
-        return PcCaseGeometry.toBlock(PcCaseGeometry.portBox(port), facing()).move(worldPosition);
+        double[] b = PcCaseGeometry.portBox(port);
+        return new AABB(toWorld(new Vec3(b[0], b[1], b[2])), toWorld(new Vec3(b[3], b[4], b[5])));
+    }
+
+    /** The port, if the point is on it in the model's own frame (the box above is only its turned bounds). */
+    @Override
+    public int portAt(Vec3 worldPoint) {
+        PcCaseGeometry.Target target = targetAt(worldPoint);
+        return target.kind() == PcCaseGeometry.Kind.PORT ? target.port() : -1;
     }
 
     @Override
     public Vec3 portNormal(int port) {
-        return Vec3.atLowerCornerOf(PcCaseGeometry.back(facing()).getNormal());
+        return directionToWorld(new Vec3(1, 0, 0));
     }
 
     @Override
@@ -1011,19 +1072,17 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         if (port < 0 || port >= links.length)
             return;
         links[port] = link;
-        setChanged();
-        sendData();
     }
 
     /** The case on the other end of a port's cord, if it is loaded and its link pairs with ours. */
-    public PcCaseBlockEntity peerCase(int port) {
-        return DataCords.peer(this, port, PcCaseBlockEntity.class);
+    public PcCaseEntity peerCase(int port) {
+        return DataCords.peer(this, port, PcCaseEntity.class);
     }
 
     /** The network modem on the other end of the ethernet cord, if it is loaded and its link pairs with ours. */
-    public com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity peerModem() {
+    public com.nectariich.create_flippies.content.modem.NetworkModemEntity peerModem() {
         return DataCords.peer(this, PcCaseGeometry.ETHERNET,
-                com.nectariich.create_flippies.content.modem.NetworkModemBlockEntity.class);
+                com.nectariich.create_flippies.content.modem.NetworkModemEntity.class);
     }
 
     /**
@@ -1059,29 +1118,7 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
         return machine == null ? null : new PcDisplayView(machine.vga(index));
     }
 
-    // Goggles and the case screen (spec 11.2.11)
-
-    @Override
-    public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
-        tooltip.add(Component.literal("    ").append(Component.translatable("block.create_flippies.pc_case")));
-        tooltip.add(line("gui.create_flippies.pc.goggles.state",
-                Component.translatable("gui.create_flippies.pc.state." + stateKey)));
-        tooltip.add(line("gui.create_flippies.pc.goggles.supply", String.format(Locale.ROOT, "%.0f", shownVolts),
-                String.format(Locale.ROOT, "%.1f", shownWatts)));
-        if (powerLit)
-            tooltip.add(line("gui.create_flippies.pc.goggles.speed", String.format(Locale.ROOT, "%.0f", shownSpeed)));
-        if (!cpuText.isEmpty())
-            tooltip.add(line("gui.create_flippies.pc.goggles.cpu", cpuText));
-        if (!ramText.isEmpty())
-            tooltip.add(line("gui.create_flippies.pc.goggles.ram", ramText));
-        if (!errorText.isEmpty())
-            tooltip.add(Component.literal("    ").append(Component.literal(errorText).withStyle(ChatFormatting.RED)));
-        return true;
-    }
-
-    private static MutableComponent line(String key, Object... args) {
-        return Component.literal("    ").append(Component.translatable(key, args).withStyle(ChatFormatting.GRAY));
-    }
+    // The case screen (spec 11.2.11)
 
     /** Everything the case screen lists, as the server sees it now. */
     public PcStatus status() {
@@ -1128,16 +1165,63 @@ public class PcCaseBlockEntity extends ElectricBlockEntity implements DataPortHo
 
     /** Whether {@code player} may use this case's screen: within reach (16 blocks). */
     public boolean reachable(ServerPlayer player) {
-        return player != null && !isRemoved() && player.level() == level
-                && player.distanceToSqr(Vec3.atCenterOf(worldPosition)) <= 16 * 16;
+        return player != null && !isRemoved() && player.level() == level()
+                && player.distanceToSqr(getBoundingBox().getCenter()) <= 16 * 16;
     }
 
     ServerLevel serverLevel() {
-        return (ServerLevel) level;
+        return (ServerLevel) level();
+    }
+
+    // Clicks: the data cord on a port, Power Grid's cord on the socket, the rest PcInteractions'
+
+    /** What a world-space point on this case is, in the frame of its model. */
+    PcCaseGeometry.Target targetAt(Vec3 worldPoint) {
+        return PcCaseGeometry.targetAt(toModel(worldPoint), filled());
     }
 
     @Override
-    protected AABB createRenderBoundingBox() {
-        return new AABB(worldPosition).inflate(0.25);
+    public InteractionResult interactAt(Player player, Vec3 local, InteractionHand hand) {
+        ItemStack held = player.getItemInHand(hand);
+        Vec3 world = position().add(local);
+        if (held.getItem() instanceof DataCordItem) {
+            int port = portAt(world);
+            return port < 0 ? InteractionResult.PASS : DataCordItem.usePort(level(), player, held, this, port);
+        }
+        PcCaseGeometry.Target target = targetAt(world);
+        if (IWire.isCord(level(), held.getItem())) {
+            if (target.kind() != PcCaseGeometry.Kind.SOCKET)
+                return InteractionResult.PASS;
+            // The server keeps the cord's first end in the stack and syncs it back
+            if (level().isClientSide)
+                return InteractionResult.SUCCESS;
+            double[] plug = PcCaseGeometry.POWER_PLUG;
+            EntityCordEndpoint end = new EntityCordEndpoint(getUUID(), blockPosition(),
+                    toWorld(new Vec3(plug[3], (plug[1] + plug[4]) / 2, (plug[2] + plug[5]) / 2)));
+            UseOnContext context = new UseOnContext(player, hand,
+                    new BlockHitResult(world, Direction.UP, blockPosition(), false));
+            return CordItemAccessor.create_flippies$addEndpoint(context, end);
+        }
+        // Power Grid's other wires have nothing to plug into here
+        if (held.getItem() instanceof WireItem)
+            return InteractionResult.PASS;
+        if (ScrewdriverItem.isScrewdriver(held))
+            return screwdriver(target, player);
+        return PcInteractions.use(this, target, player, hand);
+    }
+
+    /**
+     * The screwdriver: on the front panel it takes the panel off into the player's
+     * inventory; anywhere else on the case it opens the case screen. Both sides
+     * reach the same verdict from the same aim.
+     */
+    private InteractionResult screwdriver(PcCaseGeometry.Target target, Player player) {
+        if (target.kind() == PcCaseGeometry.Kind.PART && target.slot() == PcSlot.FRONT_PANEL) {
+            if (!level().isClientSide)
+                PcInteractions.takePanel(this, player);
+        } else if (!level().isClientSide && player instanceof ServerPlayer server) {
+            ModPackets.sendToPlayer(server, new OpenPcCasePacket(getId(), status()));
+        }
+        return InteractionResult.sidedSuccess(level().isClientSide);
     }
 }

@@ -1,8 +1,7 @@
 package com.nectariich.create_flippies.network;
 
-import com.nectariich.create_flippies.content.pc.PcCaseBlockEntity;
+import com.nectariich.create_flippies.content.pc.PcCaseEntity;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -17,32 +16,31 @@ public class PcActionPacket implements FlippiesPacket {
         POLL
     }
 
-    private final BlockPos pos;
+    private final int caseId;
     private final Action action;
 
-    public PcActionPacket(BlockPos pos, Action action) {
-        this.pos = pos;
+    public PcActionPacket(int caseId, Action action) {
+        this.caseId = caseId;
         this.action = action;
     }
 
     public PcActionPacket(FriendlyByteBuf buffer) {
-        pos = buffer.readBlockPos();
+        caseId = buffer.readVarInt();
         action = buffer.readEnum(Action.class);
     }
 
     public void encode(FriendlyByteBuf buffer) {
-        buffer.writeBlockPos(pos);
+        buffer.writeVarInt(caseId);
         buffer.writeEnum(action);
     }
 
     public void handle(PacketContext context) {
         context.enqueueWork(() -> {
             ServerPlayer player = context.sender();
-            if (player == null || !player.level().isLoaded(pos))
+            if (player == null || !(player.level().getEntity(caseId) instanceof PcCaseEntity pc)
+                    || !pc.reachable(player))
                 return;
-            if (!(player.level().getBlockEntity(pos) instanceof PcCaseBlockEntity pc) || !pc.reachable(player))
-                return;
-            ModPackets.sendToPlayer(player, new PcStatusPacket(pos, pc.status()));
+            ModPackets.sendToPlayer(player, new PcStatusPacket(caseId, pc.status()));
         });
     }
 }

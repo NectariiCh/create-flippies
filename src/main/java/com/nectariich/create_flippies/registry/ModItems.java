@@ -208,7 +208,8 @@ public class ModItems {
     // PC
     /** The PC case, placed with its front panel on and nothing inside (docs/PC_SPEC.md 11.2.3). */
     public static final Supplier<Item> PC_CASE = ITEMS.register("pc_case",
-            () -> new BlockItem(ModBlocks.PC_CASE.get(), new Item.Properties()));
+            () -> new com.nectariich.create_flippies.content.pc.PcCaseItem(ModEntityTypes.PC_CASE,
+                    new Item.Properties()));
 
     public static final Supplier<Item> PC_FRONT_PANEL = ITEMS.register("pc_front_panel",
             () -> new PcPartItem(PcPartItem.Kind.FRONT_PANEL, new Item.Properties().stacksTo(16)));
@@ -232,7 +233,8 @@ public class ModItems {
 
     /** The network modem (docs/PC_SPEC.md 12.4.5). */
     public static final Supplier<Item> NETWORK_MODEM = ITEMS.register("network_modem",
-            () -> new BlockItem(ModBlocks.NETWORK_MODEM.get(), new Item.Properties()));
+            () -> new com.nectariich.create_flippies.content.device.DeviceItem(ModEntityTypes.NETWORK_MODEM,
+                    com.nectariich.create_flippies.content.modem.NetworkModemEntity::new, new Item.Properties()));
 
     public static final Supplier<Item> KEYBOARD = ITEMS.register("keyboard",
             () -> new com.nectariich.create_flippies.content.device.DeviceItem(ModEntityTypes.KEYBOARD,

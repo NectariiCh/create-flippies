@@ -9,6 +9,9 @@ import com.nectariich.create_flippies.content.pc.PcCaseGeometry;
  */
 public final class KeyboardGeometry {
 
+    /** The size a placed keyboard, or keyboard and mouse, stands at, as a fraction of the model's. */
+    public static final double SCALE = 0.65;
+
     /** The body, px. */
     public static final double[] BODY = {0, 0, 0, 7, 1, 16};
     /** The model's `ps/2` cube: the keyboard's port. */

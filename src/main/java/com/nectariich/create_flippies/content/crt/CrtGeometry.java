@@ -12,6 +12,9 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class CrtGeometry {
 
+    /** The size a placed CRT stands at, as a fraction of the model's. */
+    public static final double SCALE = 0.65;
+
     /** The data port and its index: one VGA input. */
     public static final int VGA_IN = 0, PORTS = 1;
 

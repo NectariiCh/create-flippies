@@ -10,7 +10,7 @@ import com.nectariich.create_flippies.content.pc.PcLinkExchange;
 /**
  * A network modem block's server side without the game (spec 12.4.5): the {@link Modem}, made
  * when a running PC first drives it, the tick's exchange with that PC, a failure in the modem's
- * stack, and the lights. {@link NetworkModemBlockEntity} owns one and syncs the lights.
+ * stack, and the lights. {@link NetworkModemEntity} owns one and syncs the lights.
  *
  * A throw from the modem stops this modem alone: it is dropped, its link and the PC's go down, and
  * a fresh one is made after {@link #RETRY_TICKS}. A failure is reported at most once per

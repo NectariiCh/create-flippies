@@ -7,7 +7,6 @@ import com.nectariich.create_flippies.network.PcActionPacket;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -20,29 +19,29 @@ public class PcCaseScreen extends FlippiesScreen {
     private static final int POLL_TICKS = 10;
     private static final int LINE_HEIGHT = 11;
 
-    private final BlockPos pos;
+    private final int caseId;
     private PcStatus status;
     private int ticks;
 
-    private PcCaseScreen(BlockPos pos, PcStatus status) {
+    private PcCaseScreen(int caseId, PcStatus status) {
         super(Component.translatable("gui.create_flippies.pc.screen.title"));
-        this.pos = pos;
+        this.caseId = caseId;
         this.status = status;
     }
 
-    public static void open(BlockPos pos, PcStatus status) {
-        Minecraft.getInstance().setScreen(new PcCaseScreen(pos, status));
+    public static void open(int caseId, PcStatus status) {
+        Minecraft.getInstance().setScreen(new PcCaseScreen(caseId, status));
     }
 
-    public static void statusArrived(BlockPos pos, PcStatus status) {
-        if (Minecraft.getInstance().screen instanceof PcCaseScreen screen && screen.pos.equals(pos))
+    public static void statusArrived(int caseId, PcStatus status) {
+        if (Minecraft.getInstance().screen instanceof PcCaseScreen screen && screen.caseId == caseId)
             screen.status = status;
     }
 
     @Override
     public void tick() {
         if (++ticks % POLL_TICKS == 0)
-            ModPackets.sendToServer(new PcActionPacket(pos, PcActionPacket.Action.POLL));
+            ModPackets.sendToServer(new PcActionPacket(caseId, PcActionPacket.Action.POLL));
     }
 
     @Override

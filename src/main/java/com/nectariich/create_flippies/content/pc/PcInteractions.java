@@ -22,18 +22,15 @@ import net.minecraft.world.level.Level;
  * - The open side (panel off): a part in hand installs it, into the aimed RAM slot
  *   if that is free; the panel item fits the panel back.
  * - A part, sneaking with an empty hand: takes it out.
- * - The front panel comes off with a screwdriver ({@link PcCaseBlock#openConfig}).
+ * - The front panel comes off with a screwdriver ({@link PcCaseEntity#interactAt}).
  */
 public final class PcInteractions {
 
-    /** How far the screwdriver path re-picks the aim from the player's eye. */
-    static final double PICK_RANGE = 8;
-
     private PcInteractions() {}
 
-    static InteractionResult use(PcCaseBlockEntity pc, PcCaseGeometry.Target target, Player player,
+    static InteractionResult use(PcCaseEntity pc, PcCaseGeometry.Target target, Player player,
             InteractionHand hand) {
-        Level level = pc.getLevel();
+        Level level = pc.level();
         ItemStack held = player.getItemInHand(hand);
         PcPartItem.Kind kind = PcPartItem.kindOf(held);
         // A frozen PC is held as it is (spec 12.19): no buttons, no floppy swap
@@ -82,9 +79,9 @@ public final class PcInteractions {
         }
     }
 
-    private static InteractionResult install(PcCaseBlockEntity pc, PcSlot slot, Player player, InteractionHand hand,
+    private static InteractionResult install(PcCaseEntity pc, PcSlot slot, Player player, InteractionHand hand,
             ItemStack held) {
-        Level level = pc.getLevel();
+        Level level = pc.level();
         Set<PcSlot> filled = pc.filled();
         PcSlotRules.Refusal refusal = PcSlotRules.canInstall(slot, filled, pc.running());
         if (refusal != PcSlotRules.Refusal.OK)
@@ -94,13 +91,13 @@ public final class PcInteractions {
             if (!player.getAbilities().instabuild)
                 held.shrink(1);
             pc.install(slot, one);
-            level.playSound(null, pc.getBlockPos(), SoundEvents.ITEM_FRAME_ADD_ITEM, SoundSource.BLOCKS, 0.6f, 1.2f);
+            level.playSound(null, pc.blockPosition(), SoundEvents.ITEM_FRAME_ADD_ITEM, SoundSource.BLOCKS, 0.6f, 1.2f);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
-    private static InteractionResult takeOut(PcCaseBlockEntity pc, PcSlot slot, Player player) {
-        Level level = pc.getLevel();
+    private static InteractionResult takeOut(PcCaseEntity pc, PcSlot slot, Player player) {
+        Level level = pc.level();
         PcSlotRules.Refusal refusal = PcSlotRules.canRemove(slot, pc.filled(), pc.running());
         if (refusal == PcSlotRules.Refusal.EMPTY)
             return InteractionResult.PASS;
@@ -108,18 +105,18 @@ public final class PcInteractions {
             return refuse(level, player, refusal, slot);
         if (!level.isClientSide) {
             give(player, pc.remove(slot));
-            level.playSound(null, pc.getBlockPos(), SoundEvents.ITEM_FRAME_REMOVE_ITEM, SoundSource.BLOCKS, 0.6f, 1.2f);
+            level.playSound(null, pc.blockPosition(), SoundEvents.ITEM_FRAME_REMOVE_ITEM, SoundSource.BLOCKS, 0.6f, 1.2f);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
     /** The screwdriver on the front panel: it comes off into the inventory, or drops. Server only. */
-    static void takePanel(PcCaseBlockEntity pc, Player player) {
+    static void takePanel(PcCaseEntity pc, Player player) {
         PcSlotRules.Refusal refusal = PcSlotRules.canRemove(PcSlot.FRONT_PANEL, pc.filled(), pc.running());
         if (refusal != PcSlotRules.Refusal.OK)
             return;
         give(player, pc.remove(PcSlot.FRONT_PANEL));
-        pc.getLevel().playSound(null, pc.getBlockPos(), SoundEvents.ITEM_FRAME_REMOVE_ITEM, SoundSource.BLOCKS, 0.6f,
+        pc.level().playSound(null, pc.blockPosition(), SoundEvents.ITEM_FRAME_REMOVE_ITEM, SoundSource.BLOCKS, 0.6f,
                 0.9f);
     }
 

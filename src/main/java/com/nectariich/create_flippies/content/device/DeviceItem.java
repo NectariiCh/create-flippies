@@ -67,6 +67,9 @@ public class DeviceItem extends Item {
         return level.isUnobstructed(null, shape);
     }
 
+    /** {@code device} was just placed from {@code stack} by {@code player}, before the stack shrinks. Server only. */
+    protected void placed(DeviceEntity device, ItemStack stack, Player player) {}
+
     @Override
     public InteractionResult useOn(UseOnContext context) {
         Level level = context.getLevel();
@@ -80,6 +83,7 @@ public class DeviceItem extends Item {
             return InteractionResult.SUCCESS;
         if (!level.addFreshEntity(device))
             return InteractionResult.FAIL;
+        placed(device, context.getItemInHand(), player);
         SoundType sound = device.sound();
         Vec3 at = device.position();
         level.playSound(null, at.x, at.y, at.z, sound.getPlaceSound(), SoundSource.BLOCKS, (sound.getVolume() + 1) / 2,

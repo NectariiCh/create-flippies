@@ -285,6 +285,9 @@ public class ModPartialModels {
     public static final PartialModel PC_POWER_LED = pcPartial("power_led");
     public static final PartialModel PC_ERROR_LED = pcPartial("error_led");
     public static final PartialModel PC_POWER_PLUG = pcPartial("power_plug");
+    // The case and the network modem are entities, drawn from their shells
+    public static final PartialModel PC_CASE = pcPartial("shell");
+    public static final PartialModel NETWORK_MODEM = PartialModel.of(CreateFlippies.asResource("block/network_modem/shell"));
     // The network modem's two lights (docs/PC_SPEC.md 12.4.5), cut from its placeholder model
     public static final PartialModel MODEM_POWER_LED = PartialModel.of(CreateFlippies.asResource("block/network_modem/power_led"));
     public static final PartialModel MODEM_LINK_LED = PartialModel.of(CreateFlippies.asResource("block/network_modem/link_led"));

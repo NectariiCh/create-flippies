@@ -30,7 +30,7 @@ public class KeyboardMouseEntity extends KeyboardEntity {
 
     public static final DeviceShape SHAPE = new DeviceShape(
             new double[][] {KeyboardGeometry.PAIR_KEYBOARD_BODY, KeyboardGeometry.PAIR_MOUSE_BODY},
-            new double[][] {portBox(KEYBOARD_PORT), portBox(MOUSE_PORT)}, -1);
+            new double[][] {portBox(KEYBOARD_PORT), portBox(MOUSE_PORT)}, -1, KeyboardGeometry.SCALE);
 
     public KeyboardMouseEntity(EntityType<?> type, Level level) {
         super(type, level);

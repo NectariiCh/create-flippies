@@ -13,8 +13,8 @@ import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 //? if forge {
 import net.minecraftforge.event.RegisterCommandsEvent;
 //?} else {
@@ -24,8 +24,9 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 /**
- * {@code /flippies pc ...} (spec 12.19), operators only (level 2). A PC is the one at
- * {@code <pos>}, or else the case the player is looking at.
+ * {@code /flippies pc ...} (spec 12.19), operators only (level 2). A PC is the case in the
+ * block at {@code <pos>} (the one nearest its middle, if several share it), or else the case
+ * the player is looking at.
  * <ul>
  * <li>{@code freeze [<pos>|all]}, {@code unfreeze [<pos>|all]}: hold a running PC still, or let
  * it run on;</li>
@@ -47,8 +48,8 @@ public final class PcCommands {
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("flippies").then(Commands.literal("pc")
                 .requires(source -> source.hasPermission(2))
-                .then(freezing("freeze", PcCaseBlockEntity::freeze))
-                .then(freezing("unfreeze", PcCaseBlockEntity::unfreeze))
+                .then(freezing("freeze", PcCaseEntity::freeze))
+                .then(freezing("unfreeze", PcCaseEntity::unfreeze))
                 .then(Commands.literal("snapshot")
                         .then(Commands.literal("save").then(Commands.argument("name", StringArgumentType.word())
                                 .executes(c -> save(c, false, null))
@@ -69,7 +70,7 @@ public final class PcCommands {
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> freezing(String verb,
-            Function<PcCaseBlockEntity, Component> action) {
+            Function<PcCaseEntity, Component> action) {
         return Commands.literal(verb)
                 .executes(c -> one(c.getSource(), find(c.getSource(), null), verb, action))
                 .then(Commands.literal("all").executes(c -> all(c.getSource(), verb, action)))
@@ -78,8 +79,8 @@ public final class PcCommands {
                                 "pos")), verb, action)));
     }
 
-    private static int one(CommandSourceStack source, PcCaseBlockEntity pc, String verb,
-            Function<PcCaseBlockEntity, Component> action) {
+    private static int one(CommandSourceStack source, PcCaseEntity pc, String verb,
+            Function<PcCaseEntity, Component> action) {
         if (pc == null)
             return 0;
         Component refusal = action.apply(pc);
@@ -93,12 +94,12 @@ public final class PcCommands {
         return 1;
     }
 
-    private static int all(CommandSourceStack source, String verb, Function<PcCaseBlockEntity, Component> action) {
+    private static int all(CommandSourceStack source, String verb, Function<PcCaseEntity, Component> action) {
         PcServer server = PcServer.get();
         if (server == null)
             return 0;
         int done = 0;
-        for (PcCaseBlockEntity pc : server.loadedCases())
+        for (PcCaseEntity pc : server.loadedCases())
             if ((verb.equals("freeze") ? pc.running() && !pc.frozen() : pc.frozen()) && action.apply(pc) == null)
                 done++;
         int n = done;
@@ -111,7 +112,7 @@ public final class PcCommands {
         String name = StringArgumentType.getString(c, "name");
         if (!validName(source, name))
             return 0;
-        PcCaseBlockEntity pc = find(source, pos);
+        PcCaseEntity pc = find(source, pos);
         return pc == null ? 0 : snapshots(source).save(source, pc, name, toServer);
     }
 
@@ -136,22 +137,44 @@ public final class PcCommands {
     }
 
     /** The case at {@code pos}, or the one the player looks at; null (said why) if there is none. */
-    private static PcCaseBlockEntity find(CommandSourceStack source, BlockPos pos) {
-        BlockPos at = pos;
-        if (at == null) {
-            ServerPlayer player = source.getPlayer();
-            HitResult hit = player == null ? null : player.pick(REACH, 1, false);
-            if (hit instanceof BlockHitResult block && hit.getType() == HitResult.Type.BLOCK)
-                at = block.getBlockPos();
-        }
-        if (at != null && source.getLevel().getBlockEntity(at) instanceof PcCaseBlockEntity pc)
-            return pc;
-        source.sendFailure(Component.translatable("commands.create_flippies.pc.no_case"));
-        return null;
+    private static PcCaseEntity find(CommandSourceStack source, BlockPos pos) {
+        PcCaseEntity pc = pos != null ? caseIn(source, pos) : lookedAt(source.getPlayer());
+        if (pc == null)
+            source.sendFailure(Component.translatable("commands.create_flippies.pc.no_case"));
+        return pc;
     }
 
-    private static String pos(PcCaseBlockEntity pc) {
-        BlockPos p = pc.getBlockPos();
+    /** The case in the block at {@code pos}, the one nearest its middle; null if none. */
+    private static PcCaseEntity caseIn(CommandSourceStack source, BlockPos pos) {
+        Vec3 middle = Vec3.atCenterOf(pos);
+        PcCaseEntity best = null;
+        for (PcCaseEntity pc : source.getLevel().getEntitiesOfClass(PcCaseEntity.class, new AABB(pos)))
+            if (best == null || pc.getBoundingBox().getCenter().distanceToSqr(middle)
+                    < best.getBoundingBox().getCenter().distanceToSqr(middle))
+                best = pc;
+        return best;
+    }
+
+    /** The case nearest the player's eye along their look, within {@link #REACH}; null if none. */
+    private static PcCaseEntity lookedAt(ServerPlayer player) {
+        if (player == null)
+            return null;
+        Vec3 eye = player.getEyePosition();
+        Vec3 far = eye.add(player.getViewVector(1).scale(REACH));
+        PcCaseEntity best = null;
+        double bestFraction = Double.MAX_VALUE;
+        for (PcCaseEntity pc : player.level().getEntitiesOfClass(PcCaseEntity.class, new AABB(eye, far).inflate(1))) {
+            var hit = pc.clip(eye, far);
+            if (hit != null && hit.fraction() < bestFraction) {
+                best = pc;
+                bestFraction = hit.fraction();
+            }
+        }
+        return best;
+    }
+
+    private static String pos(PcCaseEntity pc) {
+        BlockPos p = pc.blockPosition();
         return p.getX() + " " + p.getY() + " " + p.getZ();
     }
 }
