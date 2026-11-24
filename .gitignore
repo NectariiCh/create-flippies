@@ -44,3 +44,6 @@ eclipse/
 __pycache__/
 *.pyc
 /*.jar
+
+# Game logs
+/logs/
